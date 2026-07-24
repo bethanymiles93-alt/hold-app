@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect } from "expo-router";
 import {
   AccessibilityInfo,
@@ -27,6 +28,7 @@ import {
   getPostReconnectState
 } from "@/services/holdHistoryService";
 import { getActiveReplies } from "@/services/replyStorageService";
+import { HAS_SEEN_WELCOME_KEY } from "@/constants/storageKeys";
 import type { HoldPeriod } from "@/types/hold";
 
 const AnimatedSafeAreaView = Animated.createAnimatedComponent(SafeAreaView);
@@ -80,6 +82,12 @@ export default function HomeScreen() {
       setIsAnimating(false);
 
       void (async () => {
+        const hasSeenWelcome = await AsyncStorage.getItem(HAS_SEEN_WELCOME_KEY).catch(() => null);
+        if (!hasSeenWelcome) {
+          router.replace("/welcome");
+          return;
+        }
+
         const period = await getOpenHoldPeriod().catch(() => null);
         setOpenPeriod(period);
 
@@ -317,7 +325,7 @@ export default function HomeScreen() {
           ) : (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Create a Hold"
+              accessibilityLabel="Going quiet"
               disabled={isAnimating}
               onPress={() => animateAndNavigate(QUIET_CIRCLE_SCALE, () => start("hold"))}
             >

@@ -1,7 +1,9 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Alert, Linking, Pressable, Share, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { theme } from "@/constants/theme";
+import { HAS_SEEN_WELCOME_KEY } from "@/constants/storageKeys";
 import { useHoldFlow } from "@/context/HoldFlowContext";
 import { deleteAllCircles } from "@/services/circleService";
 import { deleteAllHoldHistory } from "@/services/holdHistoryService";
@@ -104,7 +106,12 @@ export default function AboutScreen() {
           style: "destructive",
           onPress: () => {
             void (async () => {
-              await Promise.all([deleteAllCircles(), deleteAllHoldHistory(), deleteAllReplies()]);
+              await Promise.all([
+                deleteAllCircles(),
+                deleteAllHoldHistory(),
+                deleteAllReplies(),
+                AsyncStorage.removeItem(HAS_SEEN_WELCOME_KEY)
+              ]);
               resetFlow("hold");
               router.replace("/");
             })();
