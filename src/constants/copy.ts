@@ -6,24 +6,19 @@ export const HOLD_INTENTS: Array<{
   description: string;
 }> = [
   {
-    id: "quiet",
-    title: "I need quiet",
-    description: "Set a simple boundary without giving a reason."
-  },
-  {
     id: "unwell",
     title: "I’m unwell",
     description: "Say that your capacity is lower than usual."
   },
   {
-    id: "overwhelmed",
-    title: "Life is a lot right now",
-    description: "Explain that you are overwhelmed without going into detail."
+    id: "quiet",
+    title: "I need some quiet",
+    description: "Set a simple boundary without giving a reason."
   },
   {
-    id: "time",
-    title: "I need some time",
-    description: "Let them know you may be slower to respond."
+    id: "overwhelmed",
+    title: "Feeling a little overwhelmed",
+    description: "Explain that you are overwhelmed without going into detail."
   },
   {
     id: "custom",
@@ -58,3 +53,69 @@ export const RETURN_STYLES: Array<{
     description: "Start with a blank message."
   }
 ];
+
+export const QUICK_RECONNECT_MESSAGES: Array<{
+  id: string;
+  title: string;
+  text: string;
+}> = [
+  {
+    id: "doing-a-little-better",
+    title: "Doing a little better",
+    text: "I’m doing a little better, but I don’t quite have the energy for a proper reply yet. I’ll message properly soon x"
+  },
+  {
+    id: "getting-there",
+    title: "Getting there",
+    text: "Getting there, will try to reply properly soon."
+  },
+  {
+    id: "here-now",
+    title: "Just saying hello",
+    text: "I’m here again. More soon."
+  }
+];
+
+export const DEFAULT_TAKING_TIME_UPDATE =
+  "I’m still taking some time and can’t properly message yet, but I’m thinking of you.";
+
+export const REPLY_STYLES: Array<{
+  id: ReturnStyle;
+  title: string;
+  description: string;
+}> = [
+  {
+    id: "open-door",
+    title: "Keep it brief",
+    description: "A short, warm reply without much detail."
+  },
+  {
+    id: "acknowledge",
+    title: "Acknowledge the wait",
+    description: "Name that time passed, gently."
+  },
+  {
+    id: "explain-little",
+    title: "Explain a little",
+    description: "Share a little about where you’ve been."
+  },
+  {
+    id: "custom",
+    title: "Write my own",
+    description: "Start with a blank reply."
+  }
+];
+
+export const REPLY_WINDOW_OPTIONS: Array<{
+  hours: number;
+  description: string;
+}> = [
+  { hours: 1, description: "A quick errand or meeting" },
+  { hours: 2, description: "A few hours away" },
+  { hours: 4, description: "Most of a working block" },
+  { hours: 8, description: "A full day — the default" },
+  { hours: 12, description: "A long shift, travel, or surgery" }
+];
+
+export const DEFAULT_REPLY_WINDOW_HOURS = 8;
+export const MAX_REPLY_WINDOW_HOURS = 13;

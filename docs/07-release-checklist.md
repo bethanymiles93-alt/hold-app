@@ -23,7 +23,7 @@
 - Privacy copy matches actual behaviour
 - No message content in logs
 - No hidden analytics
-- No address-book request
+- No bulk address-book permission requested (picker-only, explicit per-contact selection; see privacy model for what's stored about Your Circle contacts)
 - Data deletion behaviour documented
 - “Not emergency support” language reviewed
 - UK legal/privacy advice obtained before public launch

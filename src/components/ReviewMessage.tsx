@@ -3,12 +3,14 @@ import { theme } from "@/constants/theme";
 
 interface ReviewMessageProps {
   recipients: string[];
+  circleName?: string | null;
   message: string;
   onChangeMessage: (message: string) => void;
 }
 
 export function ReviewMessage({
   recipients,
+  circleName,
   message,
   onChangeMessage
 }: ReviewMessageProps) {
@@ -16,7 +18,7 @@ export function ReviewMessage({
     <View style={styles.container}>
       <View style={styles.recipientPanel}>
         <Text style={styles.label}>For</Text>
-        <Text style={styles.recipients}>{recipients.join(", ")}</Text>
+        <Text style={styles.recipients}>{circleName ?? recipients.join(", ")}</Text>
       </View>
 
       <View style={styles.messageGroup}>

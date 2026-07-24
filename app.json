@@ -21,7 +21,14 @@
       "bundler": "metro"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "Hold only uses this to let you pick one person from Contacts at a time. It never requests access to your full address book."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

@@ -1,0 +1,281 @@
+import { useCallback, useState } from "react";
+import { Link, useFocusEffect } from "expo-router";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { theme } from "@/constants/theme";
+import { addContactToGroup, createGroup, getGroups } from "@/services/circleService";
+import { pickContact } from "@/services/contactPickerService";
+import type { CircleGroup } from "@/types/hold";
+
+const SUGGESTED_CIRCLES = ["Work", "Book Club"];
+
+interface GroupPickerProps {
+  selectedGroupIds: string[];
+  onToggle: (group: CircleGroup) => void;
+}
+
+export function GroupPicker({ selectedGroupIds, onToggle }: GroupPickerProps) {
+  const [groups, setGroups] = useState<CircleGroup[]>([]);
+  const [creating, setCreating] = useState(false);
+  const [newCircleName, setNewCircleName] = useState("");
+
+  const refresh = useCallback(async () => {
+    setGroups(await getGroups());
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void refresh();
+    }, [refresh])
+  );
+
+  const emptySelectedGroups = groups.filter(
+    (group) => selectedGroupIds.includes(group.id) && group.contacts.length === 0
+  );
+
+  const addCircle = async (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+
+    let circle = await createGroup(trimmed);
+
+    const picked = await pickContact();
+    if (picked) {
+      circle = (await addContactToGroup(circle.id, picked)) ?? circle;
+    }
+
+    setNewCircleName("");
+    setCreating(false);
+    await refresh();
+    onToggle(circle);
+  };
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.pillWrap}>
+        {groups.map((group) => {
+          const selected = selectedGroupIds.includes(group.id);
+          return (
+            <Pressable
+              key={group.id}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: selected }}
+              onPress={() => onToggle(group)}
+              style={[
+                styles.pill,
+                group.isCloseCircle ? styles.pillPrimary : styles.pillSecondary,
+                selected && styles.pillSelected
+              ]}
+            >
+              <Text
+                style={[
+                  styles.pillText,
+                  group.isCloseCircle ? styles.pillTextPrimary : styles.pillTextSecondary
+                ]}
+              >
+                {group.name}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {emptySelectedGroups.length > 0 ? (
+        <Text style={styles.prompt}>
+          {emptySelectedGroups.map((group) => group.name).join(", ")} doesn't have anyone in it
+          yet. Add someone from Your Circles in Settings before continuing.
+        </Text>
+      ) : null}
+
+      {creating ? (
+        <View style={styles.newCircle}>
+          <Text style={styles.label}>New Circle</Text>
+
+          <View style={styles.suggestionRow}>
+            {SUGGESTED_CIRCLES.map((name) => (
+              <Pressable
+                key={name}
+                accessibilityRole="button"
+                onPress={() => void addCircle(name)}
+                style={({ pressed }) => [styles.suggestionChip, pressed && styles.suggestionPressed]}
+              >
+                <Text style={styles.suggestionText}>+ {name}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <View style={styles.inputRow}>
+            <TextInput
+              accessibilityLabel="New Circle name"
+              autoCapitalize="words"
+              onChangeText={setNewCircleName}
+              onSubmitEditing={() => void addCircle(newCircleName)}
+              placeholder="Circle name, e.g. Book Club"
+              placeholderTextColor={theme.colors.textMuted}
+              returnKeyType="done"
+              style={styles.input}
+              value={newCircleName}
+            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Create Circle"
+              disabled={!newCircleName.trim()}
+              onPress={() => void addCircle(newCircleName)}
+              style={({ pressed }) => [
+                styles.addButton,
+                pressed && styles.addPressed,
+                !newCircleName.trim() && styles.disabled
+              ]}
+            >
+              <Text style={styles.addText}>Add</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setCreating(true)}
+          style={({ pressed }) => [styles.newCirclePill, pressed && styles.newCirclePillPressed]}
+        >
+          <Text style={styles.newCirclePillText}>+ New Circle</Text>
+        </Pressable>
+      )}
+
+      <Link href="/settings/circle" asChild>
+        <Pressable accessibilityRole="link" style={styles.manageLink}>
+          <Text style={styles.manageLinkText}>Manage your Circles</Text>
+        </Pressable>
+      </Link>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    gap: theme.spacing.md
+  },
+  pillWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: theme.spacing.sm
+  },
+  pill: {
+    minHeight: 38,
+    borderRadius: theme.radius.pill,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: theme.spacing.md
+  },
+  pillPrimary: {
+    backgroundColor: theme.colors.primary
+  },
+  pillSecondary: {
+    backgroundColor: theme.colors.surfaceStrong
+  },
+  pillSelected: {
+    borderWidth: 2,
+    borderColor: theme.colors.text
+  },
+  pillText: {
+    fontSize: 14,
+    fontWeight: "600"
+  },
+  pillTextPrimary: {
+    color: theme.colors.onPrimary
+  },
+  pillTextSecondary: {
+    color: theme.colors.primary
+  },
+  prompt: {
+    color: theme.colors.textMuted,
+    fontSize: 14,
+    lineHeight: 21
+  },
+  newCirclePill: {
+    alignSelf: "flex-start",
+    minHeight: 38,
+    borderRadius: theme.radius.pill,
+    borderWidth: 1.5,
+    borderColor: theme.colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: theme.spacing.md
+  },
+  newCirclePillPressed: {
+    backgroundColor: theme.colors.surface
+  },
+  newCirclePillText: {
+    color: theme.colors.primary,
+    fontSize: 14,
+    fontWeight: "600"
+  },
+  newCircle: {
+    gap: theme.spacing.sm
+  },
+  label: {
+    color: theme.colors.textMuted,
+    fontSize: 14,
+    fontWeight: "600"
+  },
+  suggestionRow: {
+    flexDirection: "row",
+    gap: theme.spacing.sm
+  },
+  suggestionChip: {
+    minHeight: 40,
+    justifyContent: "center",
+    borderRadius: theme.radius.pill,
+    backgroundColor: theme.colors.surfaceStrong,
+    paddingHorizontal: theme.spacing.md
+  },
+  suggestionPressed: {
+    opacity: 0.7
+  },
+  suggestionText: {
+    color: theme.colors.text,
+    fontSize: 15,
+    fontWeight: "500"
+  },
+  inputRow: {
+    flexDirection: "row",
+    gap: theme.spacing.sm
+  },
+  input: {
+    flex: 1,
+    minHeight: 54,
+    borderWidth: 1.5,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.md,
+    paddingHorizontal: theme.spacing.md,
+    color: theme.colors.text,
+    fontSize: 17,
+    backgroundColor: theme.colors.white
+  },
+  addButton: {
+    minWidth: 72,
+    minHeight: 54,
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.primary,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  addPressed: {
+    backgroundColor: theme.colors.primaryPressed
+  },
+  disabled: {
+    opacity: 0.4
+  },
+  addText: {
+    color: theme.colors.onPrimary,
+    fontSize: 16,
+    fontWeight: "600"
+  },
+  manageLink: {
+    minHeight: 44,
+    justifyContent: "center"
+  },
+  manageLinkText: {
+    color: theme.colors.primary,
+    fontSize: 15,
+    fontWeight: "600"
+  }
+});

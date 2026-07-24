@@ -23,7 +23,7 @@
 
 Potential additions only if research supports them:
 
-- optional saved circles
+- ~~optional saved circles~~ — shipped ahead of this gate, at explicit product direction, before the usual research-support bar was met. See `docs/03-privacy-model.md` → "Your Circle" for what this actually stores and the dedicated review it still needs before public release.
 - optional local draft saving
 - feedback form
 - secure analytics events

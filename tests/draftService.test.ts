@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createLocalDraft } from "../src/services/draftService";
+import { createLocalDraft, createLocalReplyDraft } from "../src/services/draftService";
 
 describe("createLocalDraft", () => {
   it("creates a hold draft without requiring a diagnosis", () => {
@@ -31,5 +31,15 @@ describe("createLocalDraft", () => {
         intent: "custom"
       })
     ).toBe("");
+  });
+});
+
+describe("createLocalReplyDraft", () => {
+  it("creates a reply that acknowledges the other person's message", () => {
+    expect(createLocalReplyDraft("open-door")).toContain("Thanks for your message");
+  });
+
+  it("returns a blank draft for custom writing", () => {
+    expect(createLocalReplyDraft("custom")).toBe("");
   });
 });

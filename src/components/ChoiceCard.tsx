@@ -39,13 +39,13 @@ export function ChoiceCard({
 const styles = StyleSheet.create({
   card: {
     flexDirection: "row",
-    gap: theme.spacing.md,
-    padding: theme.spacing.md,
+    gap: theme.spacing.sm,
+    padding: theme.spacing.sm,
     borderRadius: theme.radius.md,
     borderWidth: 1.5,
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.background,
-    minHeight: 84
+    minHeight: 68
   },
   selected: {
     borderColor: theme.colors.primary,

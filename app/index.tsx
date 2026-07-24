@@ -1,58 +1,417 @@
-import { Link, router } from "expo-router";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Screen } from "@/components/Screen";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import {
+  AccessibilityInfo,
+  Alert,
+  Animated,
+  Easing,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { HoldMark } from "@/components/HoldMark";
-import { PrimaryButton } from "@/components/PrimaryButton";
+import { HeldMark } from "@/components/HeldMark";
+import { NavPill } from "@/components/NavPill";
 import { SecondaryButton } from "@/components/SecondaryButton";
+import { AboutIcon } from "@/components/AboutIcon";
+import { HistoryIcon } from "@/components/HistoryIcon";
 import { theme } from "@/constants/theme";
+import { useAppTheme } from "@/hooks/useAppTheme";
 import { useHoldFlow } from "@/context/HoldFlowContext";
+import {
+  clearPostReconnect,
+  getOpenHoldPeriod,
+  getPostReconnectState
+} from "@/services/holdHistoryService";
+import { getActiveReplies } from "@/services/replyStorageService";
+import type { HoldPeriod } from "@/types/hold";
+
+const AnimatedSafeAreaView = Animated.createAnimatedComponent(SafeAreaView);
+
+export const LARGE_CIRCLE_SIZE = 240;
+export const QUIET_CIRCLE_SCALE = 0.75;
+
+// Tap transitions are quick and purely physical (scale only) — the emotional
+// colour shift lives on the resting screen instead, see the palette fade below.
+const TAP_DURATION = 280;
+const NAVIGATE_TRIGGER_MS = Math.round(TAP_DURATION * 0.8);
+
+// Reconnect is the one moment that should feel actively alive: the circle grows
+// back out alongside a one-shot ripple that widens and fades, like an exhale.
+// Taking Time itself stays fully static — genuinely restful, not quiet-but-animating.
+const RECONNECT_RIPPLE_DURATION = 480;
+
+// Palette fade: a separate, slower, decoupled transition between the normal and
+// quiet colour palettes, triggered on focus rather than tied to the tap.
+const PALETTE_FADE_MS = 1200;
+
+type HomeState = "loading" | "normal" | "taking-time" | "post-reconnect";
+
+interface PostReconnectProgress {
+  done: number;
+  total: number;
+}
 
 export default function HomeScreen() {
-  const { resetFlow } = useHoldFlow();
+  const { resetFlow, setAudience } = useHoldFlow();
+  const normalTheme = useAppTheme("normal");
+  const quietTheme = useAppTheme("quiet");
+  const [openPeriod, setOpenPeriod] = useState<HoldPeriod | null>(null);
+  const [homeState, setHomeState] = useState<HomeState>("loading");
+  const [postReconnectProgress, setPostReconnectProgress] = useState<PostReconnectProgress | null>(
+    null
+  );
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [reduceMotion, setReduceMotion] = useState(false);
 
-  const start = (mode: "hold" | "return") => {
-    resetFlow(mode);
-    router.push(mode === "hold" ? "/create/people" : "/return/people");
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const rippleAnim = useRef(new Animated.Value(0)).current;
+  const paletteAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    void AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      setIsAnimating(false);
+
+      void (async () => {
+        const period = await getOpenHoldPeriod().catch(() => null);
+        setOpenPeriod(period);
+
+        let resolvedState: HomeState = "normal";
+        let progress: PostReconnectProgress | null = null;
+
+        if (period) {
+          resolvedState = "taking-time";
+        } else {
+          const postReconnect = await getPostReconnectState().catch(() => null);
+
+          if (postReconnect) {
+            const { active } = await getActiveReplies(Date.now());
+            const allSent = postReconnect.startReplyCount > 0 && active.length === 0;
+
+            if (allSent) {
+              await clearPostReconnect();
+              resolvedState = "normal";
+            } else {
+              resolvedState = "post-reconnect";
+              progress =
+                postReconnect.startReplyCount > 0
+                  ? {
+                      done: postReconnect.startReplyCount - active.length,
+                      total: postReconnect.startReplyCount
+                    }
+                  : null;
+            }
+          }
+        }
+
+        setHomeState(resolvedState);
+        setPostReconnectProgress(progress);
+
+        scaleAnim.setValue(resolvedState === "taking-time" ? QUIET_CIRCLE_SCALE : 1);
+        Animated.timing(paletteAnim, {
+          toValue: resolvedState === "taking-time" ? 1 : 0,
+          duration: reduceMotion ? 0 : PALETTE_FADE_MS,
+          easing: Easing.inOut(Easing.cubic),
+          useNativeDriver: false
+        }).start();
+      })();
+    }, [reduceMotion, scaleAnim, paletteAnim])
+  );
+
+  const start = (target: "hold" | "return") => {
+    resetFlow(target);
+    if (target === "return") {
+      setAudience(openPeriod?.audienceCircleNames ?? [], openPeriod?.audienceContacts ?? []);
+    }
+    router.push(target === "hold" ? "/create/people" : "/return/mode");
   };
 
+  const finishReconnecting = () => {
+    router.push("/return/reply");
+  };
+
+  const startNewQuietSession = async () => {
+    await clearPostReconnect();
+    start("hold");
+  };
+
+  const doClearPostReconnect = async () => {
+    await clearPostReconnect();
+    setHomeState("normal");
+    setPostReconnectProgress(null);
+  };
+
+  const confirmClear = (message: string) => {
+    Alert.alert("Are you sure?", message, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Yes, clear it", onPress: () => void doClearPostReconnect() }
+    ]);
+  };
+
+  const openAlreadySorted = () => {
+    Alert.alert("Already sorted?", undefined, [
+      {
+        text: "I’ve already replied",
+        onPress: () => confirmClear("This clears your reconnecting reminder.")
+      },
+      {
+        text: "I’ll reply myself",
+        onPress: () => confirmClear("This clears your reconnecting reminder.")
+      },
+      { text: "Stay in Reconnecting", style: "cancel" }
+    ]);
+  };
+
+  const isQuietPalette = homeState === "taking-time";
+  const currentTheme = isQuietPalette ? quietTheme : normalTheme;
+
+  const animateAndNavigate = (
+    targetScale: number,
+    onArrive: () => void,
+    options?: { ripple?: boolean }
+  ) => {
+    if (isAnimating) return;
+
+    if (reduceMotion) {
+      onArrive();
+      return;
+    }
+
+    setIsAnimating(true);
+    Animated.timing(scaleAnim, {
+      toValue: targetScale,
+      duration: TAP_DURATION,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true
+    }).start();
+
+    if (options?.ripple) {
+      rippleAnim.setValue(0);
+      Animated.timing(rippleAnim, {
+        toValue: 1,
+        duration: RECONNECT_RIPPLE_DURATION,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true
+      }).start();
+    }
+
+    setTimeout(onArrive, NAVIGATE_TRIGGER_MS);
+  };
+
+  const rippleOpacity = rippleAnim.interpolate({
+    inputRange: [0, 0.2, 1],
+    outputRange: [0, 0.35, 0]
+  });
+  const rippleScale = rippleAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.6]
+  });
+
+  const animatedBackground = paletteAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [normalTheme.colors.background, quietTheme.colors.background]
+  });
+  const animatedPrimary = paletteAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [normalTheme.colors.primary, quietTheme.colors.primary]
+  });
+
+  const postReconnectSubtext = postReconnectProgress
+    ? `Continue where you left off — ${postReconnectProgress.done} of ${postReconnectProgress.total} replies sent`
+    : "Continue where you left off";
+
   return (
-    <Screen contentContainerStyle={styles.content}>
-      <View style={styles.brand}>
-        <HoldMark size={72} />
-        <Text style={styles.wordmark}>Hold</Text>
-      </View>
+    <AnimatedSafeAreaView
+      style={[styles.safe, { backgroundColor: animatedBackground }]}
+      edges={["bottom", "left", "right"]}
+    >
+      <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.brand}>
+          <HoldMark size={72} />
+          <View style={styles.wordmarkRow}>
+            <Text style={[styles.wordmark, { color: currentTheme.colors.text }]}>Hold</Text>
+            <HeldMark size={20} />
+          </View>
+        </View>
 
-      <View style={styles.copy}>
-        <Text style={styles.heading}>A gentler way to go quiet and come back.</Text>
-        <Text style={styles.body}>
-          Tell the people you care about when your capacity is low—without having to explain everything.
-        </Text>
-      </View>
+        <View style={styles.hero}>
+          {homeState === "taking-time" ? (
+            <Text style={[styles.comingBackLabel, { color: currentTheme.colors.text }]}>
+              Taking time
+            </Text>
+          ) : null}
 
-      <View style={styles.actions}>
-        <PrimaryButton label="Create a Hold" onPress={() => start("hold")} />
-        <SecondaryButton label="Return from Hold" onPress={() => start("return")} />
-      </View>
+          {homeState === "loading" ? (
+            <View style={styles.circleBox}>
+              <View
+                style={[
+                  styles.circleVisual,
+                  styles.circlePlaceholder,
+                  { backgroundColor: currentTheme.colors.surfaceStrong }
+                ]}
+              />
+            </View>
+          ) : homeState === "taking-time" ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Reconnect"
+              disabled={isAnimating}
+              onPress={() => animateAndNavigate(1, () => start("return"), { ripple: true })}
+            >
+              <View style={styles.circleStack}>
+                <Animated.View
+                  pointerEvents="none"
+                  style={[
+                    styles.rippleRing,
+                    {
+                      backgroundColor: quietTheme.colors.primary,
+                      opacity: rippleOpacity,
+                      transform: [{ scale: rippleScale }]
+                    }
+                  ]}
+                />
+                <Animated.View style={[styles.circleBox, { transform: [{ scale: scaleAnim }] }]}>
+                  <Animated.View
+                    style={[
+                      styles.circleVisual,
+                      { backgroundColor: animatedPrimary, shadowColor: animatedPrimary }
+                    ]}
+                  >
+                    <Text style={[styles.circleSubtext, { color: currentTheme.colors.onPrimary }]}>
+                      Tap when you're ready to reconnect
+                    </Text>
+                  </Animated.View>
+                </Animated.View>
+              </View>
+            </Pressable>
+          ) : homeState === "post-reconnect" ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Finish Reconnecting"
+              disabled={isAnimating}
+              onPress={() => animateAndNavigate(QUIET_CIRCLE_SCALE, finishReconnecting)}
+            >
+              <Animated.View style={[styles.circleBox, { transform: [{ scale: scaleAnim }] }]}>
+                <Animated.View
+                  style={[
+                    styles.circleVisual,
+                    { backgroundColor: animatedPrimary, shadowColor: animatedPrimary }
+                  ]}
+                >
+                  <Text style={[styles.circleLabel, { color: currentTheme.colors.onPrimary }]}>
+                    Finish Reconnecting
+                  </Text>
+                  <Text style={[styles.circleSubtext, { color: currentTheme.colors.onPrimary }]}>
+                    {postReconnectSubtext}
+                  </Text>
+                </Animated.View>
+              </Animated.View>
+            </Pressable>
+          ) : (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Create a Hold"
+              disabled={isAnimating}
+              onPress={() => animateAndNavigate(QUIET_CIRCLE_SCALE, () => start("hold"))}
+            >
+              <Animated.View style={[styles.circleBox, { transform: [{ scale: scaleAnim }] }]}>
+                <Animated.View
+                  style={[
+                    styles.circleVisual,
+                    { backgroundColor: animatedPrimary, shadowColor: animatedPrimary }
+                  ]}
+                >
+                  <Text style={[styles.circleLabel, { color: currentTheme.colors.onPrimary }]}>
+                    Going quiet
+                  </Text>
+                  <Text style={[styles.circleSubtext, { color: currentTheme.colors.onPrimary }]}>
+                    Tap to let your people know
+                  </Text>
+                </Animated.View>
+              </Animated.View>
+            </Pressable>
+          )}
 
-      <View style={styles.reassurance}>
-        <Text style={styles.reassuranceText}>
-          Hold never sends anything without you reviewing and choosing to share it.
-        </Text>
-      </View>
+          <Text style={[styles.reassuranceText, { color: currentTheme.colors.textMuted }]}>
+            {homeState === "taking-time"
+              ? "Come back at your own pace."
+              : homeState === "post-reconnect"
+                ? "There's no rush to finish."
+                : "Take the time you need."}
+          </Text>
 
-      <Link href="/privacy" asChild>
-        <Pressable accessibilityRole="link" style={styles.linkButton}>
-          <Text style={styles.link}>How privacy works</Text>
-        </Pressable>
-      </Link>
-    </Screen>
+          {homeState === "taking-time" ? (
+            <SecondaryButton
+              label="Send an update"
+              onPress={() => router.push("/return/update")}
+            />
+          ) : null}
+
+          {homeState === "post-reconnect" ? (
+            <View style={styles.postReconnectActions}>
+              <SecondaryButton
+                label="Start a New Quiet Session"
+                onPress={() => void startNewQuietSession()}
+              />
+              <Pressable accessibilityRole="button" onPress={openAlreadySorted}>
+                <Text style={[styles.alreadySortedText, { color: currentTheme.colors.link }]}>
+                  Already sorted?
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          {homeState === "taking-time" ? (
+            <View style={styles.markCompare}>
+              <View style={styles.markCompareItem}>
+                <HoldMark size={56} />
+                <Text style={[styles.markCompareLabel, { color: currentTheme.colors.textMuted }]}>
+                  Current
+                </Text>
+              </View>
+              <View style={styles.markCompareItem}>
+                <HeldMark size={56} />
+                <Text style={[styles.markCompareLabel, { color: currentTheme.colors.textMuted }]}>
+                  Alternative
+                </Text>
+              </View>
+            </View>
+          ) : null}
+        </View>
+
+        <View style={styles.navRow}>
+          <NavPill label="About" icon={<AboutIcon />} onPress={() => router.push("/about")} />
+          <NavPill
+            label="Circles"
+            icon={<HeldMark size={20} />}
+            onPress={() => router.push("/settings/circle")}
+          />
+          <NavPill
+            label="History"
+            icon={<HistoryIcon />}
+            onPress={() => router.push("/settings/history")}
+          />
+        </View>
+      </ScrollView>
+    </AnimatedSafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safe: {
+    flex: 1
+  },
   content: {
     flexGrow: 1,
     justifyContent: "space-between",
+    paddingHorizontal: theme.spacing.lg,
     paddingTop: theme.spacing.xxl,
     paddingBottom: theme.spacing.lg
   },
@@ -60,48 +419,98 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: theme.spacing.sm
   },
+  wordmarkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.xs
+  },
   wordmark: {
     fontSize: 25,
     fontWeight: "600",
-    color: theme.colors.text,
     letterSpacing: 0.3
   },
-  copy: {
-    gap: theme.spacing.md
+  hero: {
+    alignItems: "center",
+    gap: theme.spacing.xl
   },
-  heading: {
-    fontSize: 34,
-    lineHeight: 42,
-    fontWeight: "600",
-    color: theme.colors.text,
-    letterSpacing: -0.6
+  comingBackLabel: {
+    fontSize: 30,
+    fontWeight: "700",
+    textAlign: "center"
   },
-  body: {
-    fontSize: 18,
-    lineHeight: 28,
-    color: theme.colors.textMuted
+  circleStack: {
+    width: LARGE_CIRCLE_SIZE,
+    height: LARGE_CIRCLE_SIZE
   },
-  actions: {
-    gap: theme.spacing.md
+  rippleRing: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: LARGE_CIRCLE_SIZE,
+    height: LARGE_CIRCLE_SIZE,
+    borderRadius: theme.radius.pill
   },
-  reassurance: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.md,
-    padding: theme.spacing.md
+  circleBox: {
+    width: LARGE_CIRCLE_SIZE,
+    height: LARGE_CIRCLE_SIZE
+  },
+  circleVisual: {
+    flex: 1,
+    borderRadius: theme.radius.pill,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: theme.spacing.xl,
+    gap: theme.spacing.xs,
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.35,
+    shadowRadius: 30,
+    elevation: 10
+  },
+  circlePlaceholder: {
+    shadowOpacity: 0
+  },
+  circleLabel: {
+    fontSize: 30,
+    fontWeight: "700",
+    textAlign: "center"
+  },
+  circleSubtext: {
+    fontSize: 13,
+    fontWeight: "400",
+    opacity: 0.75,
+    textAlign: "center"
+  },
+  postReconnectActions: {
+    alignItems: "center",
+    gap: theme.spacing.md,
+    alignSelf: "stretch"
+  },
+  alreadySortedText: {
+    fontSize: 14,
+    fontWeight: "600"
+  },
+  markCompare: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: theme.spacing.xl,
+    marginTop: theme.spacing.sm
+  },
+  markCompareItem: {
+    alignItems: "center",
+    gap: theme.spacing.xs
+  },
+  markCompareLabel: {
+    fontSize: 12,
+    fontWeight: "600"
   },
   reassuranceText: {
-    color: theme.colors.textMuted,
-    fontSize: 15,
-    lineHeight: 22
+    fontSize: 16,
+    lineHeight: 24,
+    textAlign: "center",
+    maxWidth: 260
   },
-  linkButton: {
-    minHeight: 44,
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  link: {
-    color: theme.colors.link,
-    fontSize: 15,
-    textDecorationLine: "underline"
+  navRow: {
+    flexDirection: "row",
+    gap: theme.spacing.sm
   }
 });

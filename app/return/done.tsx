@@ -18,11 +18,9 @@ export default function ReturnDoneScreen() {
     <Screen contentContainerStyle={styles.content}>
       <View style={styles.message}>
         <HoldMark size={92} />
-        <Text style={styles.title}>That was enough.</Text>
-        <Text style={styles.subtitle}>Come back gently.</Text>
-        <Text style={styles.note}>
-          Hold opened your sharing options. There is nothing else you need to complete here.
-        </Text>
+        <Text style={styles.title}>They know you’re on your way back.</Text>
+        <Text style={styles.subtitle}>There’s nothing else you need to do right now.</Text>
+        <Text style={styles.note}>Hold opened your sharing options.</Text>
       </View>
 
       <PrimaryButton label="Finish" onPress={finish} />
@@ -48,7 +46,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     color: theme.colors.textMuted,
-    fontSize: 22
+    fontSize: 23
   },
   note: {
     color: theme.colors.textMuted,

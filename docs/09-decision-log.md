@@ -1,0 +1,42 @@
+# Decision log
+
+Dated record of product decisions that changed how the app behaves, as opposed to routine bug fixes or polish. See `docs/08-product-bible.md` for the standing rules these decisions established.
+
+## 2026-07-21 — Motion/colour design language, and scoped dark mode
+
+**Decision:** Separated "the tap" from "the state" in the home screen's animation, and built a four-palette (light/dark × normal/quiet) colour token architecture.
+
+**What changed:**
+
+- The Going quiet / Reconnect tap animations no longer carry any colour or shadow blending — they're now a quick (280ms), purely physical scale change. The emotional colour shift was moved onto the Taking Time state itself, as a separate, slower (1200ms), decoupled fade that triggers on arriving at or leaving that screen.
+- The circle's two hardcoded pixel sizes were replaced with one base size plus a single named constant, `QUIET_CIRCLE_SCALE` (`app/index.tsx`), so the resting size is a one-line tuning knob rather than a pair of sizes to keep in sync.
+- Taking Time is fully static — no motion at all, on purpose, since it's meant to be genuinely restful rather than quiet-but-animating. The "something is alive" motion belongs to Reconnect instead: the circle grows back out alongside a one-shot ripple that widens and fades (an exhale), the one moment in the flow designed to feel actively in motion.
+- `src/constants/theme.ts` was restructured into four palettes (`lightNormal`, `lightQuiet`, `darkNormal`, `darkQuiet`) behind a new `useAppTheme(variant)` hook (`src/hooks/useAppTheme.ts`). All four combinations were checked against WCAG AA contrast minimums before being finalized.
+
+**Scoping decision — dark mode:** building full app-wide dark mode support was clearly a much larger undertaking than the rest of this request, and was called out explicitly rather than silently expanded or silently dropped. The decision made: build the token architecture properly now (all four palettes exist and are correct), but wire live `useColorScheme`-driven switching into the home screen only. The other ~25 files that still import the static `theme` object are unaffected and keep their current (light) appearance regardless of device colour scheme.
+
+**Why:** the home screen is where the Taking Time/Going quiet emotional design actually lives, so it's the place dark mode matters most for this piece of work. Rolling every other screen onto the new hook is mechanical but not free — a bug in this pass shouldn't touch 25 other files' worth of surface area at once.
+
+**Follow-up (not yet scheduled):** roll `useAppTheme` out to the remaining files that currently import `theme` directly, so Dark Mode applies consistently across the whole app rather than just the home screen. Tracked here explicitly so it doesn't quietly get treated as "already done."
+
+## 2026-07-21 — Hold period now ends on actual return, not on opening the Return screen
+
+**Decision:** `endOpenHoldPeriod()` moved from a mount-effect on `app/return/mode.tsx` (fired the instant the user viewed "How would you like to come back?") to the actual completion points: sending the instant message (`app/return/instant.tsx`), and marking a Thoughtful reply as sent (`app/return/reply/edit.tsx` and `app/return/reply/index.tsx`).
+
+**Why:** with the old timing, backing out of the Return flow before actually sending anything — e.g. opening Thoughtful reply, then pressing Back — left the Home screen showing "Going quiet" instead of "Taking time," incorrectly implying the user was no longer in a Hold when nothing had actually been sent. Ending the period only on genuine completion keeps Home's state accurate to reality regardless of how the user navigates the Return flow.
+
+**Doc updated:** `docs/03-privacy-model.md`'s Quiet History section previously documented the old (opens-the-screen) timing explicitly; corrected to describe the new, accurate rule.
+
+## 2026-07-24 — Four-stage journey: Going Quiet, Taking Time, Reconnect, Thoughtful Replies
+
+**Decision:** the app's core journey is now four distinct, separate stages rather than a two-state (quiet/not-quiet) model with an undifferentiated Return flow. Home has three states — Normal ("Going quiet"), Taking Time ("Reconnect" + a new repeatable "Send an update"), and a new Post-Reconnect state ("Finish Reconnecting").
+
+**Persisted audience, not re-picked.** Going Quiet's Circle selection is now multi-select (`GroupPicker`, `HoldFlowContext.selectedGroups`) and is frozen onto the `HoldPeriod` record at send time (`audienceCircleNames`, `audienceContacts` — new optional fields, following the same "frozen at that moment" precedent `docs/03-privacy-model.md` already documents for `recipients`). Reconnect no longer has its own Circle-picker screen at all — it always targets whoever was originally told, even after the app's been fully closed and reopened, since Home always refetches the open Hold period before the user can tap anything. This simplifies `return/mode.tsx` back towards its pre-merge shape (direct-tap options, no shared Continue button) rather than complicating it further, since the reason for the earlier Circle-picker merge no longer applies.
+
+**Two distinct short-message concepts, deliberately separately named** to avoid conflating them: `takingTimeUpdate` (Taking Time's repeatable reassurance, sent without ending Taking Time, `app/return/update.tsx`) and `quickReconnectMessage` (Reconnect's lighter alternative to Thoughtful reply, `app/return/instant.tsx`, backed by new `QUICK_RECONNECT_MESSAGES` copy replacing the old `INSTANT_MESSAGES`).
+
+**Post-Reconnect is a deliberate, considered exception** to the app's usual principle that once a message is sent there's nothing left to do — it's the one point in the journey where something genuinely does stay open, because sending a Quick Reconnect (rather than completing Thoughtful replies) means the user has re-engaged once but not fully. It clears automatically once every in-progress Thoughtful reply is sent, or explicitly via a gentle "Already sorted?" confirmation ("I've already replied" / "I'll reply myself," each behind one extra confirming tap / "Stay in Reconnecting," which does nothing). Tone deliberately avoids "outstanding/incomplete/overdue/pending" language throughout.
+
+**Deferred — Messaging Channels:** per-contact preferred channels (iMessage, WhatsApp, Email, Instagram DM, Messenger, Signal) and a grouped multi-channel delivery screen were explicitly scoped out of this pass, matching the dark-mode precedent above. Today's SMS/share-sheet default is unchanged. Follow-up work, not yet scheduled: `CircleContact` gains per-channel fields, a Circle/contact-settings UI for setting preferred channels, and a delivery screen that hands off to each non-SMS channel's own share/app flow rather than sending directly (e.g. "SMS — sent / WhatsApp — continue / Instagram — continue / Email — continue").
+
+**Also deferred:** a gentle non-urgent reminder to send a Taking Time update after some interval, explicitly marked "not required now" in the request. Tracked here so it isn't mistaken for already built.

@@ -1,33 +1,74 @@
-import { Stack } from "expo-router";
+import { Stack, router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { Pressable, StyleSheet } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { AboutIcon } from "@/components/AboutIcon";
 import { HoldFlowProvider } from "@/context/HoldFlowContext";
 import { theme } from "@/constants/theme";
 
-export default function RootLayout() {
+function HeaderAboutButton() {
   return (
-    <HoldFlowProvider>
-      <StatusBar style="dark" />
-      <Stack
-        screenOptions={{
-          headerShadowVisible: false,
-          headerTintColor: theme.colors.text,
-          headerStyle: { backgroundColor: theme.colors.background },
-          contentStyle: { backgroundColor: theme.colors.background },
-          headerBackTitle: "Back",
-          animation: "fade"
-        }}
-      >
-        <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="create/people" options={{ title: "Create a Hold" }} />
-        <Stack.Screen name="create/intent" options={{ title: "Create a Hold" }} />
-        <Stack.Screen name="create/review" options={{ title: "Review" }} />
-        <Stack.Screen name="create/done" options={{ headerShown: false, gestureEnabled: false }} />
-        <Stack.Screen name="return/people" options={{ title: "Return from Hold" }} />
-        <Stack.Screen name="return/style" options={{ title: "Return from Hold" }} />
-        <Stack.Screen name="return/review" options={{ title: "Review" }} />
-        <Stack.Screen name="return/done" options={{ headerShown: false, gestureEnabled: false }} />
-        <Stack.Screen name="privacy" options={{ title: "Privacy" }} />
-      </Stack>
-    </HoldFlowProvider>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="About"
+      onPress={() => router.push("/about")}
+      style={styles.headerButton}
+    >
+      <AboutIcon size={20} />
+    </Pressable>
   );
 }
+
+export default function RootLayout() {
+  return (
+    <SafeAreaProvider>
+      <HoldFlowProvider>
+        <StatusBar style="dark" />
+        <Stack
+          screenOptions={{
+            headerShadowVisible: false,
+            headerTintColor: theme.colors.text,
+            headerStyle: { backgroundColor: theme.colors.background },
+            contentStyle: { backgroundColor: theme.colors.background },
+            headerBackTitle: "Back",
+            animation: "fade",
+            headerRight: () => <HeaderAboutButton />
+          }}
+        >
+          <Stack.Screen name="index" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="create/people"
+            options={{ title: "Create a Hold", animationDuration: 450 }}
+          />
+          <Stack.Screen name="create/review" options={{ title: "Review" }} />
+          <Stack.Screen name="create/done" options={{ headerShown: false, gestureEnabled: false }} />
+          <Stack.Screen
+            name="return/mode"
+            options={{ title: "Reconnect", animationDuration: 450 }}
+          />
+          <Stack.Screen name="return/instant" options={{ title: "Reconnect" }} />
+          <Stack.Screen name="return/update" options={{ title: "Send an update" }} />
+          <Stack.Screen name="return/reply/index" options={{ title: "Thoughtful reply" }} />
+          <Stack.Screen name="return/reply/edit" options={{ title: "Thoughtful reply" }} />
+          <Stack.Screen name="return/done" options={{ headerShown: false, gestureEnabled: false }} />
+          <Stack.Screen name="about" options={{ title: "About", headerRight: () => null }} />
+          <Stack.Screen
+            name="settings/history/index"
+            options={{ title: "Hold history" }}
+          />
+          <Stack.Screen name="settings/circle/index" options={{ title: "Your Circles" }} />
+          <Stack.Screen name="settings/circle/detail" options={{ title: "Circle" }} />
+        </Stack>
+      </HoldFlowProvider>
+    </SafeAreaProvider>
+  );
+}
+
+const styles = StyleSheet.create({
+  headerButton: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center"
+  }
+});

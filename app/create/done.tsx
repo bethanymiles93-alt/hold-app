@@ -18,8 +18,8 @@ export default function HoldDoneScreen() {
     <Screen contentContainerStyle={styles.content}>
       <View style={styles.message}>
         <HoldMark size={92} />
-        <Text style={styles.title}>Ready.</Text>
-        <Text style={styles.subtitle}>Then rest.</Text>
+        <Text style={styles.title}>The people who matter know.</Text>
+        <Text style={styles.subtitle}>You can rest.</Text>
         <Text style={styles.note}>
           Hold opened your sharing options. You remain in control of where the message goes.
         </Text>
@@ -41,8 +41,10 @@ const styles = StyleSheet.create({
   },
   title: {
     color: theme.colors.text,
-    fontSize: 36,
-    fontWeight: "600"
+    fontSize: 34,
+    lineHeight: 42,
+    fontWeight: "600",
+    textAlign: "center"
   },
   subtitle: {
     color: theme.colors.textMuted,
