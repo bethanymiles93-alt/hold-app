@@ -367,23 +367,6 @@ export default function HomeScreen() {
               </Pressable>
             </View>
           ) : null}
-
-          {homeState === "taking-time" ? (
-            <View style={styles.markCompare}>
-              <View style={styles.markCompareItem}>
-                <HoldMark size={56} />
-                <Text style={[styles.markCompareLabel, { color: currentTheme.colors.textMuted }]}>
-                  Current
-                </Text>
-              </View>
-              <View style={styles.markCompareItem}>
-                <HeldMark size={56} />
-                <Text style={[styles.markCompareLabel, { color: currentTheme.colors.textMuted }]}>
-                  Alternative
-                </Text>
-              </View>
-            </View>
-          ) : null}
         </View>
 
         <View style={styles.navRow}>
@@ -487,20 +470,6 @@ const styles = StyleSheet.create({
   },
   alreadySortedText: {
     fontSize: 14,
-    fontWeight: "600"
-  },
-  markCompare: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: theme.spacing.xl,
-    marginTop: theme.spacing.sm
-  },
-  markCompareItem: {
-    alignItems: "center",
-    gap: theme.spacing.xs
-  },
-  markCompareLabel: {
-    fontSize: 12,
     fontWeight: "600"
   },
   reassuranceText: {
