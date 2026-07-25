@@ -10,6 +10,7 @@ import type {
   AudienceContact,
   CircleGroup,
   FlowMode,
+  GoingQuietRecipient,
   HoldFlowState,
   HoldIntent,
   ReturnStyle
@@ -18,6 +19,8 @@ import type {
 interface HoldFlowContextValue extends HoldFlowState {
   setRecipients: (recipients: string[]) => void;
   toggleGroup: (group: CircleGroup) => void;
+  toggleRecipientIncluded: (contactId: string) => void;
+  setRecipientPersonalisedMessage: (contactId: string, message: string | null) => void;
   setIntent: (intent: HoldIntent) => void;
   setReturnStyle: (style: ReturnStyle) => void;
   setMessage: (message: string) => void;
@@ -33,8 +36,46 @@ const initialState: HoldFlowState = {
   returnStyle: null,
   message: "",
   audienceCircles: [],
-  audienceUngrouped: []
+  audienceUngrouped: [],
+  goingQuietRecipients: []
 };
+
+/**
+ * Rebuilds the per-person Going Quiet list from the currently selected Circles,
+ * preserving any include/personalise choice already made for someone who's still
+ * in scope, dropping anyone no longer in any selected Circle, and defaulting
+ * anyone newly in scope to included with no personalised message.
+ */
+function mergeGoingQuietRecipients(
+  existing: GoingQuietRecipient[],
+  selectedGroups: CircleGroup[]
+): GoingQuietRecipient[] {
+  const existingByContactId = new Map(existing.map((recipient) => [recipient.contactId, recipient]));
+  const seen = new Set<string>();
+  const merged: GoingQuietRecipient[] = [];
+
+  for (const group of selectedGroups) {
+    for (const contact of group.contacts) {
+      if (seen.has(contact.phoneNumber)) continue;
+      seen.add(contact.phoneNumber);
+
+      const previous = existingByContactId.get(contact.id);
+      merged.push(
+        previous ?? {
+          contactId: contact.id,
+          name: contact.name,
+          phoneNumber: contact.phoneNumber,
+          circleId: group.id,
+          circleName: group.name,
+          included: true,
+          personalisedMessage: null
+        }
+      );
+    }
+  }
+
+  return merged;
+}
 
 export function buildAudienceCircles(groups: CircleGroup[]): AudienceCircle[] {
   return groups.map((group) => ({
@@ -78,9 +119,24 @@ export function HoldFlowProvider({ children }: PropsWithChildren) {
           return {
             ...current,
             selectedGroups,
-            recipients: dedupeContactsByPhoneNumber(selectedGroups).map((contact) => contact.name)
+            recipients: dedupeContactsByPhoneNumber(selectedGroups).map((contact) => contact.name),
+            goingQuietRecipients: mergeGoingQuietRecipients(current.goingQuietRecipients, selectedGroups)
           };
         }),
+      toggleRecipientIncluded: (contactId) =>
+        setState((current) => ({
+          ...current,
+          goingQuietRecipients: current.goingQuietRecipients.map((recipient) =>
+            recipient.contactId === contactId ? { ...recipient, included: !recipient.included } : recipient
+          )
+        })),
+      setRecipientPersonalisedMessage: (contactId, message) =>
+        setState((current) => ({
+          ...current,
+          goingQuietRecipients: current.goingQuietRecipients.map((recipient) =>
+            recipient.contactId === contactId ? { ...recipient, personalisedMessage: message } : recipient
+          )
+        })),
       setIntent: (intent) =>
         setState((current) => ({ ...current, intent })),
       setReturnStyle: (returnStyle) =>

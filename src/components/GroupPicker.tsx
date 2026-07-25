@@ -2,8 +2,10 @@ import { useCallback, useState } from "react";
 import { Link, useFocusEffect } from "expo-router";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { theme } from "@/constants/theme";
+import { useHoldFlow } from "@/context/HoldFlowContext";
 import { addContactToGroup, createGroup, getGroups } from "@/services/circleService";
 import { pickContact } from "@/services/contactPickerService";
+import { RecipientPersonalisation } from "@/components/RecipientPersonalisation";
 import type { CircleGroup } from "@/types/hold";
 
 const SUGGESTED_CIRCLES = ["Work", "Book Club"];
@@ -14,9 +16,16 @@ interface GroupPickerProps {
 }
 
 export function GroupPicker({ selectedGroupIds, onToggle }: GroupPickerProps) {
+  const {
+    goingQuietRecipients,
+    toggleRecipientIncluded,
+    setRecipientPersonalisedMessage,
+    message
+  } = useHoldFlow();
   const [groups, setGroups] = useState<CircleGroup[]>([]);
   const [creating, setCreating] = useState(false);
   const [newCircleName, setNewCircleName] = useState("");
+  const [expandedCircleId, setExpandedCircleId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setGroups(await getGroups());
@@ -49,35 +58,66 @@ export function GroupPicker({ selectedGroupIds, onToggle }: GroupPickerProps) {
     onToggle(circle);
   };
 
+  const toggleExpanded = (groupId: string) => {
+    setExpandedCircleId((current) => (current === groupId ? null : groupId));
+  };
+
+  const expandedRecipients = expandedCircleId
+    ? goingQuietRecipients.filter((recipient) => recipient.circleId === expandedCircleId)
+    : [];
+
   return (
     <View style={styles.container}>
       <View style={styles.pillWrap}>
         {groups.map((group) => {
           const selected = selectedGroupIds.includes(group.id);
           return (
-            <Pressable
-              key={group.id}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: selected }}
-              onPress={() => onToggle(group)}
-              style={[
-                styles.pill,
-                group.isCloseCircle ? styles.pillPrimary : styles.pillSecondary,
-                selected && styles.pillSelected
-              ]}
-            >
-              <Text
+            <View key={group.id} style={styles.pillGroup}>
+              <Pressable
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: selected }}
+                onPress={() => onToggle(group)}
                 style={[
-                  styles.pillText,
-                  group.isCloseCircle ? styles.pillTextPrimary : styles.pillTextSecondary
+                  styles.pill,
+                  group.isCloseCircle ? styles.pillPrimary : styles.pillSecondary,
+                  selected && styles.pillSelected
                 ]}
               >
-                {group.name}
-              </Text>
-            </Pressable>
+                <Text
+                  style={[
+                    styles.pillText,
+                    group.isCloseCircle ? styles.pillTextPrimary : styles.pillTextSecondary
+                  ]}
+                >
+                  {group.name}
+                </Text>
+              </Pressable>
+
+              {selected ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`${expandedCircleId === group.id ? "Hide" : "Show"} people in ${group.name}`}
+                  onPress={() => toggleExpanded(group.id)}
+                  style={styles.expandButton}
+                >
+                  <Text style={styles.expandButtonText}>
+                    {expandedCircleId === group.id ? "▲" : "▼"}
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
           );
         })}
       </View>
+
+      {expandedCircleId && expandedRecipients.length > 0 ? (
+        <RecipientPersonalisation
+          recipients={expandedRecipients}
+          onToggleIncluded={toggleRecipientIncluded}
+          onChangePersonalisedMessage={setRecipientPersonalisedMessage}
+          defaultMessage={message}
+        />
+      ) : null}
 
       {emptySelectedGroups.length > 0 ? (
         <Text style={styles.prompt}>
@@ -158,6 +198,11 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: theme.spacing.sm
   },
+  pillGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4
+  },
   pill: {
     minHeight: 38,
     borderRadius: theme.radius.pill,
@@ -184,6 +229,19 @@ const styles = StyleSheet.create({
   },
   pillTextSecondary: {
     color: theme.colors.primary
+  },
+  expandButton: {
+    width: 28,
+    height: 28,
+    borderRadius: theme.radius.pill,
+    borderWidth: 1.5,
+    borderColor: theme.colors.border,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  expandButtonText: {
+    color: theme.colors.textMuted,
+    fontSize: 10
   },
   prompt: {
     color: theme.colors.textMuted,

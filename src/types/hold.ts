@@ -23,6 +23,16 @@ export interface AudienceCircle {
   contacts: AudienceContact[];
 }
 
+export interface GoingQuietRecipient {
+  contactId: string;
+  name: string;
+  phoneNumber: string;
+  circleId: string;
+  circleName: string;
+  included: boolean;
+  personalisedMessage: string | null;
+}
+
 export interface HoldFlowState {
   mode: FlowMode;
   recipients: string[];
@@ -32,6 +42,7 @@ export interface HoldFlowState {
   message: string;
   audienceCircles: AudienceCircle[];
   audienceUngrouped: AudienceContact[];
+  goingQuietRecipients: GoingQuietRecipient[];
 }
 
 export interface DraftRequest {

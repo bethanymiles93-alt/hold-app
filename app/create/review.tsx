@@ -4,11 +4,6 @@ import { router } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
 import { ReviewMessage } from "@/components/ReviewMessage";
-import {
-  RecipientPersonalisation,
-  buildGoingQuietRecipients,
-  type GoingQuietRecipient
-} from "@/components/RecipientPersonalisation";
 import { EmailOutOfOffice } from "@/components/EmailOutOfOffice";
 import { WiderWorldStatus } from "@/components/WiderWorldStatus";
 import { SendChoice } from "@/components/SendChoice";
@@ -28,11 +23,7 @@ const DEFAULT_OOO_MESSAGE =
 const DEFAULT_STATUS_LINE = "Taking some quiet time. Back soon.";
 
 export default function HoldReviewScreen() {
-  const { recipients, selectedGroups, message, setMessage } = useHoldFlow();
-
-  const [goingQuietRecipients, setGoingQuietRecipients] = useState<GoingQuietRecipient[]>(() =>
-    buildGoingQuietRecipients(selectedGroups)
-  );
+  const { recipients, selectedGroups, message, setMessage, goingQuietRecipients } = useHoldFlow();
 
   const circleNames = selectedGroups.map((group) => group.name);
   const recipientLabel = selectedGroups.length === 1 ? selectedGroups[0]?.name ?? "your Circle" : "your Circles";
@@ -131,12 +122,6 @@ export default function HoldReviewScreen() {
             <Text style={styles.linkText}>Save to Library</Text>
           </Pressable>
         </View>
-
-        <RecipientPersonalisation
-          recipients={goingQuietRecipients}
-          onRecipientsChange={setGoingQuietRecipients}
-          defaultMessage={message}
-        />
 
         <EmailOutOfOffice
           enabled={emailEnabled}
