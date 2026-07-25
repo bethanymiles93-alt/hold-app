@@ -22,12 +22,16 @@ import { HistoryIcon } from "@/components/HistoryIcon";
 import { theme } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { useHoldFlow } from "@/context/HoldFlowContext";
-import { endOpenHoldPeriod, getOpenHoldPeriod } from "@/services/holdHistoryService";
+import { addToAudience, endOpenHoldPeriod, getOpenHoldPeriod } from "@/services/holdHistoryService";
 import {
   completeAll,
   getProgress as getConversationProgress,
   seedFromAudience
 } from "@/services/conversationService";
+import { formatShortDate, isSameCalendarDay } from "@/services/holdHistoryFormat";
+import { pickContact } from "@/services/contactPickerService";
+import { sendOrShare } from "@/services/smsService";
+import { ADD_TO_GOING_QUIET_MESSAGE } from "@/constants/copy";
 import { HAS_SEEN_WELCOME_KEY } from "@/constants/storageKeys";
 import type { HoldPeriod } from "@/types/hold";
 
@@ -145,6 +149,22 @@ export default function HomeScreen() {
     start("hold");
   };
 
+  const addToGoingQuiet = () => {
+    void (async () => {
+      const picked = await pickContact();
+      if (!picked) return;
+
+      try {
+        await sendOrShare([picked.phoneNumber], ADD_TO_GOING_QUIET_MESSAGE);
+      } catch {
+        // Still add them even if the compose sheet was cancelled — better to keep
+        // track of them than lose the moment over a dismissed native sheet.
+      }
+
+      await addToAudience(picked);
+    })();
+  };
+
   const doClearPostReconnect = async () => {
     await completeAll();
     setHomeState("normal");
@@ -246,9 +266,16 @@ export default function HomeScreen() {
 
         <View style={styles.hero}>
           {homeState === "taking-time" ? (
-            <Text style={[styles.comingBackLabel, { color: currentTheme.colors.text }]}>
-              Taking time
-            </Text>
+            <View style={styles.takingTimeHeader}>
+              <Text style={[styles.comingBackLabel, { color: currentTheme.colors.text }]}>
+                Taking time
+              </Text>
+              {openPeriod ? (
+                <Text style={[styles.quietSinceText, { color: currentTheme.colors.textMuted }]}>
+                  Quiet since {formatShortDate(openPeriod.startedAt)}
+                </Text>
+              ) : null}
+            </View>
           ) : null}
 
           {homeState === "loading" ? (
@@ -351,10 +378,19 @@ export default function HomeScreen() {
           </Text>
 
           {homeState === "taking-time" ? (
-            <SecondaryButton
-              label="Send an update"
-              onPress={() => router.push("/return/update")}
-            />
+            <View style={styles.takingTimeActions}>
+              {openPeriod && !isSameCalendarDay(openPeriod.startedAt, Date.now()) ? (
+                <SecondaryButton
+                  label="Send an update"
+                  onPress={() => router.push("/return/update")}
+                />
+              ) : null}
+              <Pressable accessibilityRole="button" onPress={addToGoingQuiet}>
+                <Text style={[styles.alreadySortedText, { color: currentTheme.colors.link }]}>
+                  Someone new reached out?
+                </Text>
+              </Pressable>
+            </View>
           ) : null}
 
           {homeState === "post-reconnect" ? (
@@ -419,10 +455,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: theme.spacing.xl
   },
+  takingTimeHeader: {
+    alignItems: "center",
+    gap: theme.spacing.xs
+  },
   comingBackLabel: {
     fontSize: 30,
     fontWeight: "700",
     textAlign: "center"
+  },
+  quietSinceText: {
+    fontSize: 14,
+    fontWeight: "500",
+    textAlign: "center"
+  },
+  takingTimeActions: {
+    alignItems: "center",
+    gap: theme.spacing.md
   },
   circleStack: {
     width: LARGE_CIRCLE_SIZE,

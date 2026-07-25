@@ -79,6 +79,10 @@ export const QUICK_RECONNECT_MESSAGES: Array<{
 export const DEFAULT_TAKING_TIME_UPDATE =
   "I’m still taking some time and can’t properly message yet, but I’m thinking of you.";
 
+// "Add to Going Quiet" — sent immediately to someone new who reaches out while away.
+export const ADD_TO_GOING_QUIET_MESSAGE =
+  "I’m not feeling very well and need to take some time. I’ll get back to you when I can.";
+
 export const REPLY_STYLES: Array<{
   id: ReturnStyle;
   title: string;

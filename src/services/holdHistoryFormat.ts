@@ -24,6 +24,21 @@ export function formatDateTime(ms: number): string {
   }).format(new Date(ms));
 }
 
+/** "Quiet since [date]" on Home's Taking Time state — no time, no year for a short read. */
+export function formatShortDate(ms: number): string {
+  return new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" }).format(new Date(ms));
+}
+
+export function isSameCalendarDay(a: number, b: number): boolean {
+  const dateA = new Date(a);
+  const dateB = new Date(b);
+  return (
+    dateA.getFullYear() === dateB.getFullYear() &&
+    dateA.getMonth() === dateB.getMonth() &&
+    dateA.getDate() === dateB.getDate()
+  );
+}
+
 function dateKey(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
