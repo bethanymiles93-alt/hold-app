@@ -4,6 +4,8 @@ import type { AudienceCircle, AudienceContact } from "@/types/hold";
 const INDEX_KEY = "hold.conversation.index";
 const RECORD_PREFIX = "hold.conversation.";
 
+export type ConversationBucket = "quick" | "personalise";
+
 export interface ConversationPerson {
   id: string;
   name: string;
@@ -11,6 +13,7 @@ export interface ConversationPerson {
   circleId: string | null;
   circleName: string | null;
   completed: boolean;
+  bucket: ConversationBucket;
 }
 
 export interface ConversationProgress {
@@ -88,7 +91,8 @@ export async function seedFromAudience(
         phoneNumber: contact.phoneNumber,
         circleId: circle.circleId,
         circleName: circle.circleName,
-        completed: false
+        completed: false,
+        bucket: "quick"
       });
     }
   }
@@ -102,7 +106,8 @@ export async function seedFromAudience(
       phoneNumber: contact.phoneNumber,
       circleId: null,
       circleName: null,
-      completed: false
+      completed: false,
+      bucket: "quick"
     });
   }
 
@@ -125,13 +130,14 @@ export async function addCircleMembers(
       phoneNumber: contact.phoneNumber,
       circleId,
       circleName,
-      completed: false
+      completed: false,
+      bucket: "quick" as const
     }));
 
   await Promise.all(additions.map((person) => writeRecord(person)));
 }
 
-/** "+ Add person" — always ungrouped, one at a time. */
+/** "+ Add person" — always ungrouped, always Personalise, one at a time. */
 export async function addPerson(contact: { name: string; phoneNumber: string }): Promise<void> {
   const existing = await getAll();
   if (existing.some((person) => person.phoneNumber === contact.phoneNumber)) return;
@@ -142,7 +148,8 @@ export async function addPerson(contact: { name: string; phoneNumber: string }):
     phoneNumber: contact.phoneNumber,
     circleId: null,
     circleName: null,
-    completed: false
+    completed: false,
+    bucket: "personalise"
   });
 }
 
@@ -151,6 +158,14 @@ export async function toggleComplete(id: string, completed: boolean): Promise<vo
   if (!person) return;
 
   await writeRecord({ ...person, completed });
+}
+
+/** Unticking someone out of Quick message — they move to Personalise/Conversations. */
+export async function moveToPersonalise(id: string): Promise<void> {
+  const person = await readRecord(id);
+  if (!person) return;
+
+  await writeRecord({ ...person, bucket: "personalise" });
 }
 
 export async function removePerson(id: string): Promise<void> {
