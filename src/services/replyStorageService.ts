@@ -77,3 +77,10 @@ export async function getActiveReplies(now: number): Promise<ActiveRepliesResult
 
   return { active, justExpiredIds: expired.map((reply) => reply.id) };
 }
+
+/** A single reply by id, if it exists and hasn't expired. Used to load a person's
+ * existing Personalise draft when their accordion panel expands. */
+export async function getReply(id: string): Promise<StoredReply | null> {
+  const { active } = await getActiveReplies(Date.now());
+  return active.find((reply) => reply.id === id) ?? null;
+}

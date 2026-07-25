@@ -50,8 +50,6 @@ export default function RootLayout() {
           <Stack.Screen name="return/reconnect" options={{ title: "Reconnect" }} />
           <Stack.Screen name="return/conversations" options={{ title: "Conversations" }} />
           <Stack.Screen name="return/update" options={{ title: "Send an update" }} />
-          <Stack.Screen name="return/reply/index" options={{ title: "Conversations" }} />
-          <Stack.Screen name="return/reply/edit" options={{ title: "Personalise" }} />
           <Stack.Screen name="return/done" options={{ headerShown: false, gestureEnabled: false }} />
           <Stack.Screen name="about" options={{ title: "About", headerRight: () => null }} />
           <Stack.Screen

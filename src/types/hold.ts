@@ -49,6 +49,7 @@ export interface StoredReply {
   windowHours: number;
   createdAt: number;
   expiresAt: number;
+  sentAt?: number | null;
 }
 
 export interface HoldPeriod {

@@ -1,11 +1,11 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { SecondaryButton } from "@/components/SecondaryButton";
 import { theme } from "@/constants/theme";
-import { QUICK_RECONNECT_MESSAGES } from "@/constants/copy";
+import { DEFAULT_REPLY_WINDOW_HOURS, QUICK_RECONNECT_MESSAGES, REPLY_STYLES } from "@/constants/copy";
 import {
   addCircleMembers,
   addPerson,
@@ -17,6 +17,9 @@ import {
 import { getGroup } from "@/services/circleService";
 import { pickContact } from "@/services/contactPickerService";
 import { sendOrShare } from "@/services/smsService";
+import { createReplyDraft } from "@/services/draftService";
+import { getReply, saveReply } from "@/services/replyStorageService";
+import type { ReturnStyle, StoredReply } from "@/types/hold";
 
 const DEFAULT_QUICK_MESSAGE = QUICK_RECONNECT_MESSAGES[0]?.text ?? "";
 
@@ -46,12 +49,141 @@ function groupByCircle(people: ConversationPerson[]): CircleSection[] {
   return sections;
 }
 
+interface PersonaliseAccordionProps {
+  person: ConversationPerson;
+  isOpen: boolean;
+  onToggle: () => void;
+}
+
+function PersonaliseAccordion({ person, isOpen, onToggle }: PersonaliseAccordionProps) {
+  const [loaded, setLoaded] = useState(false);
+  const [friendMessage, setFriendMessage] = useState("");
+  const [style, setStyle] = useState<ReturnStyle | null>(null);
+  const [draft, setDraft] = useState("");
+  const [status, setStatus] = useState<"none" | "draft" | "sent">("none");
+
+  useEffect(() => {
+    if (!isOpen || loaded) return;
+
+    void (async () => {
+      const existing = await getReply(person.id);
+      if (existing) {
+        setFriendMessage(existing.friendMessage);
+        setDraft(existing.draftReply);
+        setStatus(existing.sentAt ? "sent" : "draft");
+      }
+      setLoaded(true);
+    })();
+  }, [isOpen, loaded, person.id]);
+
+  const chooseStyle = (choice: ReturnStyle) => {
+    setStyle(choice);
+    void createReplyDraft(choice).then(setDraft);
+  };
+
+  const persist = async (sentAt: number | null): Promise<StoredReply> => {
+    const now = Date.now();
+    const record: StoredReply = {
+      id: person.id,
+      recipientName: person.name,
+      friendMessage,
+      draftReply: draft,
+      windowHours: DEFAULT_REPLY_WINDOW_HOURS,
+      createdAt: now,
+      expiresAt: now + DEFAULT_REPLY_WINDOW_HOURS * 60 * 60 * 1000,
+      sentAt
+    };
+    await saveReply(record);
+    return record;
+  };
+
+  const saveForLater = () => {
+    void (async () => {
+      await persist(null);
+      setStatus("draft");
+      onToggle();
+    })();
+  };
+
+  const sendNow = () => {
+    void (async () => {
+      const record = await persist(Date.now());
+      try {
+        await sendOrShare([person.phoneNumber], record.draftReply.trim());
+      } catch {
+        // The compose sheet closing is the only signal available either way.
+      }
+      setStatus("sent");
+      onToggle();
+    })();
+  };
+
+  const statusLabel =
+    status === "sent" ? "Sent." : status === "draft" ? "Continue draft" : "Personalise";
+
+  return (
+    <View style={styles.personaliseBlock}>
+      <Pressable accessibilityRole="button" onPress={onToggle}>
+        <Text style={styles.linkText}>{isOpen ? "Close" : statusLabel}</Text>
+      </Pressable>
+
+      {isOpen ? (
+        <View style={styles.accordionPanel}>
+          <Text style={styles.fieldLabel}>What they sent</Text>
+          <TextInput
+            accessibilityLabel="Message they sent"
+            multiline
+            onChangeText={setFriendMessage}
+            style={styles.input}
+            textAlignVertical="top"
+            value={friendMessage}
+          />
+
+          <Text style={styles.fieldLabel}>Starting point</Text>
+          <View style={styles.styleChipRow}>
+            {REPLY_STYLES.map((option) => (
+              <Pressable
+                key={option.id}
+                accessibilityRole="button"
+                onPress={() => chooseStyle(option.id)}
+                style={[styles.styleChip, style === option.id && styles.styleChipSelected]}
+              >
+                <Text
+                  style={[styles.styleChipText, style === option.id && styles.styleChipTextSelected]}
+                >
+                  {option.title}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Text style={styles.fieldLabel}>Your reply</Text>
+          <TextInput
+            accessibilityLabel="Your reply"
+            multiline
+            onChangeText={setDraft}
+            style={styles.input}
+            textAlignVertical="top"
+            value={draft}
+          />
+
+          <View style={styles.accordionActions}>
+            <PrimaryButton disabled={!draft.trim()} label="Send now" onPress={sendNow} />
+            <SecondaryButton label="Save for later" onPress={saveForLater} />
+          </View>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 export default function ConversationsScreen() {
   const [people, setPeople] = useState<ConversationPerson[]>([]);
   const [allSelected, setAllSelected] = useState(true);
   const [sharedMessage, setSharedMessage] = useState(DEFAULT_QUICK_MESSAGE);
   const [perCircleMessages, setPerCircleMessages] = useState<Record<string, string>>({});
   const [expandedCircleId, setExpandedCircleId] = useState<string | null>(null);
+  const [expandedPersonId, setExpandedPersonId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     const all = await getAllConversationPeople();
@@ -140,11 +272,8 @@ export default function ConversationsScreen() {
     })();
   };
 
-  const personalise = (person: ConversationPerson) => {
-    router.push({
-      pathname: "/return/reply/edit",
-      params: { personId: person.id, personName: person.name }
-    });
+  const togglePersonalise = (personId: string) => {
+    setExpandedPersonId((current) => (current === personId ? null : personId));
   };
 
   const addNewPerson = () => {
@@ -281,7 +410,7 @@ export default function ConversationsScreen() {
         ) : (
           <View style={styles.personList}>
             {personalisePeople.map((person) => (
-              <View key={person.id} style={styles.personRow}>
+              <View key={person.id} style={styles.personBlock}>
                 <Pressable
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: person.completed }}
@@ -300,9 +429,11 @@ export default function ConversationsScreen() {
                 </Pressable>
 
                 {!person.completed ? (
-                  <Pressable accessibilityRole="button" onPress={() => personalise(person)}>
-                    <Text style={styles.linkText}>Personalise</Text>
-                  </Pressable>
+                  <PersonaliseAccordion
+                    person={person}
+                    isOpen={expandedPersonId === person.id}
+                    onToggle={() => togglePersonalise(person.id)}
+                  />
                 ) : null}
               </View>
             ))}
@@ -417,20 +548,16 @@ const styles = StyleSheet.create({
     fontSize: 15
   },
   personList: {
-    gap: theme.spacing.sm
+    gap: theme.spacing.md
   },
-  personRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: theme.spacing.sm
+  personBlock: {
+    gap: theme.spacing.xs
   },
   personTapArea: {
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing.sm,
-    minHeight: 44,
-    flex: 1
+    minHeight: 44
   },
   checkbox: {
     width: 22,
@@ -453,5 +580,48 @@ const styles = StyleSheet.create({
   circleTag: {
     color: theme.colors.textMuted,
     fontSize: 12
+  },
+  personaliseBlock: {
+    gap: theme.spacing.sm,
+    paddingLeft: 32
+  },
+  accordionPanel: {
+    gap: theme.spacing.xs
+  },
+  fieldLabel: {
+    color: theme.colors.textMuted,
+    fontSize: 13,
+    fontWeight: "600",
+    marginTop: theme.spacing.xs
+  },
+  styleChipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: theme.spacing.xs
+  },
+  styleChip: {
+    minHeight: 32,
+    borderRadius: theme.radius.pill,
+    borderWidth: 1.5,
+    borderColor: theme.colors.border,
+    paddingHorizontal: theme.spacing.sm,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  styleChipSelected: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary
+  },
+  styleChipText: {
+    color: theme.colors.text,
+    fontSize: 13,
+    fontWeight: "600"
+  },
+  styleChipTextSelected: {
+    color: theme.colors.onPrimary
+  },
+  accordionActions: {
+    gap: theme.spacing.sm,
+    marginTop: theme.spacing.sm
   }
 });
