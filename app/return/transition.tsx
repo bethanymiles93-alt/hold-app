@@ -4,27 +4,23 @@ import { Screen } from "@/components/Screen";
 import { HoldMark } from "@/components/HoldMark";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { theme } from "@/constants/theme";
-import { useHoldFlow } from "@/context/HoldFlowContext";
 
-export default function ReturnDoneScreen() {
-  const { resetFlow } = useHoldFlow();
-
-  const finish = () => {
-    resetFlow("return");
-    router.replace("/");
+export default function ReconnectTransitionScreen() {
+  const goToConversations = () => {
+    router.replace("/return/conversations");
   };
 
   return (
     <Screen contentContainerStyle={styles.content}>
       <View style={styles.message}>
         <HoldMark size={92} />
-        <Text style={styles.title}>You’re reconnected.</Text>
+        <Text style={styles.title}>Welcome back.</Text>
         <Text style={styles.subtitle}>
-          You’ve let the people who matter know you’re here again. That’s enough for today.
+          Here’s who’s waiting to hear from you — reply however feels right today.
         </Text>
       </View>
 
-      <PrimaryButton label="Done" onPress={finish} />
+      <PrimaryButton label="Continue" onPress={goToConversations} />
     </Screen>
   );
 }
@@ -40,8 +36,8 @@ const styles = StyleSheet.create({
   },
   title: {
     color: theme.colors.text,
-    fontSize: 30,
-    lineHeight: 38,
+    fontSize: 34,
+    lineHeight: 42,
     textAlign: "center",
     fontWeight: "600"
   },

@@ -44,13 +44,13 @@ export default function RootLayout() {
           <Stack.Screen name="create/review" options={{ title: "Review" }} />
           <Stack.Screen name="create/done" options={{ headerShown: false, gestureEnabled: false }} />
           <Stack.Screen
-            name="return/mode"
-            options={{ title: "Reconnect", animationDuration: 450 }}
+            name="return/transition"
+            options={{ headerShown: false, gestureEnabled: false, animationDuration: 450 }}
           />
-          <Stack.Screen name="return/instant" options={{ title: "Reconnect" }} />
+          <Stack.Screen name="return/conversations" options={{ title: "Conversations" }} />
           <Stack.Screen name="return/update" options={{ title: "Send an update" }} />
-          <Stack.Screen name="return/reply/index" options={{ title: "Thoughtful reply" }} />
-          <Stack.Screen name="return/reply/edit" options={{ title: "Thoughtful reply" }} />
+          <Stack.Screen name="return/reply/index" options={{ title: "Conversations" }} />
+          <Stack.Screen name="return/reply/edit" options={{ title: "Personalise" }} />
           <Stack.Screen name="return/done" options={{ headerShown: false, gestureEnabled: false }} />
           <Stack.Screen name="about" options={{ title: "About", headerRight: () => null }} />
           <Stack.Screen
