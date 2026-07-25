@@ -17,6 +17,12 @@ export interface AudienceContact {
   phoneNumber: string;
 }
 
+export interface AudienceCircle {
+  circleId: string;
+  circleName: string;
+  contacts: AudienceContact[];
+}
+
 export interface HoldFlowState {
   mode: FlowMode;
   recipients: string[];
@@ -24,8 +30,8 @@ export interface HoldFlowState {
   intent: HoldIntent | null;
   returnStyle: ReturnStyle | null;
   message: string;
-  audienceCircleNames: string[];
-  audienceContacts: AudienceContact[];
+  audienceCircles: AudienceCircle[];
+  audienceUngrouped: AudienceContact[];
 }
 
 export interface DraftRequest {
@@ -50,8 +56,8 @@ export interface HoldPeriod {
   startedAt: number;
   endedAt: number | null;
   recipients: string[];
-  audienceCircleNames?: string[];
-  audienceContacts?: AudienceContact[];
+  audienceCircles?: AudienceCircle[];
+  audienceUngrouped?: AudienceContact[];
 }
 
 export interface CircleContact {

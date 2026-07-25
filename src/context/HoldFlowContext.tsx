@@ -6,6 +6,7 @@ import {
   useState
 } from "react";
 import type {
+  AudienceCircle,
   AudienceContact,
   CircleGroup,
   FlowMode,
@@ -20,7 +21,7 @@ interface HoldFlowContextValue extends HoldFlowState {
   setIntent: (intent: HoldIntent) => void;
   setReturnStyle: (style: ReturnStyle) => void;
   setMessage: (message: string) => void;
-  setAudience: (circleNames: string[], contacts: AudienceContact[]) => void;
+  setAudience: (circles: AudienceCircle[], ungrouped: AudienceContact[]) => void;
   resetFlow: (mode: FlowMode) => void;
 }
 
@@ -31,9 +32,17 @@ const initialState: HoldFlowState = {
   intent: null,
   returnStyle: null,
   message: "",
-  audienceCircleNames: [],
-  audienceContacts: []
+  audienceCircles: [],
+  audienceUngrouped: []
 };
+
+export function buildAudienceCircles(groups: CircleGroup[]): AudienceCircle[] {
+  return groups.map((group) => ({
+    circleId: group.id,
+    circleName: group.name,
+    contacts: group.contacts.map((contact) => ({ name: contact.name, phoneNumber: contact.phoneNumber }))
+  }));
+}
 
 export function dedupeContactsByPhoneNumber(groups: CircleGroup[]): AudienceContact[] {
   const seen = new Map<string, AudienceContact>();
@@ -78,8 +87,8 @@ export function HoldFlowProvider({ children }: PropsWithChildren) {
         setState((current) => ({ ...current, returnStyle })),
       setMessage: (message) =>
         setState((current) => ({ ...current, message })),
-      setAudience: (audienceCircleNames, audienceContacts) =>
-        setState((current) => ({ ...current, audienceCircleNames, audienceContacts })),
+      setAudience: (audienceCircles, audienceUngrouped) =>
+        setState((current) => ({ ...current, audienceCircles, audienceUngrouped })),
       resetFlow: (mode) =>
         setState({
           ...initialState,

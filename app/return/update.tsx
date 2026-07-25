@@ -10,13 +10,18 @@ import { theme } from "@/constants/theme";
 import { useHoldFlow } from "@/context/HoldFlowContext";
 
 export default function TakingTimeUpdateScreen() {
-  const { audienceCircleNames, audienceContacts } = useHoldFlow();
+  const { audienceCircles, audienceUngrouped } = useHoldFlow();
   const [takingTimeUpdate, setTakingTimeUpdate] = useState(DEFAULT_TAKING_TIME_UPDATE);
 
+  const audienceContacts = [
+    ...audienceCircles.flatMap((circle) => circle.contacts),
+    ...audienceUngrouped
+  ];
   const numbers = audienceContacts.map((contact) => contact.phoneNumber);
+  const circleNames = audienceCircles.map((circle) => circle.circleName);
   const recipientLabel =
-    audienceCircleNames.length > 0
-      ? audienceCircleNames.join(", ")
+    circleNames.length > 0
+      ? circleNames.join(", ")
       : audienceContacts.map((contact) => contact.name).join(", ");
 
   const onSent = () => {

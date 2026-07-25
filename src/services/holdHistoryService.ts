@@ -1,9 +1,8 @@
 import * as SecureStore from "expo-secure-store";
-import type { AudienceContact, HoldPeriod } from "@/types/hold";
+import type { AudienceCircle, HoldPeriod } from "@/types/hold";
 
 const INDEX_KEY = "hold.history.index";
 const OPEN_KEY = "hold.history.open";
-const POST_RECONNECT_KEY = "hold.history.postReconnect";
 const RECORD_PREFIX = "hold.history.";
 
 function recordKey(id: string): string {
@@ -39,8 +38,7 @@ async function writeRecord(period: HoldPeriod): Promise<void> {
 
 export interface StartHoldPeriodInput {
   recipients: string[];
-  audienceCircleNames: string[];
-  audienceContacts: AudienceContact[];
+  audienceCircles: AudienceCircle[];
 }
 
 /** Opens a new Hold period. Called the moment a Hold is actually shared. */
@@ -50,12 +48,40 @@ export async function startHoldPeriod(input: StartHoldPeriodInput): Promise<void
     startedAt: Date.now(),
     endedAt: null,
     recipients: input.recipients,
-    audienceCircleNames: input.audienceCircleNames,
-    audienceContacts: input.audienceContacts
+    audienceCircles: input.audienceCircles
   };
 
   await writeRecord(period);
   await SecureStore.setItemAsync(OPEN_KEY, period.id);
+}
+
+/**
+ * Appends someone new to the currently-open period's audience — the "Add to Going
+ * Quiet" edge case (a new contact messages while the user is away). No-ops if there's
+ * no open period. Added to the ungrouped bucket, same convention Conversations uses
+ * for its own "+ Add person" — not part of an original Circle.
+ */
+export async function addToAudience(contact: { name: string; phoneNumber: string }): Promise<void> {
+  const openId = await SecureStore.getItemAsync(OPEN_KEY);
+  if (!openId) return;
+
+  const period = await readRecord(openId);
+  if (!period) return;
+
+  const circles = period.audienceCircles ?? [];
+  const ungrouped = period.audienceUngrouped ?? [];
+  const alreadyPresent =
+    circles.some((circle) => circle.contacts.some((existing) => existing.phoneNumber === contact.phoneNumber)) ||
+    ungrouped.some((existing) => existing.phoneNumber === contact.phoneNumber);
+  if (alreadyPresent) return;
+
+  const updated: HoldPeriod = {
+    ...period,
+    recipients: [...period.recipients, contact.name],
+    audienceUngrouped: [...ungrouped, contact]
+  };
+
+  await writeRecord(updated);
 }
 
 /** The currently-open Hold period, if any. Null when the user is not in a Hold. */
@@ -77,30 +103,6 @@ export async function endOpenHoldPeriod(): Promise<void> {
   }
 
   await SecureStore.deleteItemAsync(OPEN_KEY);
-}
-
-export interface PostReconnectState {
-  startReplyCount: number;
-}
-
-/**
- * Marks the deliberate Post-Reconnect exception active: the user sent a Quick
- * Reconnect instead of completing Thoughtful replies, so there's genuinely
- * something still open. `startReplyCount` snapshots how many Thoughtful-reply
- * drafts were in progress at that moment, for "X of Y sent" progress later.
- */
-export async function setPostReconnectActive(startReplyCount: number): Promise<void> {
-  const state: PostReconnectState = { startReplyCount };
-  await SecureStore.setItemAsync(POST_RECONNECT_KEY, JSON.stringify(state));
-}
-
-export async function getPostReconnectState(): Promise<PostReconnectState | null> {
-  const raw = await SecureStore.getItemAsync(POST_RECONNECT_KEY);
-  return raw ? (JSON.parse(raw) as PostReconnectState) : null;
-}
-
-export async function clearPostReconnect(): Promise<void> {
-  await SecureStore.deleteItemAsync(POST_RECONNECT_KEY);
 }
 
 /** Every closed Hold period, most recent first. */
@@ -125,5 +127,4 @@ export async function deleteAllHoldHistory(): Promise<void> {
   await Promise.all(ids.map((id) => SecureStore.deleteItemAsync(recordKey(id))));
   await SecureStore.deleteItemAsync(INDEX_KEY);
   await SecureStore.deleteItemAsync(OPEN_KEY);
-  await SecureStore.deleteItemAsync(POST_RECONNECT_KEY);
 }

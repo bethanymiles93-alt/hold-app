@@ -8,7 +8,7 @@ import { EmailOutOfOffice } from "@/components/EmailOutOfOffice";
 import { WiderWorldStatus } from "@/components/WiderWorldStatus";
 import { SendChoice } from "@/components/SendChoice";
 import { theme } from "@/constants/theme";
-import { dedupeContactsByPhoneNumber, useHoldFlow } from "@/context/HoldFlowContext";
+import { buildAudienceCircles, dedupeContactsByPhoneNumber, useHoldFlow } from "@/context/HoldFlowContext";
 import { setLastSendMethod } from "@/services/circleService";
 import { startHoldPeriod } from "@/services/holdHistoryService";
 import { activateOutOfOffice } from "@/services/emailAccountService";
@@ -47,8 +47,7 @@ export default function HoldReviewScreen() {
   const onSent = async () => {
     await startHoldPeriod({
       recipients,
-      audienceCircleNames: circleNames,
-      audienceContacts
+      audienceCircles: buildAudienceCircles(selectedGroups)
     });
 
     if (emailEnabled) {

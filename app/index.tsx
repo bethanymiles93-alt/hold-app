@@ -22,12 +22,12 @@ import { HistoryIcon } from "@/components/HistoryIcon";
 import { theme } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { useHoldFlow } from "@/context/HoldFlowContext";
+import { endOpenHoldPeriod, getOpenHoldPeriod } from "@/services/holdHistoryService";
 import {
-  clearPostReconnect,
-  getOpenHoldPeriod,
-  getPostReconnectState
-} from "@/services/holdHistoryService";
-import { getActiveReplies } from "@/services/replyStorageService";
+  completeAll,
+  getProgress as getConversationProgress,
+  seedFromAudience
+} from "@/services/conversationService";
 import { HAS_SEEN_WELCOME_KEY } from "@/constants/storageKeys";
 import type { HoldPeriod } from "@/types/hold";
 
@@ -97,25 +97,11 @@ export default function HomeScreen() {
         if (period) {
           resolvedState = "taking-time";
         } else {
-          const postReconnect = await getPostReconnectState().catch(() => null);
+          const conversationProgress = await getConversationProgress().catch(() => null);
 
-          if (postReconnect) {
-            const { active } = await getActiveReplies(Date.now());
-            const allSent = postReconnect.startReplyCount > 0 && active.length === 0;
-
-            if (allSent) {
-              await clearPostReconnect();
-              resolvedState = "normal";
-            } else {
-              resolvedState = "post-reconnect";
-              progress =
-                postReconnect.startReplyCount > 0
-                  ? {
-                      done: postReconnect.startReplyCount - active.length,
-                      total: postReconnect.startReplyCount
-                    }
-                  : null;
-            }
+          if (conversationProgress && conversationProgress.completed < conversationProgress.total) {
+            resolvedState = "post-reconnect";
+            progress = { done: conversationProgress.completed, total: conversationProgress.total };
           }
         }
 
@@ -133,25 +119,34 @@ export default function HomeScreen() {
     }, [reduceMotion, scaleAnim, paletteAnim])
   );
 
-  const start = (target: "hold" | "return") => {
+  const start = (target: "hold") => {
     resetFlow(target);
-    if (target === "return") {
-      setAudience(openPeriod?.audienceCircleNames ?? [], openPeriod?.audienceContacts ?? []);
-    }
-    router.push(target === "hold" ? "/create/people" : "/return/mode");
+    router.push("/create/people");
+  };
+
+  const beginReconnect = async () => {
+    const circles = openPeriod?.audienceCircles ?? [];
+    const ungrouped = openPeriod?.audienceUngrouped ?? [];
+
+    await endOpenHoldPeriod();
+    await seedFromAudience(circles, ungrouped);
+    resetFlow("return");
+    setAudience(circles, ungrouped);
+    router.push("/return/transition");
   };
 
   const finishReconnecting = () => {
-    router.push("/return/reply");
+    router.push("/return/conversations");
   };
 
-  const startNewQuietSession = async () => {
-    await clearPostReconnect();
+  const startNewQuietSession = () => {
+    // Old unfinished Conversations stay saved, not cleared — starting a new quiet
+    // session doesn't erase them, it just takes priority on Home until it ends.
     start("hold");
   };
 
   const doClearPostReconnect = async () => {
-    await clearPostReconnect();
+    await completeAll();
     setHomeState("normal");
     setPostReconnectProgress(null);
   };
@@ -271,7 +266,7 @@ export default function HomeScreen() {
               accessibilityRole="button"
               accessibilityLabel="Reconnect"
               disabled={isAnimating}
-              onPress={() => animateAndNavigate(1, () => start("return"), { ripple: true })}
+              onPress={() => animateAndNavigate(1, () => void beginReconnect(), { ripple: true })}
             >
               <View style={styles.circleStack}>
                 <Animated.View
