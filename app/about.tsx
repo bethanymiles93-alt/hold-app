@@ -9,6 +9,7 @@ import { deleteAllCircles } from "@/services/circleService";
 import { deleteAllConversations } from "@/services/conversationService";
 import { deleteAllHoldHistory } from "@/services/holdHistoryService";
 import { deleteAllReplies } from "@/services/replyStorageService";
+import { deleteAllTemplates } from "@/services/templateService";
 
 // TODO: temporary placeholder inbox — replace with a dedicated feedback address.
 const FEEDBACK_EMAIL = "bethany.miles.93@gmail.com";
@@ -99,7 +100,7 @@ export default function AboutScreen() {
   const deleteEverything = () => {
     Alert.alert(
       "Delete everything on this device?",
-      "This removes every saved Circle, Hold history entry, in-progress reply, and Conversations list. This can't be undone.",
+      "This removes every saved Circle, Hold history entry, in-progress reply, Conversations list, and saved template. This can't be undone.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -112,6 +113,7 @@ export default function AboutScreen() {
                 deleteAllHoldHistory(),
                 deleteAllReplies(),
                 deleteAllConversations(),
+                deleteAllTemplates(),
                 AsyncStorage.removeItem(HAS_SEEN_WELCOME_KEY)
               ]);
               resetFlow("hold");

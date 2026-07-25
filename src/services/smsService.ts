@@ -1,4 +1,5 @@
 import * as SMS from "expo-sms";
+import { shareMessage } from "@/services/shareService";
 
 export async function isSmsAvailable(): Promise<boolean> {
   return SMS.isAvailableAsync();
@@ -11,4 +12,18 @@ export async function isSmsAvailable(): Promise<boolean> {
  */
 export async function sendTextMessage(numbers: string[], message: string): Promise<void> {
   await SMS.sendSMSAsync(numbers, message);
+}
+
+/**
+ * SMS when there are numbers to text and it's available, otherwise the share
+ * sheet. Used anywhere a message needs to go out without the full dual-button
+ * SendChoice UI — Conversations' bulk/quick sends, Going Quiet's personalised
+ * per-person sends.
+ */
+export async function sendOrShare(numbers: string[], message: string): Promise<void> {
+  if (numbers.length > 0 && (await isSmsAvailable())) {
+    await sendTextMessage(numbers, message);
+  } else {
+    await shareMessage(message);
+  }
 }

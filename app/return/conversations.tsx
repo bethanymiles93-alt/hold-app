@@ -15,8 +15,7 @@ import {
 } from "@/services/conversationService";
 import { getGroup } from "@/services/circleService";
 import { pickContact } from "@/services/contactPickerService";
-import { isSmsAvailable, sendTextMessage } from "@/services/smsService";
-import { shareMessage } from "@/services/shareService";
+import { sendOrShare } from "@/services/smsService";
 
 const DEFAULT_QUICK_MESSAGE = QUICK_RECONNECT_MESSAGES[0]?.text ?? "";
 const OTHER_KEY = "__other__";
@@ -25,14 +24,6 @@ interface CircleSection {
   circleId: string | null;
   circleName: string;
   people: ConversationPerson[];
-}
-
-async function quickSend(numbers: string[], message: string): Promise<void> {
-  if (numbers.length > 0 && (await isSmsAvailable())) {
-    await sendTextMessage(numbers, message);
-  } else {
-    await shareMessage(message);
-  }
 }
 
 function groupByCircle(people: ConversationPerson[]): CircleSection[] {
@@ -90,7 +81,7 @@ export default function ConversationsScreen() {
         text: "Send",
         onPress: () =>
           void (async () => {
-            await quickSend(incomplete.map((person) => person.phoneNumber), message);
+            await sendOrShare(incomplete.map((person) => person.phoneNumber), message);
             await Promise.all(incomplete.map((person) => toggleComplete(person.id, true)));
             await refresh();
           })()
@@ -110,7 +101,7 @@ export default function ConversationsScreen() {
         text: "Send",
         onPress: () =>
           void (async () => {
-            await quickSend(targets.map((person) => person.phoneNumber), message);
+            await sendOrShare(targets.map((person) => person.phoneNumber), message);
             await Promise.all(targets.map((person) => toggleComplete(person.id, true)));
             await refresh();
           })()
@@ -130,7 +121,7 @@ export default function ConversationsScreen() {
     if (!message) return;
 
     void (async () => {
-      await quickSend([person.phoneNumber], message);
+      await sendOrShare([person.phoneNumber], message);
       await toggleComplete(person.id, true);
       setOpenPersonId(null);
       await refresh();
