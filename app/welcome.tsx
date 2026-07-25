@@ -26,17 +26,16 @@ export default function WelcomeScreen() {
       <View style={styles.body}>
         <Text style={styles.title}>Welcome to Hold.</Text>
         <Text style={styles.paragraph}>
-          We built this because staying in touch can feel impossible when you don’t have the
-          capacity for it right now — whatever the reason. Hold helps you keep your circles in
-          the loop, rest without guilt, and reconnect in your own time.
+          We built Hold because staying in touch can feel impossible when you don’t have the
+          capacity, whatever the reason. Hold helps you keep your circles in the loop, rest
+          without guilt, and reconnect in your own time.
         </Text>
         <Text style={styles.paragraph}>
-          It helps the people who care about you too — so they’re not left wondering if they’ve
-          done something wrong, or worrying in silence.
+          It also helps the people who care about you, so they’re not left worrying in silence.
         </Text>
         <Text style={styles.paragraph}>
-          We’d love to hear what you think — and if Hold helps you, we’d be grateful if you
-          shared it with someone who might need it too.
+          We’d love to hear what you think. If Hold helps you, we’d be grateful if you shared it
+          with someone who might need it too.
         </Text>
       </View>
 
