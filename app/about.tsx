@@ -6,6 +6,7 @@ import { theme } from "@/constants/theme";
 import { HAS_SEEN_WELCOME_KEY } from "@/constants/storageKeys";
 import { useHoldFlow } from "@/context/HoldFlowContext";
 import { deleteAllCircles } from "@/services/circleService";
+import { deleteAllConversations } from "@/services/conversationService";
 import { deleteAllHoldHistory } from "@/services/holdHistoryService";
 import { deleteAllReplies } from "@/services/replyStorageService";
 
@@ -98,7 +99,7 @@ export default function AboutScreen() {
   const deleteEverything = () => {
     Alert.alert(
       "Delete everything on this device?",
-      "This removes every saved Circle, Hold history entry, and in-progress reply. This can't be undone.",
+      "This removes every saved Circle, Hold history entry, in-progress reply, and Conversations list. This can't be undone.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -110,6 +111,7 @@ export default function AboutScreen() {
                 deleteAllCircles(),
                 deleteAllHoldHistory(),
                 deleteAllReplies(),
+                deleteAllConversations(),
                 AsyncStorage.removeItem(HAS_SEEN_WELCOME_KEY)
               ]);
               resetFlow("hold");

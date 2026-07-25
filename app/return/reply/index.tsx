@@ -6,7 +6,6 @@ import { StepHeader } from "@/components/StepHeader";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { SecondaryButton } from "@/components/SecondaryButton";
 import { theme } from "@/constants/theme";
-import { endOpenHoldPeriod } from "@/services/holdHistoryService";
 import { deleteReply, getActiveReplies } from "@/services/replyStorageService";
 import type { StoredReply } from "@/types/hold";
 
@@ -47,7 +46,6 @@ export default function ReplyQueueScreen() {
 
   const markSent = async (id: string) => {
     await deleteReply(id);
-    await endOpenHoldPeriod();
     setReplies((current) => current.filter((reply) => reply.id !== id));
     setClearedNotice(true);
   };

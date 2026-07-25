@@ -14,7 +14,7 @@ import {
 } from "@/constants/copy";
 import { theme } from "@/constants/theme";
 import { createReplyDraft } from "@/services/draftService";
-import { endOpenHoldPeriod } from "@/services/holdHistoryService";
+import { toggleComplete } from "@/services/conversationService";
 import {
   createReplyId,
   deleteReply,
@@ -25,9 +25,13 @@ import { shareMessage } from "@/services/shareService";
 import type { ReturnStyle, StoredReply } from "@/types/hold";
 
 export default function ReplyEditScreen() {
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { id, personId, personName } = useLocalSearchParams<{
+    id?: string;
+    personId?: string;
+    personName?: string;
+  }>();
   const [recordId, setRecordId] = useState<string | null>(id ?? null);
-  const [recipientName, setRecipientName] = useState("");
+  const [recipientName, setRecipientName] = useState(personName ?? "");
   const [friendMessage, setFriendMessage] = useState("");
   const [style, setStyle] = useState<ReturnStyle | null>(null);
   const [draft, setDraft] = useState("");
@@ -74,9 +78,11 @@ export default function ReplyEditScreen() {
     return record;
   };
 
+  const backDestination = personId ? "/return/conversations" : "/return/reply";
+
   const save = async () => {
     await persist();
-    router.replace("/return/reply");
+    router.replace(backDestination);
   };
 
   const share = async () => {
@@ -96,21 +102,24 @@ export default function ReplyEditScreen() {
     if (recordId) {
       await deleteReply(recordId);
     }
-    await endOpenHoldPeriod();
-    router.replace("/return/reply");
+    if (personId) {
+      await toggleComplete(personId, true);
+    }
+    router.replace(backDestination);
   };
 
   return (
     <Screen contentContainerStyle={styles.content}>
       <View>
         <StepHeader
-          eyebrow="Thoughtful reply"
+          eyebrow={personId ? "Personalise" : "Thoughtful reply"}
           title="Word a considered reply."
           body="Paste what they sent, choose a starting point, then make it yours."
         />
 
         <Text style={styles.label}>Their name</Text>
         <TextInput
+          editable={!personId}
           accessibilityLabel="Recipient name"
           autoCapitalize="words"
           onChangeText={setRecipientName}
