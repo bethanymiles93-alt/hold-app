@@ -6,8 +6,8 @@ import { PrimaryButton } from "@/components/PrimaryButton";
 import { theme } from "@/constants/theme";
 
 export default function ReconnectTransitionScreen() {
-  const goToConversations = () => {
-    router.replace("/return/conversations");
+  const goToReconnect = () => {
+    router.replace("/return/reconnect");
   };
 
   return (
@@ -20,7 +20,7 @@ export default function ReconnectTransitionScreen() {
         </Text>
       </View>
 
-      <PrimaryButton label="Continue" onPress={goToConversations} />
+      <PrimaryButton label="Continue" onPress={goToReconnect} />
     </Screen>
   );
 }

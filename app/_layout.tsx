@@ -47,6 +47,7 @@ export default function RootLayout() {
             name="return/transition"
             options={{ headerShown: false, gestureEnabled: false, animationDuration: 450 }}
           />
+          <Stack.Screen name="return/reconnect" options={{ title: "Reconnect" }} />
           <Stack.Screen name="return/conversations" options={{ title: "Conversations" }} />
           <Stack.Screen name="return/update" options={{ title: "Send an update" }} />
           <Stack.Screen name="return/reply/index" options={{ title: "Conversations" }} />
