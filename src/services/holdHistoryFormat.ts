@@ -39,6 +39,11 @@ export function isSameCalendarDay(a: number, b: number): boolean {
   );
 }
 
+/** Same-day: the warm immediate copy. From the next calendar day onward: "Sent 26 Jul". */
+export function formatSentLabel(sentAt: number, immediateLabel: string, now: number = Date.now()): string {
+  return isSameCalendarDay(sentAt, now) ? immediateLabel : `Sent ${formatShortDate(sentAt)}`;
+}
+
 function dateKey(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");

@@ -9,12 +9,13 @@ import { theme } from "@/constants/theme";
 import { QUICK_RECONNECT_MESSAGES } from "@/constants/copy";
 import { useHoldFlow } from "@/context/HoldFlowContext";
 import { sendOrShare } from "@/services/smsService";
+import { formatSentLabel } from "@/services/holdHistoryFormat";
 
 export default function ReconnectScreen() {
   const { audienceCircles, audienceUngrouped } = useHoldFlow();
   const [message, setMessage] = useState(QUICK_RECONNECT_MESSAGES[0]?.text ?? "");
   const [isEditing, setIsEditing] = useState(false);
-  const [sent, setSent] = useState(false);
+  const [sentAt, setSentAt] = useState<number | null>(null);
 
   const audienceContacts = [
     ...audienceCircles.flatMap((circle) => circle.contacts),
@@ -36,7 +37,7 @@ export default function ReconnectScreen() {
         // so the sent state still shows — matches the "sent" wording rule.
       }
       setIsEditing(false);
-      setSent(true);
+      setSentAt(Date.now());
     })();
   };
 
@@ -73,22 +74,26 @@ export default function ReconnectScreen() {
           </View>
         )}
 
-        {!sent ? (
+        {sentAt === null ? (
           <Pressable accessibilityRole="button" onPress={() => setIsEditing((current) => !current)}>
             <Text style={styles.linkText}>{isEditing ? "Done" : "Edit"}</Text>
           </Pressable>
         ) : (
           <View style={styles.sentState}>
-            <Text style={styles.sentLabel}>Sent.</Text>
+            <Text style={styles.sentLabel}>
+              {formatSentLabel(sentAt, "Sent. They know you're thinking of them.")}
+            </Text>
             <Text style={styles.gatePrompt}>Want to reply to anyone properly?</Text>
           </View>
         )}
       </View>
 
       <View style={styles.actions}>
-        {!sent ? <PrimaryButton disabled={!message.trim()} label="Send" onPress={send} /> : null}
+        {sentAt === null ? (
+          <PrimaryButton disabled={!message.trim()} label="Send" onPress={send} />
+        ) : null}
         <SecondaryButton label="Personalise" onPress={goToConversations} />
-        {sent ? <SecondaryButton label="Not now" onPress={notNow} /> : null}
+        {sentAt !== null ? <SecondaryButton label="Not now" onPress={notNow} /> : null}
       </View>
     </Screen>
   );

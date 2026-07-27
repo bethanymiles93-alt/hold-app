@@ -10,6 +10,7 @@ import {
   addCircleMembers,
   addPerson,
   getAll as getAllConversationPeople,
+  markQuickSent,
   moveToPersonalise,
   toggleComplete,
   type ConversationPerson
@@ -19,6 +20,7 @@ import { pickContact } from "@/services/contactPickerService";
 import { sendOrShare } from "@/services/smsService";
 import { createReplyDraft } from "@/services/draftService";
 import { getReply, saveReply } from "@/services/replyStorageService";
+import { formatSentLabel } from "@/services/holdHistoryFormat";
 import type { ReturnStyle, StoredReply } from "@/types/hold";
 
 const DEFAULT_QUICK_MESSAGE = QUICK_RECONNECT_MESSAGES[0]?.text ?? "";
@@ -27,10 +29,11 @@ interface CircleSection {
   circleId: string;
   circleName: string;
   people: ConversationPerson[];
+  sentAt: number | null;
 }
 
 function groupByCircle(people: ConversationPerson[]): CircleSection[] {
-  const sections: CircleSection[] = [];
+  const sections: Array<Omit<CircleSection, "sentAt">> = [];
   const indexByKey = new Map<string, number>();
 
   for (const person of people) {
@@ -46,7 +49,11 @@ function groupByCircle(people: ConversationPerson[]): CircleSection[] {
     sections[index]?.people.push(person);
   }
 
-  return sections;
+  // A send is one bulk action per Circle, so a section is atomically all-sent or not.
+  return sections.map((section) => ({
+    ...section,
+    sentAt: section.people.every((person) => person.sentAt) ? (section.people[0]?.sentAt ?? null) : null
+  }));
 }
 
 interface PersonaliseAccordionProps {
@@ -61,6 +68,7 @@ function PersonaliseAccordion({ person, isOpen, onToggle }: PersonaliseAccordion
   const [style, setStyle] = useState<ReturnStyle | null>(null);
   const [draft, setDraft] = useState("");
   const [status, setStatus] = useState<"none" | "draft" | "sent">("none");
+  const [sentAt, setSentAt] = useState<number | null>(null);
 
   useEffect(() => {
     if (!isOpen || loaded) return;
@@ -71,6 +79,7 @@ function PersonaliseAccordion({ person, isOpen, onToggle }: PersonaliseAccordion
         setFriendMessage(existing.friendMessage);
         setDraft(existing.draftReply);
         setStatus(existing.sentAt ? "sent" : "draft");
+        setSentAt(existing.sentAt ?? null);
       }
       setLoaded(true);
     })();
@@ -107,19 +116,25 @@ function PersonaliseAccordion({ person, isOpen, onToggle }: PersonaliseAccordion
 
   const sendNow = () => {
     void (async () => {
-      const record = await persist(Date.now());
+      const now = Date.now();
+      const record = await persist(now);
       try {
         await sendOrShare([person.phoneNumber], record.draftReply.trim());
       } catch {
         // The compose sheet closing is the only signal available either way.
       }
       setStatus("sent");
+      setSentAt(now);
       onToggle();
     })();
   };
 
   const statusLabel =
-    status === "sent" ? "Sent." : status === "draft" ? "Continue draft" : "Personalise";
+    status === "sent" && sentAt !== null
+      ? formatSentLabel(sentAt, "Sent. They'll hear from you properly.")
+      : status === "draft"
+        ? "Continue draft"
+        : "Personalise";
 
   return (
     <View style={styles.personaliseBlock}>
@@ -200,9 +215,10 @@ export default function ConversationsScreen() {
     }, [refresh])
   );
 
-  const quickPeople = people.filter((person) => person.bucket === "quick" && !person.completed);
+  const quickPeopleAll = people.filter((person) => person.bucket === "quick");
+  const quickPeoplePending = quickPeopleAll.filter((person) => !person.sentAt);
   const personalisePeople = people.filter((person) => person.bucket === "personalise");
-  const quickSections = groupByCircle(quickPeople);
+  const quickSections = groupByCircle(quickPeopleAll);
 
   const confirmAndSend = (message: string, targets: ConversationPerson[], onDone: () => void) => {
     const text = message.trim();
@@ -215,7 +231,7 @@ export default function ConversationsScreen() {
         onPress: () =>
           void (async () => {
             await sendOrShare(targets.map((person) => person.phoneNumber), text);
-            await Promise.all(targets.map((person) => toggleComplete(person.id, true)));
+            await markQuickSent(targets.map((person) => person.id));
             onDone();
             await refresh();
           })()
@@ -223,11 +239,12 @@ export default function ConversationsScreen() {
     ]);
   };
 
-  const sendToEveryone = () => confirmAndSend(sharedMessage, quickPeople, () => {});
+  const sendToEveryone = () => confirmAndSend(sharedMessage, quickPeoplePending, () => {});
 
   const sendToCircle = (section: CircleSection) => {
     const message = perCircleMessages[section.circleId] ?? sharedMessage;
-    confirmAndSend(message, section.people, () => {
+    const pendingPeople = section.people.filter((person) => !person.sentAt);
+    confirmAndSend(message, pendingPeople, () => {
       if (expandedCircleId === section.circleId) setExpandedCircleId(null);
     });
   };
@@ -310,19 +327,25 @@ export default function ConversationsScreen() {
           >
             <Text style={[styles.chipText, allSelected && styles.chipTextSelected]}>All</Text>
           </Pressable>
-          {quickSections.map((section) => (
-            <Pressable
-              key={section.circleId}
-              accessibilityRole="button"
-              accessibilityState={{ selected: !allSelected }}
-              onPress={() => selectCircle(section.circleId)}
-              style={[styles.chip, !allSelected && styles.chipSelected]}
-            >
-              <Text style={[styles.chipText, !allSelected && styles.chipTextSelected]}>
-                {section.circleName}
-              </Text>
-            </Pressable>
-          ))}
+          {quickSections.map((section) =>
+            section.sentAt !== null ? (
+              <View key={section.circleId} style={styles.chipSent} accessibilityRole="text">
+                <Text style={styles.chipSentText}>✓ {section.circleName}</Text>
+              </View>
+            ) : (
+              <Pressable
+                key={section.circleId}
+                accessibilityRole="button"
+                accessibilityState={{ selected: !allSelected }}
+                onPress={() => selectCircle(section.circleId)}
+                style={[styles.chip, !allSelected && styles.chipSelected]}
+              >
+                <Text style={[styles.chipText, !allSelected && styles.chipTextSelected]}>
+                  {section.circleName}
+                </Text>
+              </Pressable>
+            )
+          )}
         </View>
 
         {allSelected ? (
@@ -335,67 +358,82 @@ export default function ConversationsScreen() {
               value={sharedMessage}
             />
             <PrimaryButton
-              disabled={quickPeople.length === 0}
-              label={`Send to everyone (${quickPeople.length})`}
+              disabled={quickPeoplePending.length === 0}
+              label={`Send to everyone (${quickPeoplePending.length})`}
               onPress={sendToEveryone}
             />
           </View>
         ) : (
           <View style={styles.circleRows}>
-            {quickSections.map((section) => (
-              <View key={section.circleId} style={styles.circleRow}>
-                <View style={styles.circleRowHeader}>
-                  <Text style={styles.circleRowTitle}>{section.circleName}</Text>
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() =>
-                      setExpandedCircleId((current) =>
-                        current === section.circleId ? null : section.circleId
-                      )
-                    }
-                  >
-                    <Text style={styles.linkText}>
-                      {expandedCircleId === section.circleId ? "Hide people" : "Show people"}
+            {quickSections.map((section) => {
+              if (section.sentAt !== null) {
+                return (
+                  <View key={section.circleId} style={styles.circleRowSent}>
+                    <Text style={styles.circleRowSentText}>✓ {section.circleName}</Text>
+                    <Text style={styles.circleRowSentLabel}>
+                      {formatSentLabel(section.sentAt, "Instant message sent.")}
                     </Text>
-                  </Pressable>
-                </View>
-
-                <TextInput
-                  accessibilityLabel={`Message to ${section.circleName}`}
-                  multiline
-                  onChangeText={(text) =>
-                    setPerCircleMessages((current) => ({ ...current, [section.circleId]: text }))
-                  }
-                  style={styles.input}
-                  value={perCircleMessages[section.circleId] ?? sharedMessage}
-                />
-                <SecondaryButton
-                  label={`Send to ${section.circleName} (${section.people.length})`}
-                  onPress={() => sendToCircle(section)}
-                />
-
-                {expandedCircleId === section.circleId ? (
-                  <View style={styles.expandedPeople}>
-                    {section.people.map((person) => (
-                      <View key={person.id} style={styles.expandedPersonRow}>
-                        <Text style={styles.expandedPersonName}>{person.name}</Text>
-                        <Pressable accessibilityRole="button" onPress={() => untickFromQuick(person)}>
-                          <Text style={styles.linkText}>Untick</Text>
-                        </Pressable>
-                      </View>
-                    ))}
-                    {section.circleId !== "other" ? (
-                      <Pressable
-                        accessibilityRole="button"
-                        onPress={() => expandToFullCircle(section)}
-                      >
-                        <Text style={styles.linkText}>Expand to full Circle</Text>
-                      </Pressable>
-                    ) : null}
                   </View>
-                ) : null}
-              </View>
-            ))}
+                );
+              }
+
+              const pendingPeople = section.people.filter((person) => !person.sentAt);
+
+              return (
+                <View key={section.circleId} style={styles.circleRow}>
+                  <View style={styles.circleRowHeader}>
+                    <Text style={styles.circleRowTitle}>{section.circleName}</Text>
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() =>
+                        setExpandedCircleId((current) =>
+                          current === section.circleId ? null : section.circleId
+                        )
+                      }
+                    >
+                      <Text style={styles.linkText}>
+                        {expandedCircleId === section.circleId ? "Hide people" : "Show people"}
+                      </Text>
+                    </Pressable>
+                  </View>
+
+                  <TextInput
+                    accessibilityLabel={`Message to ${section.circleName}`}
+                    multiline
+                    onChangeText={(text) =>
+                      setPerCircleMessages((current) => ({ ...current, [section.circleId]: text }))
+                    }
+                    style={styles.input}
+                    value={perCircleMessages[section.circleId] ?? sharedMessage}
+                  />
+                  <SecondaryButton
+                    label={`Send to ${section.circleName} (${pendingPeople.length})`}
+                    onPress={() => sendToCircle(section)}
+                  />
+
+                  {expandedCircleId === section.circleId ? (
+                    <View style={styles.expandedPeople}>
+                      {pendingPeople.map((person) => (
+                        <View key={person.id} style={styles.expandedPersonRow}>
+                          <Text style={styles.expandedPersonName}>{person.name}</Text>
+                          <Pressable accessibilityRole="button" onPress={() => untickFromQuick(person)}>
+                            <Text style={styles.linkText}>Untick</Text>
+                          </Pressable>
+                        </View>
+                      ))}
+                      {section.circleId !== "other" ? (
+                        <Pressable
+                          accessibilityRole="button"
+                          onPress={() => expandToFullCircle(section)}
+                        >
+                          <Text style={styles.linkText}>Expand to full Circle</Text>
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  ) : null}
+                </View>
+              );
+            })}
           </View>
         )}
       </View>
@@ -497,6 +535,19 @@ const styles = StyleSheet.create({
   chipTextSelected: {
     color: theme.colors.onPrimary
   },
+  chipSent: {
+    minHeight: 36,
+    borderRadius: theme.radius.pill,
+    paddingHorizontal: theme.spacing.md,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.surfaceStrong
+  },
+  chipSentText: {
+    color: theme.colors.textMuted,
+    fontSize: 14,
+    fontWeight: "600"
+  },
   quickBody: {
     gap: theme.spacing.sm
   },
@@ -526,6 +577,24 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     fontSize: 15,
     fontWeight: "600"
+  },
+  circleRowSent: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    minHeight: 40,
+    borderRadius: theme.radius.md,
+    paddingHorizontal: theme.spacing.md,
+    backgroundColor: theme.colors.surfaceStrong
+  },
+  circleRowSentText: {
+    color: theme.colors.textMuted,
+    fontSize: 15,
+    fontWeight: "600"
+  },
+  circleRowSentLabel: {
+    color: theme.colors.textMuted,
+    fontSize: 13
   },
   linkText: {
     color: theme.colors.link,

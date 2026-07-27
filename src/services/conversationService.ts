@@ -14,6 +14,7 @@ export interface ConversationPerson {
   circleName: string | null;
   completed: boolean;
   bucket: ConversationBucket;
+  sentAt: number | null;
 }
 
 export interface ConversationProgress {
@@ -92,7 +93,8 @@ export async function seedFromAudience(
         circleId: circle.circleId,
         circleName: circle.circleName,
         completed: false,
-        bucket: "quick"
+        bucket: "quick",
+        sentAt: null
       });
     }
   }
@@ -107,7 +109,8 @@ export async function seedFromAudience(
       circleId: null,
       circleName: null,
       completed: false,
-      bucket: "quick"
+      bucket: "quick",
+      sentAt: null
     });
   }
 
@@ -131,7 +134,8 @@ export async function addCircleMembers(
       circleId,
       circleName,
       completed: false,
-      bucket: "quick" as const
+      bucket: "quick" as const,
+      sentAt: null
     }));
 
   await Promise.all(additions.map((person) => writeRecord(person)));
@@ -149,7 +153,8 @@ export async function addPerson(contact: { name: string; phoneNumber: string }):
     circleId: null,
     circleName: null,
     completed: false,
-    bucket: "personalise"
+    bucket: "personalise",
+    sentAt: null
   });
 }
 
@@ -158,6 +163,18 @@ export async function toggleComplete(id: string, completed: boolean): Promise<vo
   if (!person) return;
 
   await writeRecord({ ...person, completed });
+}
+
+/** Marks a batch of Quick message recipients as sent — a bulk send is atomic, so they share one timestamp. */
+export async function markQuickSent(ids: string[]): Promise<void> {
+  const sentAt = Date.now();
+  await Promise.all(
+    ids.map(async (id) => {
+      const person = await readRecord(id);
+      if (!person) return;
+      await writeRecord({ ...person, completed: true, sentAt });
+    })
+  );
 }
 
 /** Unticking someone out of Quick message — they move to Personalise/Conversations. */
