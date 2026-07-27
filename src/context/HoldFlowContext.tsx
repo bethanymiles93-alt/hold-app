@@ -10,20 +10,23 @@ import type {
   AudienceContact,
   CircleGroup,
   FlowMode,
+  GoingQuietCircleDraft,
   GoingQuietRecipient,
   HoldFlowState,
   HoldIntent,
   ReturnStyle
 } from "@/types/hold";
+import { getCircleTemplate, saveCircleTemplate } from "@/services/templateService";
 
 interface HoldFlowContextValue extends HoldFlowState {
   setRecipients: (recipients: string[]) => void;
-  toggleGroup: (group: CircleGroup) => void;
+  toggleGroup: (group: CircleGroup) => Promise<void>;
   toggleRecipientIncluded: (contactId: string) => void;
   setRecipientPersonalisedMessage: (contactId: string, message: string | null) => void;
-  setIntent: (intent: HoldIntent) => void;
+  setCircleDraftIntent: (circleId: string, intent: HoldIntent) => void;
+  setCircleDraftMessage: (circleId: string, message: string) => void;
+  saveCircleDraftAsDefault: (circleId: string) => Promise<void>;
   setReturnStyle: (style: ReturnStyle) => void;
-  setMessage: (message: string) => void;
   setAudience: (circles: AudienceCircle[], ungrouped: AudienceContact[]) => void;
   resetFlow: (mode: FlowMode) => void;
 }
@@ -32,12 +35,11 @@ const initialState: HoldFlowState = {
   mode: "hold",
   recipients: [],
   selectedGroups: [],
-  intent: null,
   returnStyle: null,
-  message: "",
   audienceCircles: [],
   audienceUngrouped: [],
-  goingQuietRecipients: []
+  goingQuietRecipients: [],
+  circleDrafts: []
 };
 
 /**
@@ -109,20 +111,44 @@ export function HoldFlowProvider({ children }: PropsWithChildren) {
       ...state,
       setRecipients: (recipients) =>
         setState((current) => ({ ...current, recipients })),
-      toggleGroup: (group) =>
+      toggleGroup: async (group) => {
+        const alreadySelected = state.selectedGroups.some((existing) => existing.id === group.id);
+
+        if (alreadySelected) {
+          setState((current) => {
+            const selectedGroups = current.selectedGroups.filter((existing) => existing.id !== group.id);
+            return {
+              ...current,
+              selectedGroups,
+              recipients: dedupeContactsByPhoneNumber(selectedGroups).map((contact) => contact.name),
+              goingQuietRecipients: mergeGoingQuietRecipients(current.goingQuietRecipients, selectedGroups),
+              circleDrafts: current.circleDrafts.filter((draft) => draft.circleId !== group.id)
+            };
+          });
+          return;
+        }
+
+        const savedDefault = await getCircleTemplate(group.id);
+
         setState((current) => {
-          const isSelected = current.selectedGroups.some((existing) => existing.id === group.id);
-          const selectedGroups = isSelected
-            ? current.selectedGroups.filter((existing) => existing.id !== group.id)
-            : [...current.selectedGroups, group];
+          const selectedGroups = [...current.selectedGroups, group];
+          const newDraft: GoingQuietCircleDraft = {
+            circleId: group.id,
+            circleName: group.name,
+            intent: null,
+            message: savedDefault ?? "",
+            hasSavedDefault: savedDefault !== null
+          };
 
           return {
             ...current,
             selectedGroups,
             recipients: dedupeContactsByPhoneNumber(selectedGroups).map((contact) => contact.name),
-            goingQuietRecipients: mergeGoingQuietRecipients(current.goingQuietRecipients, selectedGroups)
+            goingQuietRecipients: mergeGoingQuietRecipients(current.goingQuietRecipients, selectedGroups),
+            circleDrafts: [...current.circleDrafts, newDraft]
           };
-        }),
+        });
+      },
       toggleRecipientIncluded: (contactId) =>
         setState((current) => ({
           ...current,
@@ -137,12 +163,34 @@ export function HoldFlowProvider({ children }: PropsWithChildren) {
             recipient.contactId === contactId ? { ...recipient, personalisedMessage: message } : recipient
           )
         })),
-      setIntent: (intent) =>
-        setState((current) => ({ ...current, intent })),
+      setCircleDraftIntent: (circleId, intent) =>
+        setState((current) => ({
+          ...current,
+          circleDrafts: current.circleDrafts.map((draft) =>
+            draft.circleId === circleId ? { ...draft, intent } : draft
+          )
+        })),
+      setCircleDraftMessage: (circleId, message) =>
+        setState((current) => ({
+          ...current,
+          circleDrafts: current.circleDrafts.map((draft) =>
+            draft.circleId === circleId ? { ...draft, message } : draft
+          )
+        })),
+      saveCircleDraftAsDefault: async (circleId) => {
+        const draft = state.circleDrafts.find((existing) => existing.circleId === circleId);
+        if (!draft) return;
+
+        await saveCircleTemplate(circleId, draft.message);
+        setState((current) => ({
+          ...current,
+          circleDrafts: current.circleDrafts.map((existing) =>
+            existing.circleId === circleId ? { ...existing, hasSavedDefault: true } : existing
+          )
+        }));
+      },
       setReturnStyle: (returnStyle) =>
         setState((current) => ({ ...current, returnStyle })),
-      setMessage: (message) =>
-        setState((current) => ({ ...current, message })),
       setAudience: (audienceCircles, audienceUngrouped) =>
         setState((current) => ({ ...current, audienceCircles, audienceUngrouped })),
       resetFlow: (mode) =>

@@ -12,7 +12,7 @@ const SUGGESTED_CIRCLES = ["Work", "Book Club"];
 
 interface GroupPickerProps {
   selectedGroupIds: string[];
-  onToggle: (group: CircleGroup) => void;
+  onToggle: (group: CircleGroup) => Promise<void>;
 }
 
 export function GroupPicker({ selectedGroupIds, onToggle }: GroupPickerProps) {
@@ -20,7 +20,7 @@ export function GroupPicker({ selectedGroupIds, onToggle }: GroupPickerProps) {
     goingQuietRecipients,
     toggleRecipientIncluded,
     setRecipientPersonalisedMessage,
-    message
+    circleDrafts
   } = useHoldFlow();
   const [groups, setGroups] = useState<CircleGroup[]>([]);
   const [creating, setCreating] = useState(false);
@@ -55,7 +55,7 @@ export function GroupPicker({ selectedGroupIds, onToggle }: GroupPickerProps) {
     setNewCircleName("");
     setCreating(false);
     await refresh();
-    onToggle(circle);
+    await onToggle(circle);
   };
 
   const toggleExpanded = (groupId: string) => {
@@ -76,7 +76,7 @@ export function GroupPicker({ selectedGroupIds, onToggle }: GroupPickerProps) {
               <Pressable
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: selected }}
-                onPress={() => onToggle(group)}
+                onPress={() => void onToggle(group)}
                 style={[
                   styles.pill,
                   group.isCloseCircle ? styles.pillPrimary : styles.pillSecondary,
@@ -115,7 +115,9 @@ export function GroupPicker({ selectedGroupIds, onToggle }: GroupPickerProps) {
           recipients={expandedRecipients}
           onToggleIncluded={toggleRecipientIncluded}
           onChangePersonalisedMessage={setRecipientPersonalisedMessage}
-          defaultMessage={message}
+          defaultMessage={
+            circleDrafts.find((draft) => draft.circleId === expandedCircleId)?.message ?? ""
+          }
         />
       ) : null}
 

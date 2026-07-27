@@ -1,21 +1,18 @@
 import { useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { router } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
 import { ReviewMessage } from "@/components/ReviewMessage";
 import { EmailOutOfOffice } from "@/components/EmailOutOfOffice";
 import { WiderWorldStatus } from "@/components/WiderWorldStatus";
-import { SendChoice } from "@/components/SendChoice";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { theme } from "@/constants/theme";
 import { buildAudienceCircles, useHoldFlow } from "@/context/HoldFlowContext";
-import { setLastSendMethod } from "@/services/circleService";
 import { startHoldPeriod } from "@/services/holdHistoryService";
 import { activateOutOfOffice } from "@/services/emailAccountService";
 import { copyToClipboard } from "@/services/clipboardService";
 import { sendOrShare } from "@/services/smsService";
-import { saveTemplate } from "@/services/templateService";
 import type { EmailAccount } from "@/types/hold";
 
 const DEFAULT_OOO_MESSAGE =
@@ -23,15 +20,20 @@ const DEFAULT_OOO_MESSAGE =
 const DEFAULT_STATUS_LINE = "Taking some quiet time. Back soon.";
 
 export default function HoldReviewScreen() {
-  const { recipients, selectedGroups, message, setMessage, goingQuietRecipients } = useHoldFlow();
-
-  const circleNames = selectedGroups.map((group) => group.name);
-  const recipientLabel = selectedGroups.length === 1 ? selectedGroups[0]?.name ?? "your Circle" : "your Circles";
+  const { recipients, selectedGroups, circleDrafts, setCircleDraftMessage, goingQuietRecipients } =
+    useHoldFlow();
 
   const included = goingQuietRecipients.filter((recipient) => recipient.included);
-  const defaultGroup = included.filter((recipient) => recipient.personalisedMessage === null);
   const personalisedGroup = included.filter((recipient) => recipient.personalisedMessage !== null);
-  const defaultGroupNumbers = defaultGroup.map((recipient) => recipient.phoneNumber);
+
+  const circleSendGroups = circleDrafts
+    .map((draft) => ({
+      draft,
+      recipients: included.filter(
+        (recipient) => recipient.circleId === draft.circleId && recipient.personalisedMessage === null
+      )
+    }))
+    .filter((group) => group.recipients.length > 0);
 
   const [emailEnabled, setEmailEnabled] = useState(false);
   const [emailAccounts, setEmailAccounts] = useState<EmailAccount[]>([]);
@@ -49,29 +51,29 @@ export default function HoldReviewScreen() {
     emailAccounts.filter((account) => account.enabled).every((account) => resolvedMessageFor(account).length > 0);
   const widerWorldValid = !widerWorldEnabled || widerWorldText.trim().length > 0;
   const hasAnyRecipient = included.length > 0;
-  const defaultMessageValid = defaultGroup.length === 0 || Boolean(message.trim());
+  const circleMessagesValid = circleSendGroups.every((group) => Boolean(group.draft.message.trim()));
   const personalisedValid = personalisedGroup.every((recipient) =>
     Boolean(recipient.personalisedMessage?.trim())
   );
   const canSend =
-    hasAnyRecipient && defaultMessageValid && personalisedValid && emailValid && widerWorldValid;
-
-  const changeTemplate = () => {
-    router.back();
-  };
-
-  const saveToLibrary = () => {
-    if (!message.trim()) return;
-
-    void saveTemplate({ text: message.trim(), category: "core-circle" });
-    Alert.alert("Saved to Library", "You’ll find it there next time you need it.");
-  };
+    hasAnyRecipient && circleMessagesValid && personalisedValid && emailValid && widerWorldValid;
 
   const completeSend = async () => {
     await startHoldPeriod({
       recipients,
       audienceCircles: buildAudienceCircles(selectedGroups)
     });
+
+    for (const group of circleSendGroups) {
+      const text = group.draft.message.trim();
+      if (!text) continue;
+
+      try {
+        await sendOrShare(group.recipients.map((recipient) => recipient.phoneNumber), text);
+      } catch {
+        // Move on to the next Circle even if this compose sheet was dismissed.
+      }
+    }
 
     for (const recipient of personalisedGroup) {
       const text = recipient.personalisedMessage?.trim();
@@ -107,21 +109,16 @@ export default function HoldReviewScreen() {
           title="Make it sound like you."
           body="Text your Circle directly, or open your device’s share options. Nothing is sent automatically."
         />
-        <ReviewMessage
-          recipients={recipients}
-          circleName={circleNames.length > 0 ? circleNames.join(", ") : null}
-          message={message}
-          onChangeMessage={setMessage}
-        />
 
-        <View style={styles.messageControls}>
-          <Pressable accessibilityRole="button" onPress={changeTemplate}>
-            <Text style={styles.linkText}>Change template</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" onPress={saveToLibrary}>
-            <Text style={styles.linkText}>Save to Library</Text>
-          </Pressable>
-        </View>
+        {circleSendGroups.map((group) => (
+          <ReviewMessage
+            key={group.draft.circleId}
+            recipients={group.recipients.map((recipient) => recipient.name)}
+            circleName={group.draft.circleName}
+            message={group.draft.message}
+            onChangeMessage={(text) => setCircleDraftMessage(group.draft.circleId, text)}
+          />
+        ))}
 
         <EmailOutOfOffice
           enabled={emailEnabled}
@@ -142,21 +139,7 @@ export default function HoldReviewScreen() {
         />
       </View>
 
-      {defaultGroup.length > 0 ? (
-        <SendChoice
-          recipientLabel={recipientLabel}
-          numbers={defaultGroupNumbers}
-          message={message}
-          lastSendMethod={selectedGroups[0]?.lastSendMethod ?? null}
-          onRememberMethod={async (method) => {
-            await Promise.all(selectedGroups.map((group) => setLastSendMethod(group.id, method)));
-          }}
-          disabled={!canSend}
-          onSent={completeSend}
-        />
-      ) : (
-        <PrimaryButton disabled={!canSend} label="Send" onPress={() => void completeSend()} />
-      )}
+      <PrimaryButton disabled={!canSend} label="Send" onPress={() => void completeSend()} />
     </Screen>
   );
 }
@@ -168,14 +151,5 @@ const styles = StyleSheet.create({
   },
   top: {
     gap: theme.spacing.lg
-  },
-  messageControls: {
-    flexDirection: "row",
-    gap: theme.spacing.lg
-  },
-  linkText: {
-    color: theme.colors.link,
-    fontSize: 14,
-    fontWeight: "600"
   }
 });

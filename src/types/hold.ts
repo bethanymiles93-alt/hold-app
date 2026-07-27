@@ -33,16 +33,23 @@ export interface GoingQuietRecipient {
   personalisedMessage: string | null;
 }
 
+export interface GoingQuietCircleDraft {
+  circleId: string;
+  circleName: string;
+  intent: HoldIntent | null;
+  message: string;
+  hasSavedDefault: boolean;
+}
+
 export interface HoldFlowState {
   mode: FlowMode;
   recipients: string[];
   selectedGroups: CircleGroup[];
-  intent: HoldIntent | null;
   returnStyle: ReturnStyle | null;
-  message: string;
   audienceCircles: AudienceCircle[];
   audienceUngrouped: AudienceContact[];
   goingQuietRecipients: GoingQuietRecipient[];
+  circleDrafts: GoingQuietCircleDraft[];
 }
 
 export interface DraftRequest {
