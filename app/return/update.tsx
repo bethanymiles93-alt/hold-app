@@ -32,7 +32,6 @@ export default function TakingTimeUpdateScreen() {
     <Screen contentContainerStyle={styles.content}>
       <View>
         <StepHeader
-          compact
           title="Send an update"
           body="A short reassurance, without ending Taking Time. Send it as many times as you like."
         />

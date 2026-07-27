@@ -104,7 +104,6 @@ export default function HoldReviewScreen() {
     <Screen contentContainerStyle={styles.content}>
       <View style={styles.top}>
         <StepHeader
-          compact
           eyebrow="Step 2 of 2"
           title="Make it sound like you."
           body="Text your Circle directly, or open your device’s share options. Nothing is sent automatically."

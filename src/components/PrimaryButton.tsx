@@ -48,7 +48,7 @@ const styles = StyleSheet.create({
   },
   label: {
     color: theme.colors.onPrimary,
-    fontSize: 17,
+    fontSize: 19,
     fontWeight: "600"
   }
 });

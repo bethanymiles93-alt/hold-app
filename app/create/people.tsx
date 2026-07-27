@@ -50,7 +50,6 @@ export default function HoldPeopleScreen() {
     <Screen contentContainerStyle={styles.content}>
       <View style={styles.top}>
         <StepHeader
-          compact
           eyebrow="Step 1 of 2"
           title="Who needs to know?"
           body="Choose one or more Circles, then pick what they need to understand."
@@ -152,8 +151,8 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.md,
     padding: theme.spacing.md,
     color: theme.colors.text,
-    fontSize: 18,
-    lineHeight: 28,
+    fontSize: 17,
+    lineHeight: 25,
     backgroundColor: theme.colors.white
   },
   messageControls: {

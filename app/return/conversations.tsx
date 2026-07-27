@@ -501,7 +501,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     color: theme.colors.text,
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "600"
   },
   helper: {

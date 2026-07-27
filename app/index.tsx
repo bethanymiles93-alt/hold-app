@@ -463,7 +463,7 @@ const styles = StyleSheet.create({
     gap: theme.spacing.xs
   },
   comingBackLabel: {
-    fontSize: 30,
+    fontSize: 22,
     fontWeight: "700",
     textAlign: "center"
   },

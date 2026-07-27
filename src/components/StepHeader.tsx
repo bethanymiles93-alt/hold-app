@@ -5,14 +5,13 @@ interface StepHeaderProps {
   eyebrow?: string;
   title: string;
   body?: string;
-  compact?: boolean;
 }
 
-export function StepHeader({ eyebrow, title, body, compact = false }: StepHeaderProps) {
+export function StepHeader({ eyebrow, title, body }: StepHeaderProps) {
   return (
-    <View style={[styles.container, compact && styles.containerCompact]}>
+    <View style={styles.container}>
       {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
-      <Text style={[styles.title, compact && styles.titleCompact]}>{title}</Text>
+      <Text style={styles.title}>{title}</Text>
       {body ? <Text style={styles.body}>{body}</Text> : null}
     </View>
   );
@@ -21,9 +20,6 @@ export function StepHeader({ eyebrow, title, body, compact = false }: StepHeader
 const styles = StyleSheet.create({
   container: {
     gap: theme.spacing.sm,
-    marginBottom: theme.spacing.xl
-  },
-  containerCompact: {
     marginBottom: theme.spacing.lg
   },
   eyebrow: {
@@ -33,14 +29,9 @@ const styles = StyleSheet.create({
   },
   title: {
     color: theme.colors.text,
-    fontSize: 30,
-    lineHeight: 38,
-    fontWeight: "600",
-    letterSpacing: -0.4
-  },
-  titleCompact: {
     fontSize: 22,
     lineHeight: 28,
+    fontWeight: "600",
     letterSpacing: -0.3
   },
   body: {

@@ -32,7 +32,7 @@ export default function ReturnDoneScreen() {
 const styles = StyleSheet.create({
   content: {
     justifyContent: "space-between",
-    paddingTop: 120
+    paddingTop: 88
   },
   message: {
     alignItems: "center",
@@ -40,15 +40,15 @@ const styles = StyleSheet.create({
   },
   title: {
     color: theme.colors.text,
-    fontSize: 30,
-    lineHeight: 38,
+    fontSize: 22,
+    lineHeight: 28,
     textAlign: "center",
     fontWeight: "600"
   },
   subtitle: {
     color: theme.colors.textMuted,
-    fontSize: 18,
-    lineHeight: 26,
+    fontSize: 17,
+    lineHeight: 25,
     textAlign: "center",
     maxWidth: 300
   }

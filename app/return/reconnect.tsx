@@ -132,8 +132,8 @@ const styles = StyleSheet.create({
   },
   messageText: {
     color: theme.colors.text,
-    fontSize: 18,
-    lineHeight: 28
+    fontSize: 17,
+    lineHeight: 25
   },
   input: {
     minHeight: 100,
@@ -142,8 +142,8 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.md,
     padding: theme.spacing.md,
     color: theme.colors.text,
-    fontSize: 18,
-    lineHeight: 28,
+    fontSize: 17,
+    lineHeight: 25,
     backgroundColor: theme.colors.white
   },
   linkText: {

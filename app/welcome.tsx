@@ -47,7 +47,7 @@ export default function WelcomeScreen() {
 const styles = StyleSheet.create({
   content: {
     justifyContent: "space-between",
-    paddingTop: 80,
+    paddingTop: 56,
     gap: theme.spacing.xl
   },
   brand: {
@@ -58,8 +58,8 @@ const styles = StyleSheet.create({
   },
   title: {
     color: theme.colors.text,
-    fontSize: 28,
-    lineHeight: 34,
+    fontSize: 22,
+    lineHeight: 28,
     fontWeight: "600"
   },
   paragraph: {

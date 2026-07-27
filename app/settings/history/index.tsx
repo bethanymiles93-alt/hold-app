@@ -319,7 +319,7 @@ const styles = StyleSheet.create({
   },
   monthLabel: {
     color: theme.colors.text,
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "600"
   },
   weekdayRow: {

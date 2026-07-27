@@ -181,21 +181,21 @@ export default function AboutScreen() {
 const styles = StyleSheet.create({
   heading: {
     color: theme.colors.text,
-    fontSize: 32,
+    fontSize: 22,
     fontWeight: "600",
     marginBottom: theme.spacing.md
   },
   subheading: {
     color: theme.colors.text,
-    fontSize: 22,
+    fontSize: 17,
     fontWeight: "600",
-    marginTop: theme.spacing.xl,
+    marginTop: theme.spacing.lg,
     marginBottom: theme.spacing.md
   },
   intro: {
     color: theme.colors.textMuted,
-    fontSize: 18,
-    lineHeight: 28
+    fontSize: 17,
+    lineHeight: 26
   },
   sections: {
     marginTop: theme.spacing.xl,
