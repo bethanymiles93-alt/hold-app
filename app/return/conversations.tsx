@@ -1,11 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { SecondaryButton } from "@/components/SecondaryButton";
 import { theme } from "@/constants/theme";
-import { DEFAULT_REPLY_WINDOW_HOURS, QUICK_RECONNECT_MESSAGES, REPLY_STYLES } from "@/constants/copy";
+import {
+  DRAFT_REPLY_RETENTION_HOURS,
+  FRIEND_MESSAGE_RETENTION_HOURS,
+  QUICK_RECONNECT_MESSAGES,
+  REPLY_STYLES
+} from "@/constants/copy";
+import { HAS_SEEN_RETENTION_NOTE_KEY } from "@/constants/storageKeys";
 import {
   addCircleMembers,
   addPerson,
@@ -87,23 +94,50 @@ function PersonaliseAccordion({ person, isOpen, onToggle }: PersonaliseAccordion
 
   const chooseStyle = (choice: ReturnStyle) => {
     setStyle(choice);
-    void createReplyDraft(choice).then(setDraft);
+    void createReplyDraft(choice).then(changeDraft);
   };
 
-  const persist = async (sentAt: number | null): Promise<StoredReply> => {
+  const persist = async (
+    sentAtValue: number | null,
+    overrides?: { friendMessage?: string; draftReply?: string }
+  ): Promise<StoredReply> => {
     const now = Date.now();
     const record: StoredReply = {
       id: person.id,
       recipientName: person.name,
-      friendMessage,
-      draftReply: draft,
-      windowHours: DEFAULT_REPLY_WINDOW_HOURS,
+      friendMessage: overrides?.friendMessage ?? friendMessage,
+      friendMessageExpiresAt: now + FRIEND_MESSAGE_RETENTION_HOURS * 60 * 60 * 1000,
+      draftReply: overrides?.draftReply ?? draft,
+      draftReplyExpiresAt: now + DRAFT_REPLY_RETENTION_HOURS * 60 * 60 * 1000,
       createdAt: now,
-      expiresAt: now + DEFAULT_REPLY_WINDOW_HOURS * 60 * 60 * 1000,
-      sentAt
+      sentAt: sentAtValue
     };
     await saveReply(record);
     return record;
+  };
+
+  // Autosaves on every keystroke so an interruption before Save/Send never loses this content.
+  const changeFriendMessage = (text: string) => {
+    setFriendMessage(text);
+    void persist(sentAt, { friendMessage: text });
+  };
+
+  const changeDraft = (text: string) => {
+    setDraft(text);
+    void persist(sentAt, { draftReply: text });
+  };
+
+  const showRetentionNoteOnce = () => {
+    void (async () => {
+      const hasSeen = await AsyncStorage.getItem(HAS_SEEN_RETENTION_NOTE_KEY);
+      if (hasSeen) return;
+
+      await AsyncStorage.setItem(HAS_SEEN_RETENTION_NOTE_KEY, "true");
+      Alert.alert(
+        "Saved",
+        "Your reply stays on your device for a couple of days in case you need to step away. Their message clears sooner."
+      );
+    })();
   };
 
   const saveForLater = () => {
@@ -111,6 +145,7 @@ function PersonaliseAccordion({ person, isOpen, onToggle }: PersonaliseAccordion
       await persist(null);
       setStatus("draft");
       onToggle();
+      showRetentionNoteOnce();
     })();
   };
 
@@ -148,7 +183,7 @@ function PersonaliseAccordion({ person, isOpen, onToggle }: PersonaliseAccordion
           <TextInput
             accessibilityLabel="Message they sent"
             multiline
-            onChangeText={setFriendMessage}
+            onChangeText={changeFriendMessage}
             style={styles.input}
             textAlignVertical="top"
             value={friendMessage}
@@ -176,7 +211,7 @@ function PersonaliseAccordion({ person, isOpen, onToggle }: PersonaliseAccordion
           <TextInput
             accessibilityLabel="Your reply"
             multiline
-            onChangeText={setDraft}
+            onChangeText={changeDraft}
             style={styles.input}
             textAlignVertical="top"
             value={draft}

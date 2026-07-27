@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { router } from "expo-router";
 import { Screen } from "@/components/Screen";
@@ -10,12 +10,26 @@ import { QUICK_RECONNECT_MESSAGES } from "@/constants/copy";
 import { useHoldFlow } from "@/context/HoldFlowContext";
 import { sendOrShare } from "@/services/smsService";
 import { formatSentLabel } from "@/services/holdHistoryFormat";
+import { clearDraft, getDraft, saveDraft } from "@/services/messageDraftService";
+
+const RECONNECT_DRAFT_KEY = "reconnect";
 
 export default function ReconnectScreen() {
   const { audienceCircles, audienceUngrouped } = useHoldFlow();
   const [message, setMessage] = useState(QUICK_RECONNECT_MESSAGES[0]?.text ?? "");
   const [isEditing, setIsEditing] = useState(false);
   const [sentAt, setSentAt] = useState<number | null>(null);
+
+  useEffect(() => {
+    void getDraft(RECONNECT_DRAFT_KEY).then((draft) => {
+      if (draft) setMessage(draft);
+    });
+  }, []);
+
+  const changeMessage = (text: string) => {
+    setMessage(text);
+    void saveDraft(RECONNECT_DRAFT_KEY, text);
+  };
 
   const audienceContacts = [
     ...audienceCircles.flatMap((circle) => circle.contacts),
@@ -38,6 +52,7 @@ export default function ReconnectScreen() {
       }
       setIsEditing(false);
       setSentAt(Date.now());
+      await clearDraft(RECONNECT_DRAFT_KEY);
     })();
   };
 
@@ -63,7 +78,7 @@ export default function ReconnectScreen() {
           <TextInput
             accessibilityLabel="Message to send"
             multiline
-            onChangeText={setMessage}
+            onChangeText={changeMessage}
             style={styles.input}
             textAlignVertical="top"
             value={message}

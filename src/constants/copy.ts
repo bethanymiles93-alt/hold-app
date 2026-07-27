@@ -83,4 +83,8 @@ export const REPLY_STYLES: Array<{
   }
 ];
 
-export const DEFAULT_REPLY_WINDOW_HOURS = 8;
+/** "What they sent" — someone else's words, cheapest to lose, cleared soonest. */
+export const FRIEND_MESSAGE_RETENTION_HOURS = 4;
+
+/** "Your reply" and unsaved Going Quiet/Reconnect edits — the effortful, hard-to-recreate content. */
+export const DRAFT_REPLY_RETENTION_HOURS = 48;

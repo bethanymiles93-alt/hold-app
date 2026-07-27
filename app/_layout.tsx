@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Stack, router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Pressable, StyleSheet } from "react-native";
@@ -5,6 +6,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AboutIcon } from "@/components/AboutIcon";
 import { HoldFlowProvider } from "@/context/HoldFlowContext";
 import { theme } from "@/constants/theme";
+import { clearStaleFriendMessagesOnLaunch } from "@/services/replyStorageService";
 
 function HeaderAboutButton() {
   return (
@@ -20,6 +22,10 @@ function HeaderAboutButton() {
 }
 
 export default function RootLayout() {
+  useEffect(() => {
+    void clearStaleFriendMessagesOnLaunch();
+  }, []);
+
   return (
     <SafeAreaProvider>
       <HoldFlowProvider>

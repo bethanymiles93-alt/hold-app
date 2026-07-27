@@ -10,6 +10,7 @@ import { PrimaryButton } from "@/components/PrimaryButton";
 import { theme } from "@/constants/theme";
 import { buildAudienceCircles, useHoldFlow } from "@/context/HoldFlowContext";
 import { startHoldPeriod } from "@/services/holdHistoryService";
+import { circleDraftKey, clearDraft } from "@/services/messageDraftService";
 import { activateOutOfOffice } from "@/services/emailAccountService";
 import { copyToClipboard } from "@/services/clipboardService";
 import { sendOrShare } from "@/services/smsService";
@@ -73,6 +74,8 @@ export default function HoldReviewScreen() {
       } catch {
         // Move on to the next Circle even if this compose sheet was dismissed.
       }
+
+      await clearDraft(circleDraftKey(group.draft.circleId));
     }
 
     for (const recipient of personalisedGroup) {

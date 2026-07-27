@@ -63,10 +63,10 @@ export interface StoredReply {
   id: string;
   recipientName: string;
   friendMessage: string;
+  friendMessageExpiresAt: number;
   draftReply: string;
-  windowHours: number;
+  draftReplyExpiresAt: number;
   createdAt: number;
-  expiresAt: number;
   sentAt?: number | null;
 }
 

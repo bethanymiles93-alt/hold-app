@@ -17,6 +17,7 @@ import type {
   ReturnStyle
 } from "@/types/hold";
 import { getCircleTemplate, saveCircleTemplate } from "@/services/templateService";
+import { circleDraftKey, clearDraft, getDraft, saveDraft } from "@/services/messageDraftService";
 
 interface HoldFlowContextValue extends HoldFlowState {
   setRecipients: (recipients: string[]) => void;
@@ -128,7 +129,10 @@ export function HoldFlowProvider({ children }: PropsWithChildren) {
           return;
         }
 
-        const savedDefault = await getCircleTemplate(group.id);
+        const [savedDefault, unsavedDraft] = await Promise.all([
+          getCircleTemplate(group.id),
+          getDraft(circleDraftKey(group.id))
+        ]);
 
         setState((current) => {
           const selectedGroups = [...current.selectedGroups, group];
@@ -136,7 +140,7 @@ export function HoldFlowProvider({ children }: PropsWithChildren) {
             circleId: group.id,
             circleName: group.name,
             intent: null,
-            message: savedDefault ?? "",
+            message: unsavedDraft ?? savedDefault ?? "",
             hasSavedDefault: savedDefault !== null
           };
 
@@ -170,18 +174,21 @@ export function HoldFlowProvider({ children }: PropsWithChildren) {
             draft.circleId === circleId ? { ...draft, intent } : draft
           )
         })),
-      setCircleDraftMessage: (circleId, message) =>
+      setCircleDraftMessage: (circleId, message) => {
+        void saveDraft(circleDraftKey(circleId), message);
         setState((current) => ({
           ...current,
           circleDrafts: current.circleDrafts.map((draft) =>
             draft.circleId === circleId ? { ...draft, message } : draft
           )
-        })),
+        }));
+      },
       saveCircleDraftAsDefault: async (circleId) => {
         const draft = state.circleDrafts.find((existing) => existing.circleId === circleId);
         if (!draft) return;
 
         await saveCircleTemplate(circleId, draft.message);
+        await clearDraft(circleDraftKey(circleId));
         setState((current) => ({
           ...current,
           circleDrafts: current.circleDrafts.map((existing) =>

@@ -10,6 +10,7 @@ import { deleteAllConversations } from "@/services/conversationService";
 import { deleteAllHoldHistory } from "@/services/holdHistoryService";
 import { deleteAllReplies } from "@/services/replyStorageService";
 import { deleteAllTemplates } from "@/services/templateService";
+import { deleteAllDrafts } from "@/services/messageDraftService";
 
 // TODO: temporary placeholder inbox — replace with a dedicated feedback address.
 const FEEDBACK_EMAIL = "bethany.miles.93@gmail.com";
@@ -114,6 +115,7 @@ export default function AboutScreen() {
                 deleteAllReplies(),
                 deleteAllConversations(),
                 deleteAllTemplates(),
+                deleteAllDrafts(),
                 AsyncStorage.removeItem(HAS_SEEN_WELCOME_KEY)
               ]);
               resetFlow("hold");
