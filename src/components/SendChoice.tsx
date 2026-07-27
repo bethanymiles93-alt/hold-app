@@ -5,14 +5,11 @@ import { SecondaryButton } from "@/components/SecondaryButton";
 import { theme } from "@/constants/theme";
 import { shareMessage } from "@/services/shareService";
 import { isSmsAvailable, sendTextMessage } from "@/services/smsService";
-import type { SendMethod } from "@/types/hold";
 
 interface SendChoiceProps {
   recipientLabel: string;
   numbers: string[];
   message: string;
-  lastSendMethod?: SendMethod | null;
-  onRememberMethod?: (method: SendMethod) => void | Promise<void>;
   disabled?: boolean;
   onSent: () => void | Promise<void>;
 }
@@ -21,8 +18,6 @@ export function SendChoice({
   recipientLabel,
   numbers,
   message,
-  lastSendMethod = null,
-  onRememberMethod,
   disabled = false,
   onSent
 }: SendChoiceProps) {
@@ -39,7 +34,6 @@ export function SendChoice({
 
     try {
       await sendTextMessage(numbers, message.trim());
-      await onRememberMethod?.("text");
       await onSent();
     } catch {
       Alert.alert(
@@ -52,7 +46,6 @@ export function SendChoice({
   const sendViaShare = async () => {
     try {
       await shareMessage(message.trim());
-      await onRememberMethod?.("share");
       await onSent();
     } catch {
       Alert.alert(
@@ -72,13 +65,8 @@ export function SendChoice({
     );
   }
 
-  const textFirst = lastSendMethod !== "share";
-  const primary = textFirst
-    ? { label: `Text ${recipientLabel}`, onPress: sendViaText }
-    : { label: "Share another way", onPress: sendViaShare };
-  const secondary = textFirst
-    ? { label: "Share another way", onPress: sendViaShare }
-    : { label: `Text ${recipientLabel}`, onPress: sendViaText };
+  const primary = { label: `Text ${recipientLabel}`, onPress: sendViaText };
+  const secondary = { label: "Share another way", onPress: sendViaShare };
 
   return (
     <View style={styles.stack}>

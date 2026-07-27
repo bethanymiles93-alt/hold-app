@@ -1,5 +1,5 @@
 import * as SecureStore from "expo-secure-store";
-import type { CircleGroup, SendMethod } from "@/types/hold";
+import type { CircleGroup } from "@/types/hold";
 
 const INDEX_KEY = "hold.circle.index";
 const GROUP_PREFIX = "hold.circle.group.";
@@ -45,8 +45,7 @@ async function ensureCloseCircle(): Promise<CircleGroup> {
     id: CLOSE_CIRCLE_ID,
     name: CLOSE_CIRCLE_NAME,
     isCloseCircle: true,
-    contacts: [],
-    lastSendMethod: null
+    contacts: []
   };
 
   await writeGroup(closeCircle);
@@ -77,8 +76,7 @@ export async function createGroup(name: string): Promise<CircleGroup> {
     id: createId(),
     name,
     isCloseCircle: false,
-    contacts: [],
-    lastSendMethod: null
+    contacts: []
   };
 
   await writeGroup(group);
@@ -132,13 +130,6 @@ export async function removeContactFromGroup(
 
   await writeGroup(updated);
   return updated;
-}
-
-export async function setLastSendMethod(groupId: string, method: SendMethod): Promise<void> {
-  const group = await readGroup(groupId);
-  if (!group) return;
-
-  await writeGroup({ ...group, lastSendMethod: method });
 }
 
 /** Wipes every saved Circle, including Close Circle (it's recreated empty on next read). */

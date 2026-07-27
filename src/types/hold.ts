@@ -85,14 +85,11 @@ export interface CircleContact {
   phoneNumber: string;
 }
 
-export type SendMethod = "text" | "share";
-
 export interface CircleGroup {
   id: string;
   name: string;
   isCloseCircle: boolean;
   contacts: CircleContact[];
-  lastSendMethod: SendMethod | null;
 }
 
 export type EmailProvider = "gmail" | "outlook";

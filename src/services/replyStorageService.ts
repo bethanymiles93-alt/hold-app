@@ -18,10 +18,6 @@ async function writeIndex(ids: string[]): Promise<void> {
   await SecureStore.setItemAsync(INDEX_KEY, JSON.stringify(ids));
 }
 
-export function createReplyId(): string {
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
 /**
  * Persists one reply record, encrypted at rest (Keychain on iOS, Keystore-backed
  * storage on Android). This is the one deliberate, narrow exception to Hold's

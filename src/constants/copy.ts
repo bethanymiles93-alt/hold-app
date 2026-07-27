@@ -27,33 +27,6 @@ export const HOLD_INTENTS: Array<{
   }
 ];
 
-export const RETURN_STYLES: Array<{
-  id: ReturnStyle;
-  title: string;
-  description: string;
-}> = [
-  {
-    id: "open-door",
-    title: "Just open the door",
-    description: "A small hello without a full explanation."
-  },
-  {
-    id: "acknowledge",
-    title: "Acknowledge the silence",
-    description: "Name the gap gently and reconnect."
-  },
-  {
-    id: "explain-little",
-    title: "Explain a little",
-    description: "Share that your capacity was low."
-  },
-  {
-    id: "custom",
-    title: "Write my own",
-    description: "Start with a blank message."
-  }
-];
-
 export const QUICK_RECONNECT_MESSAGES: Array<{
   id: string;
   title: string;
@@ -110,16 +83,4 @@ export const REPLY_STYLES: Array<{
   }
 ];
 
-export const REPLY_WINDOW_OPTIONS: Array<{
-  hours: number;
-  description: string;
-}> = [
-  { hours: 1, description: "A quick errand or meeting" },
-  { hours: 2, description: "A few hours away" },
-  { hours: 4, description: "Most of a working block" },
-  { hours: 8, description: "A full day (the default)" },
-  { hours: 12, description: "A long shift, travel, or surgery" }
-];
-
 export const DEFAULT_REPLY_WINDOW_HOURS = 8;
-export const MAX_REPLY_WINDOW_HOURS = 13;
