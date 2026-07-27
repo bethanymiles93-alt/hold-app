@@ -314,8 +314,11 @@ export default function HomeScreen() {
                       { backgroundColor: animatedPrimary, shadowColor: animatedPrimary }
                     ]}
                   >
+                    <Text style={[styles.circleLabel, { color: currentTheme.colors.onPrimary }]}>
+                      Reconnect
+                    </Text>
                     <Text style={[styles.circleSubtext, { color: currentTheme.colors.onPrimary }]}>
-                      Tap when you're ready to reconnect
+                      Tap when you're ready
                     </Text>
                   </Animated.View>
                 </Animated.View>
