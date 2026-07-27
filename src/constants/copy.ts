@@ -117,7 +117,7 @@ export const REPLY_WINDOW_OPTIONS: Array<{
   { hours: 1, description: "A quick errand or meeting" },
   { hours: 2, description: "A few hours away" },
   { hours: 4, description: "Most of a working block" },
-  { hours: 8, description: "A full day — the default" },
+  { hours: 8, description: "A full day (the default)" },
   { hours: 12, description: "A long shift, travel, or surgery" }
 ];
 

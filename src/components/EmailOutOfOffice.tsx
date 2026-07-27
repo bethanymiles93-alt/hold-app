@@ -94,7 +94,7 @@ export function EmailOutOfOffice({
           <Text style={styles.title}>Email out-of-office</Text>
           <Text style={styles.subtext}>
             {enabled
-              ? "Preview — account connection is mocked for now, so nothing is sent automatically yet."
+              ? "Preview: account connection is mocked for now, so nothing is sent automatically yet."
               : "Automatically let email senders know you’re away."}
           </Text>
         </View>

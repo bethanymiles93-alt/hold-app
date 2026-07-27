@@ -103,7 +103,7 @@ export default function HoldHistoryScreen() {
       <StepHeader
         eyebrow="History"
         title="Your Hold history"
-        body="Just the record — when, how long, and who you told. Nothing else."
+        body="Just the record: when, how long, and who you told. Nothing else."
       />
 
       <View style={styles.toggle}>

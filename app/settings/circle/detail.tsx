@@ -94,7 +94,7 @@ export default function CircleDetailScreen() {
 
         <Text style={styles.note}>
           Adding someone opens your phone's own Contacts picker. Hold only ever sees the one
-          person you pick — their name and phone number — and never asks for access to your
+          person you pick (their name and phone number) and never asks for access to your
           full address book.
         </Text>
       </View>

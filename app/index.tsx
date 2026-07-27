@@ -247,7 +247,7 @@ export default function HomeScreen() {
   });
 
   const postReconnectSubtext = postReconnectProgress
-    ? `Continue where you left off — ${postReconnectProgress.done} of ${postReconnectProgress.total} replies sent`
+    ? `Continue where you left off. ${postReconnectProgress.done} of ${postReconnectProgress.total} replies sent`
     : "Continue where you left off";
 
   return (

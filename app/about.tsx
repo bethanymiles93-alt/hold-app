@@ -17,7 +17,7 @@ const FEEDBACK_EMAIL = "bethany.miles.93@gmail.com";
 const MISSION_SECTIONS = [
   {
     title: "Silence shouldn't mean guilt",
-    body: "Going quiet to protect your own capacity often comes with guilt — like you owe everyone an explanation just for needing space. Hold lets you say what's true without carrying that weight."
+    body: "Going quiet to protect your own capacity often comes with guilt, like you owe everyone an explanation just for needing space. Hold lets you say what's true without carrying that weight."
   },
   {
     title: "It protects both sides",
@@ -25,7 +25,7 @@ const MISSION_SECTIONS = [
   },
   {
     title: "No one has to guess",
-    body: "When someone goes quiet without a word, people fill the gap themselves — often with the wrong story. A short, honest message means the people who matter don't have to guess who you are based on your silence."
+    body: "When someone goes quiet without a word, people fill the gap themselves, often with the wrong story. A short, honest message means the people who matter don't have to guess who you are based on your silence."
   }
 ];
 
@@ -36,7 +36,7 @@ const PRIVACY_SECTIONS = [
   },
   {
     title: "No bulk address-book access",
-    body: "Hold never requests ongoing access to your contacts. Adding someone to a saved Circle opens your phone’s own Contacts picker, one person at a time — Hold only ever sees the one you pick."
+    body: "Hold never requests ongoing access to your contacts. Adding someone to a saved Circle opens your phone’s own Contacts picker, one person at a time. Hold only ever sees the one you pick."
   },
   {
     title: "No live AI in this build",
@@ -44,15 +44,15 @@ const PRIVACY_SECTIONS = [
   },
   {
     title: "One narrow exception for Thoughtful reply",
-    body: "If you draft a reply to a specific message, it’s kept in encrypted device storage only until you mark it sent or its time window passes — then it’s cleared automatically. Nothing else in Hold is saved this way."
+    body: "If you draft a reply to a specific message, it’s kept in encrypted device storage only until you mark it sent or its time window passes, then it’s cleared automatically. Nothing else in Hold is saved this way."
   },
   {
     title: "Your Hold history is kept until you delete it",
-    body: "Settings keeps a plain record of past Hold periods — who you told, when it started, when it ended — in encrypted device storage. Hold draws no conclusions from it. You can delete any entry yourself."
+    body: "Settings keeps a plain record of past Hold periods in encrypted device storage: who you told, when it started, when it ended. Hold draws no conclusions from it. You can delete any entry yourself."
   },
   {
     title: "Your Circle stores real names and numbers, on purpose",
-    body: "People you add to a saved Circle are kept — real name and phone number, from your Contacts picker choice — in encrypted device storage until you remove them, so Hold can text that Circle directly. This is more sensitive than anything else Hold stores, and it doesn’t go live publicly without a dedicated privacy review of its own."
+    body: "People you add to a saved Circle are kept (real name and phone number, from your Contacts picker choice) in encrypted device storage until you remove them, so Hold can text that Circle directly. This is more sensitive than anything else Hold stores, and it doesn’t go live publicly without a dedicated privacy review of its own."
   },
   {
     title: "Not emergency support",
@@ -89,7 +89,7 @@ export default function AboutScreen() {
 
   const shareApp = async () => {
     await Share.share({
-      message: "Hold — a gentler way to go quiet and come back, without guilt."
+      message: "Hold: a gentler way to go quiet and come back, without guilt."
     });
   };
 

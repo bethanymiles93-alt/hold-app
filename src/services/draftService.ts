@@ -45,9 +45,9 @@ export async function createDraft(request: DraftRequest): Promise<string> {
 
 const REPLY_DRAFTS = {
   "open-door":
-    "Thanks for your message — I saw it. I’m starting to resurface and wanted to say hello.",
+    "Thanks for your message. I saw it. I’m starting to resurface and wanted to say hello.",
   acknowledge:
-    "Thanks for reaching out. I know it’s been a while since I replied — I cared even when I was quiet, and I’m glad to hear from you.",
+    "Thanks for reaching out. I know it’s been a while since I replied. I cared even when I was quiet, and I’m glad to hear from you.",
   "explain-little":
     "Thanks for your message. My capacity was low for a while, which made replying hard. I’m coming back now and wanted to reach out properly.",
   custom: ""
