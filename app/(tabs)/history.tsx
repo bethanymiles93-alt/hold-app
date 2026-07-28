@@ -12,6 +12,7 @@ import {
 import { deleteHoldPeriod, getHistory } from "@/services/holdHistoryService";
 import type { HoldPeriod } from "@/types/hold";
 
+type Segment = "history" | "patterns";
 type ViewMode = "list" | "calendar";
 
 const WEEKDAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
@@ -54,27 +55,18 @@ function PeriodCard({ period, onDelete }: PeriodCardProps) {
   );
 }
 
-export default function HoldHistoryScreen() {
-  const [periods, setPeriods] = useState<HoldPeriod[]>([]);
-  const [view, setView] = useState<ViewMode>("list");
+interface MonthCalendarViewProps {
+  periods: HoldPeriod[];
+  onDelete: (id: string) => void;
+}
+
+/** A month grid with quiet days marked, tap a day for its period(s) — its own independent month/selection state. */
+function MonthCalendarView({ periods, onDelete }: MonthCalendarViewProps) {
   const [monthStart, setMonthStart] = useState(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
   const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
-
-  const refresh = useCallback(async () => {
-    setPeriods(await getHistory());
-  }, []);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
-  const remove = async (id: string) => {
-    await deleteHoldPeriod(id);
-    setPeriods((current) => current.filter((period) => period.id !== id));
-  };
 
   const grid = buildMonthGrid(monthStart);
   const dayBands = getDayBands(periods, grid);
@@ -99,135 +91,231 @@ export default function HoldHistoryScreen() {
     : [];
 
   return (
-    <Screen contentContainerStyle={styles.content}>
-      <StepHeader
-        eyebrow="History"
-        title="Your Hold history"
-        body="Just the record: when, how long, and who you told. Nothing else."
-      />
+    <View>
+      <View style={styles.monthRow}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Previous month"
+          onPress={() =>
+            setMonthStart((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))
+          }
+        >
+          <Text style={styles.monthNav}>‹</Text>
+        </Pressable>
+        <Text style={styles.monthLabel}>{monthLabel}</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Next month"
+          onPress={() =>
+            setMonthStart((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))
+          }
+        >
+          <Text style={styles.monthNav}>›</Text>
+        </Pressable>
+      </View>
 
+      <View style={styles.weekdayRow}>
+        {WEEKDAY_LABELS.map((label, index) => (
+          <Text key={`${label}-${index}`} style={styles.weekdayLabel}>
+            {label}
+          </Text>
+        ))}
+      </View>
+
+      <View style={styles.grid} key={monthKey(monthStart)}>
+        {grid.map((date, index) => {
+          if (!date) {
+            return <View key={`blank-${index}`} style={styles.dayCell} />;
+          }
+
+          const key = dateKeyOf(date);
+          const band = dayBands.get(key);
+          const selected = selectedDayKey === key;
+
+          return (
+            <Pressable
+              key={key}
+              accessibilityRole="button"
+              onPress={() => setSelectedDayKey(selected ? null : key)}
+              style={styles.dayCell}
+            >
+              {band ? (
+                <View
+                  style={[
+                    styles.dayBand,
+                    band.roundStart && styles.dayBandRoundStart,
+                    band.roundEnd && styles.dayBandRoundEnd
+                  ]}
+                />
+              ) : null}
+              <View style={[styles.dayCircle, selected && styles.dayCircleSelected]}>
+                <Text style={styles.dayNumber}>{date.getDate()}</Text>
+              </View>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {selectedDayKey ? (
+        <View style={styles.dayDetail}>
+          {selectedDayPeriods.length === 0 ? (
+            <Text style={styles.empty}>No Hold period on this day.</Text>
+          ) : (
+            selectedDayPeriods.map((period) => (
+              <PeriodCard key={period.id} period={period} onDelete={onDelete} />
+            ))
+          )}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+export default function HoldHistoryScreen() {
+  const [periods, setPeriods] = useState<HoldPeriod[]>([]);
+  const [segment, setSegment] = useState<Segment>("history");
+  const [view, setView] = useState<ViewMode>("list");
+
+  const refresh = useCallback(async () => {
+    setPeriods(await getHistory());
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const remove = async (id: string) => {
+    await deleteHoldPeriod(id);
+    setPeriods((current) => current.filter((period) => period.id !== id));
+  };
+
+  const closedPeriods = periods.filter((period) => period.endedAt !== null);
+  const totalDurationMs = closedPeriods.reduce(
+    (sum, period) => sum + (period.endedAt! - period.startedAt),
+    0
+  );
+  const averageDurationMs = closedPeriods.length > 0 ? totalDurationMs / closedPeriods.length : null;
+  const mostRecentEndedAt =
+    closedPeriods.length > 0 ? Math.max(...closedPeriods.map((period) => period.endedAt!)) : null;
+
+  return (
+    <Screen contentContainerStyle={styles.content}>
       <View style={styles.toggle}>
         <Pressable
           accessibilityRole="button"
-          onPress={() => setView("list")}
-          style={[styles.toggleButton, view === "list" && styles.toggleActive]}
+          onPress={() => setSegment("history")}
+          style={[styles.toggleButton, segment === "history" && styles.toggleActive]}
         >
-          <Text
-            style={[
-              styles.toggleLabel,
-              view === "list" && styles.toggleLabelActive
-            ]}
-          >
-            List
+          <Text style={[styles.toggleLabel, segment === "history" && styles.toggleLabelActive]}>
+            History
           </Text>
         </Pressable>
         <Pressable
           accessibilityRole="button"
-          onPress={() => setView("calendar")}
-          style={[styles.toggleButton, view === "calendar" && styles.toggleActive]}
+          onPress={() => setSegment("patterns")}
+          style={[styles.toggleButton, segment === "patterns" && styles.toggleActive]}
         >
-          <Text
-            style={[
-              styles.toggleLabel,
-              view === "calendar" && styles.toggleLabelActive
-            ]}
-          >
-            Calendar
+          <Text style={[styles.toggleLabel, segment === "patterns" && styles.toggleLabelActive]}>
+            Patterns
           </Text>
         </Pressable>
       </View>
 
-      {view === "list" ? (
-        periods.length === 0 ? (
-          <Text style={styles.empty}>No Hold periods yet.</Text>
-        ) : (
-          <View style={styles.list}>
-            {periods.map((period) => (
-              <PeriodCard key={period.id} period={period} onDelete={remove} />
-            ))}
-          </View>
-        )
+      {segment === "history" ? (
+        <StepHeader
+          eyebrow="History"
+          title="Your Hold history"
+          body="Just the record: when, how long, and who you told. Nothing else."
+        />
       ) : (
-        <View>
-          <View style={styles.monthRow}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Previous month"
-              onPress={() =>
-                setMonthStart(
-                  (current) => new Date(current.getFullYear(), current.getMonth() - 1, 1)
-                )
-              }
-            >
-              <Text style={styles.monthNav}>‹</Text>
-            </Pressable>
-            <Text style={styles.monthLabel}>{monthLabel}</Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Next month"
-              onPress={() =>
-                setMonthStart(
-                  (current) => new Date(current.getFullYear(), current.getMonth() + 1, 1)
-                )
-              }
-            >
-              <Text style={styles.monthNav}>›</Text>
-            </Pressable>
-          </View>
+        <StepHeader
+          eyebrow="History"
+          title="Your patterns"
+          body="What your quiet periods have looked like, in your own data. No comparisons, no judgment."
+        />
+      )}
 
-          <View style={styles.weekdayRow}>
-            {WEEKDAY_LABELS.map((label, index) => (
-              <Text key={`${label}-${index}`} style={styles.weekdayLabel}>
-                {label}
+      {segment === "history" ? (
+        <>
+          <View style={styles.toggle}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setView("list")}
+              style={[styles.toggleButton, view === "list" && styles.toggleActive]}
+            >
+              <Text
+                style={[
+                  styles.toggleLabel,
+                  view === "list" && styles.toggleLabelActive
+                ]}
+              >
+                List
               </Text>
-            ))}
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setView("calendar")}
+              style={[styles.toggleButton, view === "calendar" && styles.toggleActive]}
+            >
+              <Text
+                style={[
+                  styles.toggleLabel,
+                  view === "calendar" && styles.toggleLabelActive
+                ]}
+              >
+                Calendar
+              </Text>
+            </Pressable>
           </View>
 
-          <View style={styles.grid} key={monthKey(monthStart)}>
-            {grid.map((date, index) => {
-              if (!date) {
-                return <View key={`blank-${index}`} style={styles.dayCell} />;
-              }
-
-              const key = dateKeyOf(date);
-              const band = dayBands.get(key);
-              const selected = selectedDayKey === key;
-
-              return (
-                <Pressable
-                  key={key}
-                  accessibilityRole="button"
-                  onPress={() => setSelectedDayKey(selected ? null : key)}
-                  style={styles.dayCell}
-                >
-                  {band ? (
-                    <View
-                      style={[
-                        styles.dayBand,
-                        band.roundStart && styles.dayBandRoundStart,
-                        band.roundEnd && styles.dayBandRoundEnd
-                      ]}
-                    />
-                  ) : null}
-                  <View style={[styles.dayCircle, selected && styles.dayCircleSelected]}>
-                    <Text style={styles.dayNumber}>{date.getDate()}</Text>
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          {selectedDayKey ? (
-            <View style={styles.dayDetail}>
-              {selectedDayPeriods.length === 0 ? (
-                <Text style={styles.empty}>No Hold period on this day.</Text>
-              ) : (
-                selectedDayPeriods.map((period) => (
+          {view === "list" ? (
+            periods.length === 0 ? (
+              <Text style={styles.empty}>No Hold periods yet.</Text>
+            ) : (
+              <View style={styles.list}>
+                {periods.map((period) => (
                   <PeriodCard key={period.id} period={period} onDelete={remove} />
-                ))
-              )}
-            </View>
-          ) : null}
+                ))}
+              </View>
+            )
+          ) : (
+            <MonthCalendarView periods={periods} onDelete={remove} />
+          )}
+        </>
+      ) : (
+        <View style={styles.patternsSection}>
+          {periods.length === 0 ? (
+            <Text style={styles.empty}>No Hold periods yet.</Text>
+          ) : (
+            <>
+              <View style={styles.statRow}>
+                <Text style={styles.statLabel}>Quiet periods</Text>
+                <Text style={styles.statValue}>{periods.length}</Text>
+              </View>
+              <View style={styles.statRow}>
+                <Text style={styles.statLabel}>Average duration</Text>
+                <Text style={styles.statValue}>
+                  {averageDurationMs !== null ? formatDuration(averageDurationMs) : "—"}
+                </Text>
+              </View>
+              <View style={styles.statRow}>
+                <Text style={styles.statLabel}>Time since last quiet period</Text>
+                <Text style={styles.statValue}>
+                  {mostRecentEndedAt !== null ? formatDuration(Date.now() - mostRecentEndedAt) : "—"}
+                </Text>
+              </View>
+              <View style={styles.statRow}>
+                <Text style={styles.statLabel}>Days spent Taking Time</Text>
+                <Text style={styles.statValue}>{formatDuration(totalDurationMs)}</Text>
+              </View>
+
+              <MonthCalendarView periods={periods} onDelete={remove} />
+            </>
+          )}
+
+          <Text style={styles.holdPlusNote}>
+            Hold+ adds multi-month trends, recurring timing, and longer-term summaries.
+          </Text>
         </View>
       )}
     </Screen>
@@ -375,5 +463,30 @@ const styles = StyleSheet.create({
   dayDetail: {
     gap: theme.spacing.md,
     marginTop: theme.spacing.lg
+  },
+  patternsSection: {
+    gap: theme.spacing.lg
+  },
+  statRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+    paddingBottom: theme.spacing.sm
+  },
+  statLabel: {
+    color: theme.colors.textMuted,
+    fontSize: 15
+  },
+  statValue: {
+    color: theme.colors.text,
+    fontSize: 15,
+    fontWeight: "600"
+  },
+  holdPlusNote: {
+    color: theme.colors.textMuted,
+    fontSize: 13,
+    lineHeight: 19
   }
 });
