@@ -23,13 +23,20 @@ import {
   toggleComplete,
   type ConversationPerson
 } from "@/services/conversationService";
-import { getGroup } from "@/services/circleService";
+import { getGroup, getGroups } from "@/services/circleService";
 import { pickContact } from "@/services/contactPickerService";
 import { sendOrShare } from "@/services/smsService";
 import { createReplyDraft } from "@/services/draftService";
 import { getReply, saveReply } from "@/services/replyStorageService";
 import { formatSentLabel } from "@/services/holdHistoryFormat";
+import { getAllTemplates, saveCircleTemplate } from "@/services/templateService";
 import type { ReturnStyle, StoredReply } from "@/types/hold";
+
+interface TemplateRow {
+  circleId: string;
+  circleName: string;
+  text: string;
+}
 
 const DEFAULT_QUICK_MESSAGE = QUICK_RECONNECT_MESSAGES[0]?.text ?? "";
 
@@ -236,6 +243,10 @@ export default function LibraryScreen() {
   const [perCircleMessages, setPerCircleMessages] = useState<Record<string, string>>({});
   const [expandedCircleId, setExpandedCircleId] = useState<string | null>(null);
   const [expandedPersonId, setExpandedPersonId] = useState<string | null>(null);
+  const [templates, setTemplates] = useState<TemplateRow[]>([]);
+  const [templateDrafts, setTemplateDrafts] = useState<Record<string, string>>({});
+  const [reopenedCircleIds, setReopenedCircleIds] = useState<Set<string>>(new Set());
+  const [allReopened, setAllReopened] = useState(false);
 
   const refresh = useCallback(async () => {
     const all = await getAllConversationPeople();
@@ -246,7 +257,35 @@ export default function LibraryScreen() {
     if (all.length > 0 && all.every((person) => person.completed) && mode === "return") {
       router.replace("/return/done");
     }
+
+    const [savedTemplates, groups] = await Promise.all([getAllTemplates(), getGroups()]);
+    const nameById = new Map(groups.map((group) => [group.id, group.name]));
+    const rows = savedTemplates
+      .map((template) => {
+        const circleName = nameById.get(template.circleId);
+        return circleName ? { circleId: template.circleId, circleName, text: template.text } : null;
+      })
+      .filter((row): row is TemplateRow => row !== null);
+
+    setTemplates(rows);
+    setTemplateDrafts((current) => {
+      const next = { ...current };
+      for (const row of rows) {
+        if (!(row.circleId in next)) next[row.circleId] = row.text;
+      }
+      return next;
+    });
   }, [mode]);
+
+  const changeTemplateDraft = (circleId: string, text: string) => {
+    setTemplateDrafts((current) => ({ ...current, [circleId]: text }));
+  };
+
+  const saveTemplate = (circleId: string) => {
+    const text = (templateDrafts[circleId] ?? "").trim();
+    if (!text) return;
+    void saveCircleTemplate(circleId, text).then(refresh);
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -258,6 +297,13 @@ export default function LibraryScreen() {
   const quickPeoplePending = quickPeopleAll.filter((person) => !person.sentAt);
   const personalisePeople = people.filter((person) => person.bucket === "personalise");
   const quickSections = groupByCircle(quickPeopleAll);
+
+  const allQuickFullySent = quickPeopleAll.length > 0 && quickPeopleAll.every((person) => person.sentAt);
+  const allQuickTargets = allQuickFullySent ? quickPeopleAll : quickPeoplePending;
+  const mostRecentQuickSentAt = quickPeopleAll.reduce<number | null>(
+    (latest, person) => (person.sentAt && (!latest || person.sentAt > latest) ? person.sentAt : latest),
+    null
+  );
 
   const confirmAndSend = (message: string, targets: ConversationPerson[], onDone: () => void) => {
     const text = message.trim();
@@ -278,14 +324,25 @@ export default function LibraryScreen() {
     ]);
   };
 
-  const sendToEveryone = () => confirmAndSend(sharedMessage, quickPeoplePending, () => {});
+  const sendToEveryone = () =>
+    confirmAndSend(sharedMessage, allQuickTargets, () => setAllReopened(false));
 
   const sendToCircle = (section: CircleSection) => {
     const message = perCircleMessages[section.circleId] ?? sharedMessage;
-    const pendingPeople = section.people.filter((person) => !person.sentAt);
-    confirmAndSend(message, pendingPeople, () => {
+    const targets = section.sentAt !== null ? section.people : section.people.filter((person) => !person.sentAt);
+    confirmAndSend(message, targets, () => {
       if (expandedCircleId === section.circleId) setExpandedCircleId(null);
+      setReopenedCircleIds((current) => {
+        const next = new Set(current);
+        next.delete(section.circleId);
+        return next;
+      });
     });
+  };
+
+  const reopenCircle = (circleId: string) => {
+    setReopenedCircleIds((current) => new Set(current).add(circleId));
+    selectCircle(circleId);
   };
 
   const selectAll = () => {
@@ -371,9 +428,15 @@ export default function LibraryScreen() {
           </Pressable>
           {quickSections.map((section) =>
             section.sentAt !== null ? (
-              <View key={section.circleId} style={styles.chipSent} accessibilityRole="text">
+              <Pressable
+                key={section.circleId}
+                accessibilityRole="button"
+                accessibilityLabel={`${section.circleName}, sent. Tap to send another message.`}
+                onPress={() => reopenCircle(section.circleId)}
+                style={styles.chipSent}
+              >
                 <Text style={styles.chipSentText}>✓ {section.circleName}</Text>
-              </View>
+              </Pressable>
             ) : (
               <Pressable
                 key={section.circleId}
@@ -391,35 +454,58 @@ export default function LibraryScreen() {
         </View>
 
         {allSelected ? (
-          <View style={styles.quickBody}>
-            <TextInput
-              accessibilityLabel="Message to everyone"
-              multiline
-              onChangeText={setSharedMessage}
-              style={styles.input}
-              value={sharedMessage}
-            />
-            <PrimaryButton
-              disabled={quickPeoplePending.length === 0}
-              label={`Send to everyone (${quickPeoplePending.length})`}
-              onPress={sendToEveryone}
-            />
-          </View>
+          allQuickFullySent && !allReopened ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Sent to everyone. Tap to send another message."
+              onPress={() => setAllReopened(true)}
+              style={styles.circleRowSent}
+            >
+              <Text style={styles.circleRowSentText}>✓ Sent to everyone</Text>
+              <Text style={styles.circleRowSentLabel}>
+                {mostRecentQuickSentAt !== null
+                  ? formatSentLabel(mostRecentQuickSentAt, "Instant message sent.")
+                  : null}
+              </Text>
+            </Pressable>
+          ) : (
+            <View style={styles.quickBody}>
+              <TextInput
+                accessibilityLabel="Message to everyone"
+                multiline
+                onChangeText={setSharedMessage}
+                style={styles.input}
+                value={sharedMessage}
+              />
+              <PrimaryButton
+                disabled={allQuickTargets.length === 0}
+                label={`Send to everyone (${allQuickTargets.length})`}
+                onPress={sendToEveryone}
+              />
+            </View>
+          )
         ) : (
           <View style={styles.circleRows}>
             {quickSections.map((section) => {
-              if (section.sentAt !== null) {
+              if (section.sentAt !== null && !reopenedCircleIds.has(section.circleId)) {
                 return (
-                  <View key={section.circleId} style={styles.circleRowSent}>
+                  <Pressable
+                    key={section.circleId}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${section.circleName}, sent. Tap to send another message.`}
+                    onPress={() => reopenCircle(section.circleId)}
+                    style={styles.circleRowSent}
+                  >
                     <Text style={styles.circleRowSentText}>✓ {section.circleName}</Text>
                     <Text style={styles.circleRowSentLabel}>
                       {formatSentLabel(section.sentAt, "Instant message sent.")}
                     </Text>
-                  </View>
+                  </Pressable>
                 );
               }
 
-              const pendingPeople = section.people.filter((person) => !person.sentAt);
+              const pendingPeople =
+                section.sentAt !== null ? section.people : section.people.filter((person) => !person.sentAt);
 
               return (
                 <View key={section.circleId} style={styles.circleRow}>
@@ -521,6 +607,40 @@ export default function LibraryScreen() {
         )}
 
         <SecondaryButton label="+ Add person" onPress={addNewPerson} />
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Templates</Text>
+
+        {templates.length === 0 ? (
+          <Text style={styles.helper}>
+            Saved messages appear here once you save one from Going Quiet.
+          </Text>
+        ) : (
+          <View style={styles.templateList}>
+            {templates.map((row) => {
+              const draft = templateDrafts[row.circleId] ?? row.text;
+              return (
+                <View key={row.circleId} style={styles.templateBlock}>
+                  <Text style={styles.circleRowTitle}>{row.circleName}</Text>
+                  <TextInput
+                    accessibilityLabel={`Saved message for ${row.circleName}`}
+                    multiline
+                    onChangeText={(text) => changeTemplateDraft(row.circleId, text)}
+                    style={styles.input}
+                    textAlignVertical="top"
+                    value={draft}
+                  />
+                  <SecondaryButton
+                    disabled={!draft.trim()}
+                    label="Save"
+                    onPress={() => saveTemplate(row.circleId)}
+                  />
+                </View>
+              );
+            })}
+          </View>
+        )}
       </View>
     </Screen>
   );
@@ -665,6 +785,12 @@ const styles = StyleSheet.create({
   },
   personList: {
     gap: theme.spacing.md
+  },
+  templateList: {
+    gap: theme.spacing.md
+  },
+  templateBlock: {
+    gap: theme.spacing.xs
   },
   personBlock: {
     gap: theme.spacing.xs
