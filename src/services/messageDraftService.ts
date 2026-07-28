@@ -16,7 +16,7 @@ function recordKey(key: string): string {
 
 /** Draft key for a Going Quiet Circle's message. Reconnect's uses the fixed key "reconnect". */
 export function circleDraftKey(circleId: string): string {
-  return `circle:${circleId}`;
+  return `circle-${circleId}`;
 }
 
 async function readIndex(): Promise<string[]> {
