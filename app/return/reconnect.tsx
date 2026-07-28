@@ -57,17 +57,22 @@ export default function ReconnectScreen() {
   };
 
   const goToConversations = () => {
-    router.push("/return/conversations");
+    router.push("/library");
   };
 
   const notNow = () => {
-    router.replace("/return/done");
+    // Completing Reconnect with just the instant message is fully valid — this
+    // leaves everyone's Conversations entry incomplete, so Home resolves to its
+    // own Post-Reconnect state ("Finish Reconnecting") rather than a forced
+    // Reconnected acknowledgment. Reconnected only fires once Conversations is
+    // actually all done, from Library's own completion check.
+    router.replace("/");
   };
 
   return (
     <Screen contentContainerStyle={styles.content}>
       <View style={styles.top}>
-        <StepHeader title="Reconnect" body="Both are enough. Reply however feels right today." />
+        <StepHeader title="Reconnect" body="Both are enough." />
 
         <View style={styles.recipientPanel}>
           <Text style={styles.label}>For</Text>
@@ -171,7 +176,7 @@ const styles = StyleSheet.create({
   },
   sentLabel: {
     color: theme.colors.text,
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "600"
   },
   gatePrompt: {

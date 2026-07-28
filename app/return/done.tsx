@@ -10,7 +10,10 @@ export default function ReturnDoneScreen() {
   const { resetFlow } = useHoldFlow();
 
   const finish = () => {
-    resetFlow("return");
+    // Back to the neutral default, not "return" — otherwise mode stays stuck on
+    // "return" forever, and a later standalone Library visit would wrongly look
+    // like it's still inside a Reconnect journey.
+    resetFlow("hold");
     router.replace("/");
   };
 

@@ -13,6 +13,7 @@ import {
   REPLY_STYLES
 } from "@/constants/copy";
 import { HAS_SEEN_RETENTION_NOTE_KEY } from "@/constants/storageKeys";
+import { useHoldFlow } from "@/context/HoldFlowContext";
 import {
   addCircleMembers,
   addPerson,
@@ -227,7 +228,8 @@ function PersonaliseAccordion({ person, isOpen, onToggle }: PersonaliseAccordion
   );
 }
 
-export default function ConversationsScreen() {
+export default function LibraryScreen() {
+  const { mode } = useHoldFlow();
   const [people, setPeople] = useState<ConversationPerson[]>([]);
   const [allSelected, setAllSelected] = useState(true);
   const [sharedMessage, setSharedMessage] = useState(DEFAULT_QUICK_MESSAGE);
@@ -239,10 +241,12 @@ export default function ConversationsScreen() {
     const all = await getAllConversationPeople();
     setPeople(all);
 
-    if (all.length > 0 && all.every((person) => person.completed)) {
+    // Only a real Reconnect journey earns the "You're reconnected" screen — Library is also
+    // reachable standalone, where reaching zero-incomplete has no such journey to close out.
+    if (all.length > 0 && all.every((person) => person.completed) && mode === "return") {
       router.replace("/return/done");
     }
-  }, []);
+  }, [mode]);
 
   useFocusEffect(
     useCallback(() => {
@@ -341,6 +345,7 @@ export default function ConversationsScreen() {
   if (people.length === 0) {
     return (
       <Screen contentContainerStyle={styles.content}>
+        <Text style={styles.pageTitle}>Conversations</Text>
         <Text style={styles.empty}>
           Nothing here yet. When you need help replying to someone, this is where you’ll find it.
         </Text>
@@ -350,6 +355,8 @@ export default function ConversationsScreen() {
 
   return (
     <Screen contentContainerStyle={styles.content}>
+      <Text style={styles.pageTitle}>Conversations</Text>
+
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Quick message</Text>
 
@@ -522,6 +529,11 @@ export default function ConversationsScreen() {
 const styles = StyleSheet.create({
   content: {
     gap: theme.spacing.xl
+  },
+  pageTitle: {
+    color: theme.colors.text,
+    fontSize: 22,
+    fontWeight: "600"
   },
   empty: {
     color: theme.colors.textMuted,

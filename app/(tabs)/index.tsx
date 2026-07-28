@@ -18,7 +18,6 @@ import { HeldMark } from "@/components/HeldMark";
 import { NavPill } from "@/components/NavPill";
 import { SecondaryButton } from "@/components/SecondaryButton";
 import { AboutIcon } from "@/components/AboutIcon";
-import { HistoryIcon } from "@/components/HistoryIcon";
 import { theme } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { useHoldFlow } from "@/context/HoldFlowContext";
@@ -140,7 +139,7 @@ export default function HomeScreen() {
   };
 
   const finishReconnecting = () => {
-    router.push("/return/conversations");
+    router.push("/library");
   };
 
   const startNewQuietSession = () => {
@@ -167,6 +166,10 @@ export default function HomeScreen() {
 
   const doClearPostReconnect = async () => {
     await completeAll();
+    // This dismisses the journey without ever visiting the Reconnected screen,
+    // so mode needs resetting here too — otherwise it stays stuck on "return"
+    // and a later standalone Library visit would wrongly redirect to Reconnected.
+    resetFlow("hold");
     setHomeState("normal");
     setPostReconnectProgress(null);
   };
@@ -417,11 +420,6 @@ export default function HomeScreen() {
             label="Circles"
             icon={<HeldMark size={20} />}
             onPress={() => router.push("/settings/circle")}
-          />
-          <NavPill
-            label="History"
-            icon={<HistoryIcon />}
-            onPress={() => router.push("/settings/history")}
           />
         </View>
       </ScrollView>

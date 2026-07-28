@@ -70,51 +70,59 @@ export async function getProgress(): Promise<ConversationProgress | null> {
 
 /**
  * Merges the Reconnect audience into the Conversations list without clearing anyone
- * already on it — old unfinished Conversations stay saved across quiet periods.
- * Dedupes by phone number: someone in two selected Circles, or already on the list
- * from a previous round, is only ever listed once.
+ * already on it — old *unfinished* Conversations stay saved across quiet periods.
+ * Someone already on the list but already completed from a previous round is reset
+ * to fresh and incomplete instead: being back in a new Reconnect audience means this
+ * round is asking the "have you told them" question again, not inheriting last
+ * round's answer. Dedupes by phone number either way — someone in two selected
+ * Circles, or already on the list, is only ever listed once.
  */
 export async function seedFromAudience(
   circles: AudienceCircle[],
   ungrouped: AudienceContact[]
 ): Promise<void> {
   const existing = await getAll();
+  const existingByPhone = new Map(existing.map((person) => [person.phoneNumber, person]));
   const known = new Set(existing.map((person) => person.phoneNumber));
-  const additions: ConversationPerson[] = [];
+  const writes: ConversationPerson[] = [];
 
-  for (const circle of circles) {
-    for (const contact of circle.contacts) {
-      if (known.has(contact.phoneNumber)) continue;
-      known.add(contact.phoneNumber);
-      additions.push({
-        id: createPersonId(),
-        name: contact.name,
-        phoneNumber: contact.phoneNumber,
-        circleId: circle.circleId,
-        circleName: circle.circleName,
-        completed: false,
-        bucket: "quick",
-        sentAt: null
-      });
+  const seed = (
+    contact: { name: string; phoneNumber: string },
+    circleId: string | null,
+    circleName: string | null
+  ) => {
+    if (known.has(contact.phoneNumber)) {
+      const current = existingByPhone.get(contact.phoneNumber);
+      if (current?.completed) {
+        writes.push({ ...current, completed: false, bucket: "quick", sentAt: null });
+      }
+      return;
     }
-  }
 
-  for (const contact of ungrouped) {
-    if (known.has(contact.phoneNumber)) continue;
     known.add(contact.phoneNumber);
-    additions.push({
+    writes.push({
       id: createPersonId(),
       name: contact.name,
       phoneNumber: contact.phoneNumber,
-      circleId: null,
-      circleName: null,
+      circleId,
+      circleName,
       completed: false,
       bucket: "quick",
       sentAt: null
     });
+  };
+
+  for (const circle of circles) {
+    for (const contact of circle.contacts) {
+      seed(contact, circle.circleId, circle.circleName);
+    }
   }
 
-  await Promise.all(additions.map((person) => writeRecord(person)));
+  for (const contact of ungrouped) {
+    seed(contact, null, null);
+  }
+
+  await Promise.all(writes.map((person) => writeRecord(person)));
 }
 
 /** "Expand to full Circle" — adds whoever from that Circle isn't already listed. */

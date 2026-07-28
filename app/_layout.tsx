@@ -41,7 +41,7 @@ export default function RootLayout() {
             headerRight: () => <HeaderAboutButton />
           }}
         >
-          <Stack.Screen name="index" options={{ headerShown: false }} />
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="welcome" options={{ headerShown: false, gestureEnabled: false }} />
           <Stack.Screen
             name="create/people"
@@ -54,14 +54,9 @@ export default function RootLayout() {
             options={{ headerShown: false, gestureEnabled: false, animationDuration: 450 }}
           />
           <Stack.Screen name="return/reconnect" options={{ title: "Reconnect" }} />
-          <Stack.Screen name="return/conversations" options={{ title: "Conversations" }} />
           <Stack.Screen name="return/update" options={{ title: "Send an update" }} />
           <Stack.Screen name="return/done" options={{ headerShown: false, gestureEnabled: false }} />
           <Stack.Screen name="about" options={{ title: "About", headerRight: () => null }} />
-          <Stack.Screen
-            name="settings/history/index"
-            options={{ title: "Hold history" }}
-          />
           <Stack.Screen name="settings/circle/index" options={{ title: "Your Circles" }} />
           <Stack.Screen name="settings/circle/detail" options={{ title: "Circle" }} />
         </Stack>
