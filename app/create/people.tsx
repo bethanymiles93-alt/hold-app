@@ -60,7 +60,9 @@ export default function HoldPeopleScreen() {
         />
 
         {circleDrafts.map((draft) => {
-          const showChips = showingChipsFor.has(draft.circleId) || (!draft.hasSavedDefault && !draft.message.trim());
+          const showChips =
+            showingChipsFor.has(draft.circleId) || (draft.savedMessage === null && !draft.message.trim());
+          const isSaved = draft.savedMessage !== null && draft.message === draft.savedMessage;
 
           return (
             <View key={draft.circleId} style={styles.circleSection}>
@@ -92,12 +94,18 @@ export default function HoldPeopleScreen() {
                     <Pressable accessibilityRole="button" onPress={() => changeTemplate(draft.circleId)}>
                       <Text style={styles.linkText}>Change template</Text>
                     </Pressable>
-                    <Pressable
-                      accessibilityRole="button"
-                      onPress={() => void saveCircleDraftAsDefault(draft.circleId)}
-                    >
-                      <Text style={styles.linkText}>Save to Library</Text>
-                    </Pressable>
+                    {isSaved ? (
+                      <View style={styles.savedPill} accessibilityRole="text">
+                        <Text style={styles.savedPillText}>✓ Saved to Library</Text>
+                      </View>
+                    ) : (
+                      <Pressable
+                        accessibilityRole="button"
+                        onPress={() => void saveCircleDraftAsDefault(draft.circleId)}
+                      >
+                        <Text style={styles.linkText}>Save to Library</Text>
+                      </Pressable>
+                    )}
                   </View>
                   <Text style={styles.helper}>
                     This becomes your usual message for {draft.circleName}. Edit it anytime in Library.
@@ -162,6 +170,20 @@ const styles = StyleSheet.create({
   linkText: {
     color: theme.colors.link,
     fontSize: 14,
+    fontWeight: "600"
+  },
+  savedPill: {
+    minHeight: 28,
+    borderRadius: theme.radius.pill,
+    paddingHorizontal: theme.spacing.sm,
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "flex-start",
+    backgroundColor: theme.colors.surfaceStrong
+  },
+  savedPillText: {
+    color: theme.colors.textMuted,
+    fontSize: 13,
     fontWeight: "600"
   },
   helper: {

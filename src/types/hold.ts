@@ -38,7 +38,8 @@ export interface GoingQuietCircleDraft {
   circleName: string;
   intent: HoldIntent | null;
   message: string;
-  hasSavedDefault: boolean;
+  /** Exact text currently saved as this Circle's Library default; null if none has ever been saved. */
+  savedMessage: string | null;
 }
 
 export interface HoldFlowState {

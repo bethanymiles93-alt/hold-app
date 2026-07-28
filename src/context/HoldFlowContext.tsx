@@ -141,7 +141,7 @@ export function HoldFlowProvider({ children }: PropsWithChildren) {
             circleName: group.name,
             intent: null,
             message: unsavedDraft ?? savedDefault ?? "",
-            hasSavedDefault: savedDefault !== null
+            savedMessage: savedDefault
           };
 
           return {
@@ -192,7 +192,7 @@ export function HoldFlowProvider({ children }: PropsWithChildren) {
         setState((current) => ({
           ...current,
           circleDrafts: current.circleDrafts.map((existing) =>
-            existing.circleId === circleId ? { ...existing, hasSavedDefault: true } : existing
+            existing.circleId === circleId ? { ...existing, savedMessage: draft.message } : existing
           )
         }));
       },
