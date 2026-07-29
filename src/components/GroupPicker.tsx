@@ -3,10 +3,8 @@ import { Link, useFocusEffect } from "expo-router";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
-import { useHoldFlow } from "@/context/HoldFlowContext";
 import { addContactToGroup, createGroup, getGroups } from "@/services/circleService";
 import { pickContact } from "@/services/contactPickerService";
-import { RecipientPersonalisation } from "@/components/RecipientPersonalisation";
 import type { CircleGroup } from "@/types/hold";
 
 const SUGGESTED_CIRCLES = ["Work", "Book Club"];
@@ -16,19 +14,18 @@ interface GroupPickerProps {
   onToggle: (group: CircleGroup) => Promise<void>;
 }
 
+/**
+ * Pure Circle picker — selection only. Per-person detail (include/exclude,
+ * remove, personalise) lives permanently in the merged Going Quiet screen's
+ * own per-Circle cards now, not behind a second expand-on-demand mechanism
+ * here, so there's exactly one place that interaction happens.
+ */
 export function GroupPicker({ selectedGroupIds, onToggle }: GroupPickerProps) {
-  const {
-    goingQuietRecipients,
-    toggleRecipientIncluded,
-    setRecipientPersonalisedMessage,
-    circleDrafts
-  } = useHoldFlow();
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [groups, setGroups] = useState<CircleGroup[]>([]);
   const [creating, setCreating] = useState(false);
   const [newCircleName, setNewCircleName] = useState("");
-  const [expandedCircleId, setExpandedCircleId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setGroups(await getGroups());
@@ -61,68 +58,35 @@ export function GroupPicker({ selectedGroupIds, onToggle }: GroupPickerProps) {
     await onToggle(circle);
   };
 
-  const toggleExpanded = (groupId: string) => {
-    setExpandedCircleId((current) => (current === groupId ? null : groupId));
-  };
-
-  const expandedRecipients = expandedCircleId
-    ? goingQuietRecipients.filter((recipient) => recipient.circleId === expandedCircleId)
-    : [];
-
   return (
     <View style={styles.container}>
       <View style={styles.pillWrap}>
         {groups.map((group) => {
           const selected = selectedGroupIds.includes(group.id);
           return (
-            <View key={group.id} style={styles.pillGroup}>
-              <Pressable
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: selected }}
-                onPress={() => void onToggle(group)}
+            <Pressable
+              key={group.id}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: selected }}
+              onPress={() => void onToggle(group)}
+              style={[
+                styles.pill,
+                group.isCloseCircle ? styles.pillPrimary : styles.pillSecondary,
+                selected && styles.pillSelected
+              ]}
+            >
+              <Text
                 style={[
-                  styles.pill,
-                  group.isCloseCircle ? styles.pillPrimary : styles.pillSecondary,
-                  selected && styles.pillSelected
+                  styles.pillText,
+                  group.isCloseCircle ? styles.pillTextPrimary : styles.pillTextSecondary
                 ]}
               >
-                <Text
-                  style={[
-                    styles.pillText,
-                    group.isCloseCircle ? styles.pillTextPrimary : styles.pillTextSecondary
-                  ]}
-                >
-                  {group.name}
-                </Text>
-              </Pressable>
-
-              {selected ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`${expandedCircleId === group.id ? "Hide" : "Show"} people in ${group.name}`}
-                  onPress={() => toggleExpanded(group.id)}
-                  style={styles.expandButton}
-                >
-                  <Text style={styles.expandButtonText}>
-                    {expandedCircleId === group.id ? "▲" : "▼"}
-                  </Text>
-                </Pressable>
-              ) : null}
-            </View>
+                {group.name}
+              </Text>
+            </Pressable>
           );
         })}
       </View>
-
-      {expandedCircleId && expandedRecipients.length > 0 ? (
-        <RecipientPersonalisation
-          recipients={expandedRecipients}
-          onToggleIncluded={toggleRecipientIncluded}
-          onChangePersonalisedMessage={setRecipientPersonalisedMessage}
-          defaultMessage={
-            circleDrafts.find((draft) => draft.circleId === expandedCircleId)?.message ?? ""
-          }
-        />
-      ) : null}
 
       {emptySelectedGroups.length > 0 ? (
         <Text style={styles.prompt}>
@@ -204,11 +168,6 @@ function createStyles(colors: ThemeColors) {
       flexWrap: "wrap",
       gap: theme.spacing.sm
     },
-    pillGroup: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 4
-    },
     pill: {
       minHeight: 38,
       borderRadius: theme.radius.pill,
@@ -235,19 +194,6 @@ function createStyles(colors: ThemeColors) {
     },
     pillTextSecondary: {
       color: colors.primary
-    },
-    expandButton: {
-      width: 28,
-      height: 28,
-      borderRadius: theme.radius.pill,
-      borderWidth: 1.5,
-      borderColor: colors.border,
-      alignItems: "center",
-      justifyContent: "center"
-    },
-    expandButtonText: {
-      color: colors.textMuted,
-      fontSize: 10
     },
     prompt: {
       color: colors.textMuted,

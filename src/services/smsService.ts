@@ -16,9 +16,9 @@ export async function sendTextMessage(numbers: string[], message: string): Promi
 
 /**
  * SMS when there are numbers to text and it's available, otherwise the share
- * sheet. Used anywhere a message needs to go out without the full dual-button
- * SendChoice UI — Conversations' bulk/quick sends, Going Quiet's personalised
- * per-person sends.
+ * sheet. Used anywhere a message needs to go out directly — Going Quiet's
+ * group and individual sends, Conversations' bulk/quick sends, Taking Time's
+ * update.
  */
 export async function sendOrShare(numbers: string[], message: string): Promise<void> {
   if (numbers.length > 0 && (await isSmsAvailable())) {

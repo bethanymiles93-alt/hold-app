@@ -23,12 +23,15 @@ interface HoldFlowContextValue extends HoldFlowState {
   setRecipients: (recipients: string[]) => void;
   toggleGroup: (group: CircleGroup) => Promise<void>;
   toggleRecipientIncluded: (contactId: string) => void;
-  setRecipientPersonalisedMessage: (contactId: string, message: string | null) => void;
+  setRecipientIndividuallyRemoved: (contactId: string, removed: boolean) => void;
+  setRecipientInstantMessage: (contactId: string, message: string) => void;
+  setRecipientRouteToPersonalise: (contactId: string, route: boolean) => void;
   setCircleDraftIntent: (circleId: string, intent: HoldIntent) => void;
   setCircleDraftMessage: (circleId: string, message: string) => void;
   saveCircleDraftAsDefault: (circleId: string) => Promise<void>;
   setReturnStyle: (style: ReturnStyle) => void;
   setAudience: (circles: AudienceCircle[], ungrouped: AudienceContact[]) => void;
+  markCircleUpdated: (circleId: string) => void;
   resetFlow: (mode: FlowMode) => void;
 }
 
@@ -40,7 +43,8 @@ const initialState: HoldFlowState = {
   audienceCircles: [],
   audienceUngrouped: [],
   goingQuietRecipients: [],
-  circleDrafts: []
+  circleDrafts: [],
+  updatedCircleIds: []
 };
 
 /**
@@ -71,7 +75,9 @@ function mergeGoingQuietRecipients(
           circleId: group.id,
           circleName: group.name,
           included: true,
-          personalisedMessage: null
+          individuallyRemoved: false,
+          instantMessage: "",
+          routeToPersonalise: false
         }
       );
     }
@@ -156,15 +162,47 @@ export function HoldFlowProvider({ children }: PropsWithChildren) {
       toggleRecipientIncluded: (contactId) =>
         setState((current) => ({
           ...current,
-          goingQuietRecipients: current.goingQuietRecipients.map((recipient) =>
-            recipient.contactId === contactId ? { ...recipient, included: !recipient.included } : recipient
-          )
+          goingQuietRecipients: current.goingQuietRecipients.map((recipient) => {
+            if (recipient.contactId !== contactId) return recipient;
+
+            const nowIncluded = !recipient.included;
+            if (nowIncluded) {
+              // Rejoining the group message — the individual state underneath is moot.
+              return {
+                ...recipient,
+                included: true,
+                individuallyRemoved: false,
+                routeToPersonalise: false
+              };
+            }
+
+            const draft = current.circleDrafts.find((d) => d.circleId === recipient.circleId);
+            return {
+              ...recipient,
+              included: false,
+              instantMessage: recipient.instantMessage || draft?.message || ""
+            };
+          })
         })),
-      setRecipientPersonalisedMessage: (contactId, message) =>
+      setRecipientIndividuallyRemoved: (contactId, removed) =>
         setState((current) => ({
           ...current,
           goingQuietRecipients: current.goingQuietRecipients.map((recipient) =>
-            recipient.contactId === contactId ? { ...recipient, personalisedMessage: message } : recipient
+            recipient.contactId === contactId ? { ...recipient, individuallyRemoved: removed } : recipient
+          )
+        })),
+      setRecipientInstantMessage: (contactId, message) =>
+        setState((current) => ({
+          ...current,
+          goingQuietRecipients: current.goingQuietRecipients.map((recipient) =>
+            recipient.contactId === contactId ? { ...recipient, instantMessage: message } : recipient
+          )
+        })),
+      setRecipientRouteToPersonalise: (contactId, route) =>
+        setState((current) => ({
+          ...current,
+          goingQuietRecipients: current.goingQuietRecipients.map((recipient) =>
+            recipient.contactId === contactId ? { ...recipient, routeToPersonalise: route } : recipient
           )
         })),
       setCircleDraftIntent: (circleId, intent) =>
@@ -200,6 +238,12 @@ export function HoldFlowProvider({ children }: PropsWithChildren) {
         setState((current) => ({ ...current, returnStyle })),
       setAudience: (audienceCircles, audienceUngrouped) =>
         setState((current) => ({ ...current, audienceCircles, audienceUngrouped })),
+      markCircleUpdated: (circleId) =>
+        setState((current) =>
+          current.updatedCircleIds.includes(circleId)
+            ? current
+            : { ...current, updatedCircleIds: [...current.updatedCircleIds, circleId] }
+        ),
       resetFlow: (mode) =>
         setState({
           ...initialState,

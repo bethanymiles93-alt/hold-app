@@ -29,8 +29,18 @@ export interface GoingQuietRecipient {
   phoneNumber: string;
   circleId: string;
   circleName: string;
+  /** In the Circle's shared group message. */
   included: boolean;
-  personalisedMessage: string | null;
+  /**
+   * Only meaningful when included is false. False = excluded from the group
+   * message but still has their own instant message; true = fully removed
+   * (name only, nothing sent this round).
+   */
+  individuallyRemoved: boolean;
+  /** This person's own short message, used when excluded but not fully removed. */
+  instantMessage: string;
+  /** Set via "Personalise" — routes them to Conversations instead of an instant send. */
+  routeToPersonalise: boolean;
 }
 
 export interface GoingQuietCircleDraft {
@@ -51,6 +61,8 @@ export interface HoldFlowState {
   audienceUngrouped: AudienceContact[];
   goingQuietRecipients: GoingQuietRecipient[];
   circleDrafts: GoingQuietCircleDraft[];
+  /** Circle ids already sent a Taking Time update this period — resets whenever resetFlow runs. */
+  updatedCircleIds: string[];
 }
 
 export interface DraftRequest {

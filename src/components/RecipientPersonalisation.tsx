@@ -2,72 +2,111 @@ import { useMemo } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
+import { SelectionCircle } from "@/components/SelectionCircle";
 import type { GoingQuietRecipient } from "@/types/hold";
 
 interface RecipientPersonalisationProps {
   recipients: GoingQuietRecipient[];
   onToggleIncluded: (contactId: string) => void;
-  onChangePersonalisedMessage: (contactId: string, message: string | null) => void;
-  defaultMessage: string;
+  onSetIndividuallyRemoved: (contactId: string, removed: boolean) => void;
+  onSetInstantMessage: (contactId: string, message: string) => void;
+  onSetRouteToPersonalise: (contactId: string, route: boolean) => void;
 }
 
 /**
- * Renders one Circle's people at a time — the box shown beneath a Circle pill
- * when its down-arrow is expanded (GroupPicker decides which Circle, if any).
+ * One Circle's full recipient list: a top-level include/exclude toggle for
+ * everyone, then anyone excluded gets a second row below with their own
+ * second-level toggle (individually-removed vs still getting their own
+ * instant message), an editable message, and a Personalise link that routes
+ * them to Conversations instead (seeded at Send time, not on tap).
  */
 export function RecipientPersonalisation({
   recipients,
   onToggleIncluded,
-  onChangePersonalisedMessage,
-  defaultMessage
+  onSetIndividuallyRemoved,
+  onSetInstantMessage,
+  onSetRouteToPersonalise
 }: RecipientPersonalisationProps) {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
 
+  const excluded = recipients.filter((recipient) => !recipient.included);
+
   return (
     <View style={styles.container}>
-      {recipients.map((recipient) => (
-        <View key={recipient.contactId} style={styles.row}>
-          <Pressable
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: recipient.included }}
-            onPress={() => onToggleIncluded(recipient.contactId)}
-            style={styles.tapArea}
-          >
-            <View style={[styles.checkbox, recipient.included && styles.checkboxChecked]} />
-            <Text style={[styles.name, !recipient.included && styles.nameExcluded]}>
-              {recipient.name}
-            </Text>
-          </Pressable>
-
-          {recipient.included ? (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() =>
-                onChangePersonalisedMessage(
-                  recipient.contactId,
-                  recipient.personalisedMessage === null ? defaultMessage : null
-                )
-              }
-            >
-              <Text style={styles.linkText}>
-                {recipient.personalisedMessage === null ? "Personalise" : "Use default message"}
-              </Text>
-            </Pressable>
-          ) : null}
-
-          {recipient.included && recipient.personalisedMessage !== null ? (
-            <TextInput
-              accessibilityLabel={`Message for ${recipient.name}`}
-              multiline
-              onChangeText={(text) => onChangePersonalisedMessage(recipient.contactId, text)}
-              style={styles.input}
-              textAlignVertical="top"
-              value={recipient.personalisedMessage}
+      <View style={styles.mainList}>
+        {recipients.map((recipient) => (
+          <View key={recipient.contactId} style={styles.mainRow}>
+            <SelectionCircle
+              selected={recipient.included}
+              onPress={() => onToggleIncluded(recipient.contactId)}
+              accessibilityLabel={`${recipient.included ? "Included" : "Excluded"}: ${recipient.name}`}
             />
-          ) : null}
+            <Text style={styles.name}>{recipient.name}</Text>
+          </View>
+        ))}
+      </View>
+
+      {excluded.length > 0 ? (
+        <View style={styles.excludedList}>
+          {excluded.map((recipient) => {
+            if (recipient.individuallyRemoved) {
+              return (
+                <View key={recipient.contactId} style={styles.excludedRow}>
+                  <SelectionCircle
+                    selected={false}
+                    onPress={() => onSetIndividuallyRemoved(recipient.contactId, false)}
+                    accessibilityLabel={`Restore ${recipient.name}`}
+                  />
+                  <Text style={styles.nameRemoved}>{recipient.name}</Text>
+                </View>
+              );
+            }
+
+            return (
+              <View key={recipient.contactId} style={styles.excludedBlock}>
+                <View style={styles.excludedRow}>
+                  <SelectionCircle
+                    selected={true}
+                    onPress={() => onSetIndividuallyRemoved(recipient.contactId, true)}
+                    accessibilityLabel={`Remove ${recipient.name}`}
+                  />
+                  <Text style={styles.name}>{recipient.name}</Text>
+                </View>
+
+                {recipient.routeToPersonalise ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => onSetRouteToPersonalise(recipient.contactId, false)}
+                    style={styles.personaliseNote}
+                  >
+                    <Text style={styles.personaliseNoteText}>
+                      Will personalise in Conversations
+                    </Text>
+                  </Pressable>
+                ) : (
+                  <>
+                    <TextInput
+                      accessibilityLabel={`Message for ${recipient.name}`}
+                      multiline
+                      onChangeText={(text) => onSetInstantMessage(recipient.contactId, text)}
+                      style={styles.input}
+                      textAlignVertical="top"
+                      value={recipient.instantMessage}
+                    />
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => onSetRouteToPersonalise(recipient.contactId, true)}
+                    >
+                      <Text style={styles.linkText}>Personalise</Text>
+                    </Pressable>
+                  </>
+                )}
+              </View>
+            );
+          })}
         </View>
-      ))}
+      ) : null}
     </View>
   );
 }
@@ -77,41 +116,39 @@ function createStyles(colors: ThemeColors) {
     container: {
       gap: theme.spacing.sm
     },
-    row: {
+    mainList: {
       gap: theme.spacing.xs
     },
-    tapArea: {
+    mainRow: {
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.sm,
-      minHeight: 40
-    },
-    checkbox: {
-      width: 20,
-      height: 20,
-      borderRadius: theme.radius.sm,
-      borderWidth: 1.5,
-      borderColor: colors.primary
-    },
-    checkboxChecked: {
-      backgroundColor: colors.primary
+      minHeight: 36
     },
     name: {
       color: colors.text,
       fontSize: 16
     },
-    nameExcluded: {
-      color: colors.textMuted,
-      textDecorationLine: "line-through"
+    excludedList: {
+      gap: theme.spacing.sm,
+      marginLeft: 32,
+      paddingLeft: theme.spacing.sm,
+      borderLeftWidth: 1.5,
+      borderLeftColor: colors.border
     },
-    linkText: {
-      color: colors.link,
-      fontSize: 13,
-      fontWeight: "600",
-      marginLeft: 32
+    excludedBlock: {
+      gap: theme.spacing.xs
+    },
+    excludedRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm,
+      minHeight: 36
+    },
+    nameRemoved: {
+      color: colors.textMuted
     },
     input: {
-      marginLeft: 32,
       minHeight: 60,
       borderWidth: 1.5,
       borderColor: colors.border,
@@ -121,6 +158,20 @@ function createStyles(colors: ThemeColors) {
       fontSize: 15,
       lineHeight: 21,
       backgroundColor: colors.surface
+    },
+    linkText: {
+      color: colors.link,
+      fontSize: 13,
+      fontWeight: "600"
+    },
+    personaliseNote: {
+      minHeight: 32,
+      justifyContent: "center"
+    },
+    personaliseNoteText: {
+      color: colors.textMuted,
+      fontSize: 13,
+      fontStyle: "italic"
     }
   });
 }

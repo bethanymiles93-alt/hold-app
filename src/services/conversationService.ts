@@ -166,6 +166,32 @@ export async function addPerson(contact: { name: string; phoneNumber: string }):
   });
 }
 
+/**
+ * Seeds a Going Quiet recipient who tapped "Personalise" straight into the
+ * Personalise bucket, at Send time — unlike addPerson, preserves their
+ * Circle so Library can still show the tag.
+ */
+export async function seedPersonaliseRecipient(contact: {
+  name: string;
+  phoneNumber: string;
+  circleId: string;
+  circleName: string;
+}): Promise<void> {
+  const existing = await getAll();
+  if (existing.some((person) => person.phoneNumber === contact.phoneNumber)) return;
+
+  await writeRecord({
+    id: createPersonId(),
+    name: contact.name,
+    phoneNumber: contact.phoneNumber,
+    circleId: contact.circleId,
+    circleName: contact.circleName,
+    completed: false,
+    bucket: "personalise",
+    sentAt: null
+  });
+}
+
 export async function toggleComplete(id: string, completed: boolean): Promise<void> {
   const person = await readRecord(id);
   if (!person) return;
