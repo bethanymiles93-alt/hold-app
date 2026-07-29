@@ -6,10 +6,12 @@ import { HeaderSettingsButton } from "@/components/HeaderSettingsButton";
 import { SettingsDrawer } from "@/components/SettingsDrawer";
 import { HoldFlowProvider } from "@/context/HoldFlowContext";
 import { SettingsDrawerProvider } from "@/context/SettingsDrawerContext";
-import { theme } from "@/constants/theme";
+import { useAppTheme } from "@/hooks/useAppTheme";
 import { clearStaleFriendMessagesOnLaunch } from "@/services/replyStorageService";
 
 export default function RootLayout() {
+  const { colors, isDark } = useAppTheme("normal");
+
   useEffect(() => {
     void clearStaleFriendMessagesOnLaunch();
   }, []);
@@ -18,13 +20,13 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <HoldFlowProvider>
         <SettingsDrawerProvider>
-          <StatusBar style="dark" />
+          <StatusBar style={isDark ? "light" : "dark"} />
           <Stack
             screenOptions={{
               headerShadowVisible: false,
-              headerTintColor: theme.colors.text,
-              headerStyle: { backgroundColor: theme.colors.background },
-              contentStyle: { backgroundColor: theme.colors.background },
+              headerTintColor: colors.text,
+              headerStyle: { backgroundColor: colors.background },
+              contentStyle: { backgroundColor: colors.background },
               headerBackTitle: "Back",
               animation: "fade",
               headerRight: () => <HeaderSettingsButton />

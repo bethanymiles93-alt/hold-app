@@ -90,7 +90,10 @@ export const palettes = {
 
 export type ThemeVariant = "normal" | "quiet";
 export type ColorScheme = "light" | "dark";
-export type ThemeColors = typeof lightNormalColors;
+// Widened to plain `string` per field — the four palettes share identical keys
+// but each has its own distinct literal hex values via `as const`, which would
+// otherwise make only lightNormalColors itself assignable to this type.
+export type ThemeColors = { [K in keyof typeof lightNormalColors]: string };
 
 // Default export stays pinned to light-normal so existing screens are unaffected.
 export const theme = {

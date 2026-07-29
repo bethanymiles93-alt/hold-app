@@ -1,5 +1,7 @@
+import { useMemo } from "react";
 import { Pressable, StyleSheet, Text } from "react-native";
-import { theme } from "@/constants/theme";
+import { theme, type ThemeColors } from "@/constants/theme";
+import { useAppTheme } from "@/hooks/useAppTheme";
 
 interface PrimaryButtonProps {
   label: string;
@@ -14,6 +16,9 @@ export function PrimaryButton({
   disabled = false,
   accessibilityHint
 }: PrimaryButtonProps) {
+  const { colors } = useAppTheme("normal");
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -31,24 +36,26 @@ export function PrimaryButton({
   );
 }
 
-const styles = StyleSheet.create({
-  button: {
-    minHeight: 56,
-    borderRadius: theme.radius.md,
-    backgroundColor: theme.colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: theme.spacing.lg
-  },
-  pressed: {
-    backgroundColor: theme.colors.primaryPressed
-  },
-  disabled: {
-    opacity: 0.45
-  },
-  label: {
-    color: theme.colors.onPrimary,
-    fontSize: 19,
-    fontWeight: "600"
-  }
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    button: {
+      minHeight: 56,
+      borderRadius: theme.radius.md,
+      backgroundColor: colors.primary,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: theme.spacing.lg
+    },
+    pressed: {
+      backgroundColor: colors.primaryPressed
+    },
+    disabled: {
+      opacity: 0.45
+    },
+    label: {
+      color: colors.onPrimary,
+      fontSize: 19,
+      fontWeight: "600"
+    }
+  });
+}
