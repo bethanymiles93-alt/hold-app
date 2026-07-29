@@ -256,8 +256,11 @@ const styles = StyleSheet.create({
   bottomCluster: {
     marginTop: "auto"
   },
+  // marginTop (space above the line) matches paddingTop (space below it,
+  // before Privacy Policy) so the divider sits centred between Share Hold
+  // and Privacy Policy rather than closer to one side.
   groupWithDivider: {
-    marginTop: theme.spacing.lg,
+    marginTop: theme.spacing.md,
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
     paddingTop: theme.spacing.md
