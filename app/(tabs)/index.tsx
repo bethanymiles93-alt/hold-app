@@ -17,7 +17,7 @@ import { HoldMark } from "@/components/HoldMark";
 import { HeldMark } from "@/components/HeldMark";
 import { NavPill } from "@/components/NavPill";
 import { SecondaryButton } from "@/components/SecondaryButton";
-import { AboutIcon } from "@/components/AboutIcon";
+import { HeaderSettingsButton } from "@/components/HeaderSettingsButton";
 import { theme } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { useHoldFlow } from "@/context/HoldFlowContext";
@@ -256,8 +256,12 @@ export default function HomeScreen() {
   return (
     <AnimatedSafeAreaView
       style={[styles.safe, { backgroundColor: animatedBackground }]}
-      edges={["bottom", "left", "right"]}
+      edges={["top", "bottom", "left", "right"]}
     >
+      <View style={styles.headerRow}>
+        <HeaderSettingsButton />
+      </View>
+
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.brand}>
           <HoldMark size={72} />
@@ -415,7 +419,6 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.navRow}>
-          <NavPill label="About" icon={<AboutIcon />} onPress={() => router.push("/about")} />
           <NavPill
             label="Circles"
             icon={<HeldMark size={20} />}
@@ -430,6 +433,11 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   safe: {
     flex: 1
+  },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    paddingHorizontal: theme.spacing.md
   },
   content: {
     flexGrow: 1,

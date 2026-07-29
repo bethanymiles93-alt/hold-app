@@ -1,23 +1,9 @@
-import { router, Tabs } from "expo-router";
-import { Pressable, StyleSheet } from "react-native";
-import { AboutIcon } from "@/components/AboutIcon";
+import { Tabs } from "expo-router";
+import { HeaderSettingsButton } from "@/components/HeaderSettingsButton";
 import { HoldMark } from "@/components/HoldMark";
 import { LibraryIcon } from "@/components/LibraryIcon";
 import { HistoryIcon } from "@/components/HistoryIcon";
 import { theme } from "@/constants/theme";
-
-function HeaderAboutButton() {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel="About"
-      onPress={() => router.push("/about")}
-      style={styles.headerButton}
-    >
-      <AboutIcon size={20} />
-    </Pressable>
-  );
-}
 
 export default function TabsLayout() {
   return (
@@ -26,7 +12,7 @@ export default function TabsLayout() {
         headerShadowVisible: false,
         headerTintColor: theme.colors.text,
         headerStyle: { backgroundColor: theme.colors.background },
-        headerRight: () => <HeaderAboutButton />,
+        headerRight: () => <HeaderSettingsButton />,
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: theme.colors.textMuted,
         tabBarStyle: {
@@ -64,12 +50,3 @@ export default function TabsLayout() {
     </Tabs>
   );
 }
-
-const styles = StyleSheet.create({
-  headerButton: {
-    minWidth: 44,
-    minHeight: 44,
-    alignItems: "center",
-    justifyContent: "center"
-  }
-});

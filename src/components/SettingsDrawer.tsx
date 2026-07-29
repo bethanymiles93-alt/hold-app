@@ -1,0 +1,295 @@
+import { useEffect, useRef } from "react";
+import {
+  Alert,
+  Animated,
+  Dimensions,
+  Easing,
+  Linking,
+  Pressable,
+  Share,
+  StyleSheet,
+  Text,
+  View
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { router } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { theme } from "@/constants/theme";
+import { HAS_SEEN_WELCOME_KEY } from "@/constants/storageKeys";
+import { useHoldFlow } from "@/context/HoldFlowContext";
+import { useSettingsDrawer } from "@/context/SettingsDrawerContext";
+import { deleteAllCircles } from "@/services/circleService";
+import { deleteAllConversations } from "@/services/conversationService";
+import { deleteAllHoldHistory } from "@/services/holdHistoryService";
+import { deleteAllReplies } from "@/services/replyStorageService";
+import { deleteAllTemplates } from "@/services/templateService";
+import { deleteAllDrafts } from "@/services/messageDraftService";
+
+const FEEDBACK_EMAIL = "bethany.miles.93@gmail.com";
+const PANEL_WIDTH = Math.min(320, Dimensions.get("window").width * 0.86);
+const ANIMATION_MS = 260;
+
+// theme.colors.error (#8B2E2E) blended 85/15 toward theme.colors.text (#242825) — a
+// slightly darker, calmer version of the same destructive red already used for Circle
+// deletion and Hold history entries, toned down just enough for a passive row label
+// rather than an active confirm button, while staying clearly identifiable as red at
+// a glance. (Revised lighter after an earlier 70/30 blend read as too close to brown/grey.)
+const DESTRUCTIVE_LABEL_COLOR = "#7C2D2D";
+
+function NavRow({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+    >
+      <Text style={styles.rowLabel}>{label}</Text>
+      <Text style={styles.rowChevron}>›</Text>
+    </Pressable>
+  );
+}
+
+function ActionRow({
+  label,
+  onPress,
+  destructive
+}: {
+  label: string;
+  onPress: () => void;
+  destructive?: boolean;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+    >
+      <Text style={[styles.rowLabel, destructive && styles.rowLabelDestructive]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function ComingLaterRow({ label }: { label: string }) {
+  return (
+    <View style={styles.row}>
+      <Text style={styles.rowLabelMuted}>{label}</Text>
+      <View style={styles.comingLaterTag}>
+        <Text style={styles.comingLaterText}>Coming later</Text>
+      </View>
+    </View>
+  );
+}
+
+export function SettingsDrawer() {
+  const { isOpen, close } = useSettingsDrawer();
+  const { resetFlow } = useHoldFlow();
+  const translateX = useRef(new Animated.Value(PANEL_WIDTH)).current;
+
+  useEffect(() => {
+    Animated.timing(translateX, {
+      toValue: isOpen ? 0 : PANEL_WIDTH,
+      duration: ANIMATION_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true
+    }).start();
+  }, [isOpen, translateX]);
+
+  const backdropOpacity = translateX.interpolate({
+    inputRange: [0, PANEL_WIDTH],
+    outputRange: [1, 0]
+  });
+
+  const goTo = (path: "/settings/mission" | "/settings/privacy" | "/settings/research" | "/settings/circle") => {
+    close();
+    router.push(path);
+  };
+
+  const shareApp = () => {
+    close();
+    void Share.share({ message: "Hold: a gentler way to go quiet and come back, without guilt." });
+  };
+
+  const giveFeedback = () => {
+    close();
+    void Linking.openURL(`mailto:${FEEDBACK_EMAIL}?subject=Hold%20feedback`);
+  };
+
+  const deleteEverything = () => {
+    close();
+    Alert.alert(
+      "Delete everything on this device?",
+      "This removes every saved Circle, Hold history entry, in-progress reply, Conversations list, and saved template. This can't be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            void (async () => {
+              await Promise.all([
+                deleteAllCircles(),
+                deleteAllHoldHistory(),
+                deleteAllReplies(),
+                deleteAllConversations(),
+                deleteAllTemplates(),
+                deleteAllDrafts(),
+                AsyncStorage.removeItem(HAS_SEEN_WELCOME_KEY)
+              ]);
+              resetFlow("hold");
+              router.replace("/");
+            })();
+          }
+        }
+      ]
+    );
+  };
+
+  return (
+    <View style={styles.overlay} pointerEvents="box-none">
+      <Animated.View
+        pointerEvents={isOpen ? "auto" : "none"}
+        style={[styles.backdrop, { opacity: backdropOpacity }]}
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Close settings"
+          accessibilityElementsHidden={!isOpen}
+          style={styles.backdropTouchable}
+          onPress={close}
+        />
+      </Animated.View>
+      <Animated.View style={[styles.panel, { width: PANEL_WIDTH, transform: [{ translateX }] }]}>
+        <SafeAreaView style={styles.safe} edges={["top", "bottom", "right"]}>
+          <View style={styles.content}>
+            <View style={styles.group}>
+              <NavRow label="Manage Circles" onPress={() => goTo("/settings/circle")} />
+              <ComingLaterRow label="Notifications" />
+              <ComingLaterRow label="Language" />
+              <ComingLaterRow label="Connected Accounts" />
+            </View>
+
+            <View style={[styles.group, styles.groupSpaced]}>
+              <NavRow label="Our Mission" onPress={() => goTo("/settings/mission")} />
+              <NavRow label="Research" onPress={() => goTo("/settings/research")} />
+              <ComingLaterRow label="Hold+" />
+            </View>
+
+            <View style={[styles.group, styles.groupExtraSpaced]}>
+              <ActionRow label="Feedback" onPress={giveFeedback} />
+              <ActionRow label="Share Hold" onPress={shareApp} />
+            </View>
+
+            <View style={[styles.group, styles.groupWithDivider]}>
+              <NavRow label="Privacy Policy" onPress={() => goTo("/settings/privacy")} />
+              <ComingLaterRow label="Terms" />
+              <ActionRow label="Delete my data" onPress={deleteEverything} destructive />
+            </View>
+          </View>
+        </SafeAreaView>
+      </Animated.View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  overlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    zIndex: 50
+  },
+  backdrop: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.3)"
+  },
+  backdropTouchable: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0
+  },
+  panel: {
+    backgroundColor: theme.colors.background,
+    shadowOffset: { width: -4, height: 0 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 12
+  },
+  safe: {
+    flex: 1
+  },
+  content: {
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.lg,
+    paddingBottom: theme.spacing.lg
+  },
+  group: {
+    gap: theme.spacing.xs
+  },
+  // Clearly bigger than a group's own row-to-row gap (xs), so groups read as
+  // distinct sections rather than one continuous list. Used above About Hold
+  // and above Legal and data — both the "small" group gap.
+  groupSpaced: {
+    marginTop: theme.spacing.xxl
+  },
+  // The single largest gap in the drawer, above Support only — About Hold
+  // (values/browsing) to Support (Feedback/Share) is the one section break
+  // meant to read as more of a beat than the others.
+  groupExtraSpaced: {
+    marginTop: theme.spacing.xxl * 1.5
+  },
+  // Small gap above (matching groupSpaced), then its own divider line and a
+  // second, smaller internal gap before "Privacy Policy" itself.
+  groupWithDivider: {
+    marginTop: theme.spacing.xxl,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+    paddingTop: theme.spacing.lg
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    minHeight: 48
+  },
+  rowPressed: {
+    opacity: 0.6
+  },
+  rowLabel: {
+    color: theme.colors.text,
+    fontSize: 16,
+    fontWeight: "600"
+  },
+  rowLabelDestructive: {
+    color: DESTRUCTIVE_LABEL_COLOR
+  },
+  rowLabelMuted: {
+    color: theme.colors.textMuted,
+    fontSize: 16,
+    fontWeight: "600"
+  },
+  rowChevron: {
+    color: theme.colors.textMuted,
+    fontSize: 18
+  },
+  comingLaterTag: {
+    borderRadius: theme.radius.pill,
+    backgroundColor: theme.colors.surfaceStrong,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 4
+  },
+  comingLaterText: {
+    color: theme.colors.textMuted,
+    fontSize: 12,
+    fontWeight: "600"
+  }
+});
