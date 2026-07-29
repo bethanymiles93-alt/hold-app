@@ -53,6 +53,13 @@ const RECONNECT_RIPPLE_DURATION = 480;
 // quiet colour palettes, triggered on focus rather than tied to the tap.
 const PALETTE_FADE_MS = 1200;
 
+// Taking Time breathing: once settled, an extremely subtle, slow scale cycle —
+// no pulse, no glow, no obvious rhythm. Layered as its own transform on top of
+// the settled QUIET_CIRCLE_SCALE rather than folded into scaleAnim, so it never
+// interferes with the discrete tap/reconnect scale transitions.
+const BREATHE_MIN_SCALE = 0.98;
+const BREATHE_HALF_CYCLE_MS = 4000;
+
 type HomeState = "loading" | "normal" | "taking-time" | "post-reconnect";
 
 interface PostReconnectProgress {
@@ -75,10 +82,37 @@ export default function HomeScreen() {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const rippleAnim = useRef(new Animated.Value(0)).current;
   const paletteAnim = useRef(new Animated.Value(0)).current;
+  const breatheAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     void AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
   }, []);
+
+  useEffect(() => {
+    if (homeState === "taking-time" && !reduceMotion) {
+      const loop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(breatheAnim, {
+            toValue: BREATHE_MIN_SCALE,
+            duration: BREATHE_HALF_CYCLE_MS,
+            easing: Easing.inOut(Easing.sin),
+            useNativeDriver: true
+          }),
+          Animated.timing(breatheAnim, {
+            toValue: 1,
+            duration: BREATHE_HALF_CYCLE_MS,
+            easing: Easing.inOut(Easing.sin),
+            useNativeDriver: true
+          })
+        ])
+      );
+      loop.start();
+      return () => loop.stop();
+    }
+
+    breatheAnim.setValue(1);
+    return undefined;
+  }, [homeState, reduceMotion, breatheAnim]);
 
   useFocusEffect(
     useCallback(() => {
@@ -314,7 +348,12 @@ export default function HomeScreen() {
                     }
                   ]}
                 />
-                <Animated.View style={[styles.circleBox, { transform: [{ scale: scaleAnim }] }]}>
+                <Animated.View
+                  style={[
+                    styles.circleBox,
+                    { transform: [{ scale: scaleAnim }, { scale: breatheAnim }] }
+                  ]}
+                >
                   <Animated.View
                     style={[
                       styles.circleVisual,
