@@ -59,6 +59,17 @@ Unlike "Thoughtful reply," this one does not self-clear — that's the point of 
 
 This exception does **not** meet the "Before adding persistence" checklist below on its own — retention is open-ended by design, so there is no fixed retention schedule to point to, and no lawful-basis, data-map, threat-model or DPIA work has been done for it. It is being shipped ahead of that work at explicit product direction, not because the checklist has been satisfied.
 
+## Reconnect coverage tracking: a narrow exception, justified by what it prevents
+
+Reconnect's completion gate requires every Circle and ungrouped individual in the audience to be reached at least once, across as many separate sends as the user needs. Tracking who's already been reached has to survive the user closing the app mid-session — in-memory state alone would lose it on force-quit, silently handing the burden of remembering back to exactly the kind of low-capacity, chronic-illness user this app is built for. That's the justification for storing it at all, not a default reach for persistence.
+
+- **What's stored:** which Circle ids and ungrouped phone numbers have already been sent an instant message this Reconnect session, plus a marker of which Hold period is currently being reconnected from.
+- **Why:** so an interrupted Reconnect session — closing the app, or simply navigating away and back — resumes exactly where it was, with Home showing "Continue reconnecting" and the true "X of Y reached" count, rather than either losing progress or silently re-asking the user to remember it themselves.
+- **Where:** the same device-level encrypted storage as the exceptions above (`expo-secure-store`), written directly onto the relevant Hold period record — never transmitted off-device.
+- **How long:** cleared at the same points the rest of that Hold period record's lifecycle already turns over — the marker is deleted once Reconnect genuinely finishes (reaching the Reconnected acknowledgment), and any leftover marker is superseded automatically the moment a new Hold period starts, so it can never point at a stale session.
+
+This exception does not loosen the "Before adding persistence" checklist below for any *other* feature. It already satisfies retention schedule and deletion design (the two clearing points above) and plain-language notice (this section); a lawful-basis, data-map and DPIA pass specific to this feature is still worth doing before wider release, same as the others above.
+
 ## Your Circle: real contact details, and why this one is different
 
 Everything documented above is either transient or a planning aid — a name typed by the user is not linked to any real person's record. Your Circle breaks that pattern: it stores **real names and real phone numbers**, taken from the user's actual address book, so a saved Circle can be texted directly. That makes this **meaningfully more sensitive than anything else Hold currently stores**, and it is called out on its own rather than folded into the exceptions above.
