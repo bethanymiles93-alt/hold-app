@@ -41,6 +41,16 @@ export function GroupPicker({ selectedGroupIds, onToggle }: GroupPickerProps) {
     (group) => selectedGroupIds.includes(group.id) && group.contacts.length === 0
   );
 
+  const allSelected = groups.length > 0 && groups.every((group) => selectedGroupIds.includes(group.id));
+
+  const toggleAll = async () => {
+    for (const group of groups) {
+      if (allSelected === selectedGroupIds.includes(group.id)) {
+        await onToggle(group);
+      }
+    }
+  };
+
   const addCircle = async (name: string) => {
     const trimmed = name.trim();
     if (!trimmed) return;
@@ -61,6 +71,16 @@ export function GroupPicker({ selectedGroupIds, onToggle }: GroupPickerProps) {
   return (
     <View style={styles.container}>
       <View style={styles.pillWrap}>
+        {groups.length > 0 ? (
+          <Pressable
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: allSelected }}
+            onPress={() => void toggleAll()}
+            style={[styles.pill, styles.pillSecondary, allSelected && styles.pillSelected]}
+          >
+            <Text style={[styles.pillText, styles.pillTextSecondary]}>All</Text>
+          </Pressable>
+        ) : null}
         {groups.map((group) => {
           const selected = selectedGroupIds.includes(group.id);
           return (

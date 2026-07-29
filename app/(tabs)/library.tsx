@@ -24,7 +24,7 @@ import {
   toggleComplete,
   type ConversationPerson
 } from "@/services/conversationService";
-import { getGroup, getGroups } from "@/services/circleService";
+import { addContactToGroup, createGroup, getGroup, getGroups } from "@/services/circleService";
 import { pickContact } from "@/services/contactPickerService";
 import { sendOrShare } from "@/services/smsService";
 import { createReplyDraft } from "@/services/draftService";
@@ -252,6 +252,9 @@ export default function LibraryScreen() {
   const [templateDrafts, setTemplateDrafts] = useState<Record<string, string>>({});
   const [reopenedCircleIds, setReopenedCircleIds] = useState<Set<string>>(new Set());
   const [allReopened, setAllReopened] = useState(false);
+  const [selectedOtherIds, setSelectedOtherIds] = useState<Set<string>>(new Set());
+  const [circlePromptStage, setCirclePromptStage] = useState<"none" | "confirm" | "naming">("none");
+  const [newOtherCircleName, setNewOtherCircleName] = useState("");
 
   const refresh = useCallback(async () => {
     const all = await getAllConversationPeople();
@@ -402,6 +405,41 @@ export default function LibraryScreen() {
       await addPerson(picked);
       await refresh();
     })();
+  };
+
+  const toggleOtherSelection = (person: ConversationPerson) => {
+    setSelectedOtherIds((current) => {
+      const next = new Set(current);
+      if (next.has(person.id)) {
+        next.delete(person.id);
+        if (next.size < 2) setCirclePromptStage("none");
+        return next;
+      }
+
+      next.add(person.id);
+      if (next.size === 2) setCirclePromptStage("confirm");
+      return next;
+    });
+  };
+
+  const declineCreateCircle = () => {
+    setCirclePromptStage("none");
+    setSelectedOtherIds(new Set());
+  };
+
+  const submitCreateCircle = async () => {
+    const name = newOtherCircleName.trim();
+    if (!name) return;
+
+    const selectedPeople = personalisePeople.filter((person) => selectedOtherIds.has(person.id));
+    const group = await createGroup(name);
+    for (const person of selectedPeople) {
+      await addContactToGroup(group.id, { name: person.name, phoneNumber: person.phoneNumber });
+    }
+
+    setNewOtherCircleName("");
+    setCirclePromptStage("none");
+    setSelectedOtherIds(new Set());
   };
 
   if (people.length === 0) {
@@ -580,36 +618,90 @@ export default function LibraryScreen() {
           </Text>
         ) : (
           <View style={styles.personList}>
-            {personalisePeople.map((person) => (
-              <View key={person.id} style={styles.personBlock}>
-                <Pressable
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: person.completed }}
-                  onPress={() => toggle(person)}
-                  style={styles.personTapArea}
-                >
-                  <View style={[styles.checkbox, person.completed && styles.checkboxChecked]} />
-                  <View>
-                    <Text style={[styles.personName, person.completed && styles.personNameDone]}>
-                      {person.name}
-                    </Text>
-                    {person.circleName ? (
-                      <Text style={styles.circleTag}>{person.circleName}</Text>
-                    ) : null}
-                  </View>
-                </Pressable>
+            {personalisePeople.map((person) => {
+              const isOther = person.circleId === null;
+              const selectedForCircle = selectedOtherIds.has(person.id);
 
-                {!person.completed ? (
-                  <PersonaliseAccordion
-                    person={person}
-                    isOpen={expandedPersonId === person.id}
-                    onToggle={() => togglePersonalise(person.id)}
-                  />
-                ) : null}
-              </View>
-            ))}
+              return (
+                <View key={person.id} style={styles.personBlock}>
+                  <View style={styles.personTapArea}>
+                    <Pressable
+                      accessibilityRole="checkbox"
+                      accessibilityLabel={`Mark ${person.name} complete`}
+                      accessibilityState={{ checked: person.completed }}
+                      onPress={() => toggle(person)}
+                      hitSlop={8}
+                    >
+                      <View style={[styles.checkbox, person.completed && styles.checkboxChecked]} />
+                    </Pressable>
+                    {isOther ? (
+                      <Pressable
+                        accessibilityRole="checkbox"
+                        accessibilityLabel={`Select ${person.name} to group into a Circle`}
+                        accessibilityState={{ checked: selectedForCircle }}
+                        onPress={() => toggleOtherSelection(person)}
+                      >
+                        <Text
+                          style={[
+                            styles.personName,
+                            person.completed && styles.personNameDone,
+                            selectedForCircle && styles.personNameSelected
+                          ]}
+                        >
+                          {person.name}
+                        </Text>
+                      </Pressable>
+                    ) : (
+                      <View>
+                        <Text style={[styles.personName, person.completed && styles.personNameDone]}>
+                          {person.name}
+                        </Text>
+                        {person.circleName ? (
+                          <Text style={styles.circleTag}>{person.circleName}</Text>
+                        ) : null}
+                      </View>
+                    )}
+                  </View>
+
+                  {!person.completed ? (
+                    <PersonaliseAccordion
+                      person={person}
+                      isOpen={expandedPersonId === person.id}
+                      onToggle={() => togglePersonalise(person.id)}
+                    />
+                  ) : null}
+                </View>
+              );
+            })}
           </View>
         )}
+
+        {circlePromptStage === "confirm" ? (
+          <View style={styles.createCirclePrompt}>
+            <Text style={styles.createCirclePromptText}>Create a Circle for these people?</Text>
+            <View style={styles.createCircleActions}>
+              <SecondaryButton label="No" onPress={declineCreateCircle} />
+              <SecondaryButton label="Yes" onPress={() => setCirclePromptStage("naming")} />
+            </View>
+          </View>
+        ) : circlePromptStage === "naming" ? (
+          <View style={styles.createCirclePrompt}>
+            <TextInput
+              accessibilityLabel="New Circle name"
+              autoCapitalize="words"
+              onChangeText={setNewOtherCircleName}
+              placeholder="Circle name"
+              placeholderTextColor={colors.textMuted}
+              style={styles.input}
+              value={newOtherCircleName}
+            />
+            <SecondaryButton
+              disabled={!newOtherCircleName.trim()}
+              label="Create Circle"
+              onPress={() => void submitCreateCircle()}
+            />
+          </View>
+        ) : null}
 
         <SecondaryButton label="+ Add person" onPress={addNewPerson} />
       </View>
@@ -825,9 +917,28 @@ function createStyles(colors: ThemeColors) {
     color: colors.textMuted,
     textDecorationLine: "line-through"
   },
+  personNameSelected: {
+    color: colors.primary,
+    fontWeight: "600"
+  },
   circleTag: {
     color: colors.textMuted,
     fontSize: 12
+  },
+  createCirclePrompt: {
+    gap: theme.spacing.sm,
+    borderRadius: theme.radius.md,
+    backgroundColor: colors.surface,
+    padding: theme.spacing.md
+  },
+  createCirclePromptText: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: "600"
+  },
+  createCircleActions: {
+    flexDirection: "row",
+    gap: theme.spacing.sm
   },
   personaliseBlock: {
     gap: theme.spacing.sm,
