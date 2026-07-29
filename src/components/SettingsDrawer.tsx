@@ -29,12 +29,12 @@ const FEEDBACK_EMAIL = "bethany.miles.93@gmail.com";
 const PANEL_WIDTH = Math.min(320, Dimensions.get("window").width * 0.86);
 const ANIMATION_MS = 260;
 
-// theme.colors.error (#8B2E2E) blended 85/15 toward theme.colors.text (#242825) — a
-// slightly darker, calmer version of the same destructive red already used for Circle
-// deletion and Hold history entries, toned down just enough for a passive row label
-// rather than an active confirm button, while staying clearly identifiable as red at
-// a glance. (Revised lighter after an earlier 70/30 blend read as too close to brown/grey.)
-const DESTRUCTIVE_LABEL_COLOR = "#7C2D2D";
+// theme.colors.error (#8B2E2E) blended toward theme.colors.text (#242825), reduced
+// further than the prior #7C2D2D since that still read as brick-brown rather than red
+// on-device. #A6342A pulls the blend back closer to the raw error hue while staying a
+// little darker/calmer than it. If this still reads brown on an actual phone screen,
+// #B3392E is a punchier alternative worth trying — eyeball both before calling it final.
+const DESTRUCTIVE_LABEL_COLOR = "#A6342A";
 
 function NavRow({ label, onPress }: { label: string; onPress: () => void }) {
   return (
@@ -239,27 +239,26 @@ const styles = StyleSheet.create({
   // distinct sections rather than one continuous list. Used above About Hold
   // and above Legal and data — both the "small" group gap.
   groupSpaced: {
-    marginTop: theme.spacing.xxl
+    marginTop: theme.spacing.xl
   },
   // The single largest gap in the drawer, above Support only — About Hold
   // (values/browsing) to Support (Feedback/Share) is the one section break
   // meant to read as more of a beat than the others.
   groupExtraSpaced: {
-    marginTop: theme.spacing.xxl * 1.5
+    marginTop: theme.spacing.xxl
   },
-  // Small gap above (matching groupSpaced), then its own divider line and a
-  // second, smaller internal gap before "Privacy Policy" itself.
+  // Share Hold now sits close to the divider line rather than a full group-gap away.
   groupWithDivider: {
-    marginTop: theme.spacing.xxl,
+    marginTop: theme.spacing.lg,
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
-    paddingTop: theme.spacing.lg
+    paddingTop: theme.spacing.md
   },
   row: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    minHeight: 48
+    minHeight: 44
   },
   rowPressed: {
     opacity: 0.6
