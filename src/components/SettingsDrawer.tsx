@@ -168,7 +168,9 @@ export function SettingsDrawer() {
               // Deliberately smaller than the top's added spacing (lg) — the
               // top gap has the status bar/Dynamic Island doing visual work,
               // so an equal numeric add reads as too much air at the bottom.
-              paddingBottom: insets.bottom + theme.spacing.sm,
+              // Raw literal (not a spacing token): tuned by eye between
+              // sm (10, still too big) and xs (6, likely too small).
+              paddingBottom: insets.bottom + 8,
               paddingRight: insets.right + theme.spacing.lg
             }
           ]}
