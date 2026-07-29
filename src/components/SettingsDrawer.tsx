@@ -165,7 +165,10 @@ export function SettingsDrawer() {
             styles.content,
             {
               paddingTop: insets.top + theme.spacing.lg,
-              paddingBottom: insets.bottom + theme.spacing.lg,
+              // Deliberately smaller than the top's added spacing (lg) — the
+              // top gap has the status bar/Dynamic Island doing visual work,
+              // so an equal numeric add reads as too much air at the bottom.
+              paddingBottom: insets.bottom + theme.spacing.md,
               paddingRight: insets.right + theme.spacing.lg
             }
           ]}
@@ -235,10 +238,10 @@ const styles = StyleSheet.create({
     elevation: 12
   },
   // paddingTop/paddingBottom/paddingRight are applied inline (insets.top/
-  // bottom/right + spacing.lg) since this drawer is a standalone overlay
-  // rather than an in-flow screen — explicit useSafeAreaInsets() math,
-  // not SafeAreaView's edges prop, so the top and bottom gaps beyond the
-  // device's safe area are guaranteed equal regardless of notch/home-
+  // bottom/right + a fixed amount) since this drawer is a standalone
+  // overlay rather than an in-flow screen — explicit useSafeAreaInsets()
+  // math, not SafeAreaView's edges prop, so the gaps beyond the device's
+  // safe area are deliberate and consistent regardless of notch/home-
   // indicator height differences.
   content: {
     flex: 1,
