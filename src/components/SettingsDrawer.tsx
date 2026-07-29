@@ -11,7 +11,7 @@ import {
   Text,
   View
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { theme } from "@/constants/theme";
@@ -83,6 +83,7 @@ function ComingLaterRow({ label }: { label: string }) {
 export function SettingsDrawer() {
   const { isOpen, close } = useSettingsDrawer();
   const { resetFlow } = useHoldFlow();
+  const insets = useSafeAreaInsets();
   const translateX = useRef(new Animated.Value(PANEL_WIDTH)).current;
 
   useEffect(() => {
@@ -159,35 +160,42 @@ export function SettingsDrawer() {
         />
       </Animated.View>
       <Animated.View style={[styles.panel, { width: PANEL_WIDTH, transform: [{ translateX }] }]}>
-        <SafeAreaView style={styles.safe} edges={["top", "bottom", "right"]}>
-          <View style={styles.content}>
+        <View
+          style={[
+            styles.content,
+            {
+              paddingTop: insets.top + theme.spacing.lg,
+              paddingBottom: insets.bottom + theme.spacing.lg,
+              paddingRight: insets.right + theme.spacing.lg
+            }
+          ]}
+        >
+          <View style={styles.group}>
+            <NavRow label="Manage Circles" onPress={() => goTo("/settings/circle")} />
+            <ComingLaterRow label="Notifications" />
+            <ComingLaterRow label="Language" />
+            <ComingLaterRow label="Connected Accounts" />
+          </View>
+
+          <View style={[styles.group, styles.groupSpaced]}>
+            <NavRow label="Our Mission" onPress={() => goTo("/settings/mission")} />
+            <NavRow label="Research" onPress={() => goTo("/settings/research")} />
+            <ComingLaterRow label="Hold+" />
+          </View>
+
+          <View style={styles.bottomCluster}>
             <View style={styles.group}>
-              <NavRow label="Manage Circles" onPress={() => goTo("/settings/circle")} />
-              <ComingLaterRow label="Notifications" />
-              <ComingLaterRow label="Language" />
-              <ComingLaterRow label="Connected Accounts" />
+              <ActionRow label="Feedback" onPress={giveFeedback} />
+              <ActionRow label="Share Hold" onPress={shareApp} />
             </View>
 
-            <View style={[styles.group, styles.groupSpaced]}>
-              <NavRow label="Our Mission" onPress={() => goTo("/settings/mission")} />
-              <NavRow label="Research" onPress={() => goTo("/settings/research")} />
-              <ComingLaterRow label="Hold+" />
-            </View>
-
-            <View style={styles.bottomCluster}>
-              <View style={styles.group}>
-                <ActionRow label="Feedback" onPress={giveFeedback} />
-                <ActionRow label="Share Hold" onPress={shareApp} />
-              </View>
-
-              <View style={[styles.group, styles.groupWithDivider]}>
-                <NavRow label="Privacy Policy" onPress={() => goTo("/settings/privacy")} />
-                <ComingLaterRow label="Terms" />
-                <ActionRow label="Delete my data" onPress={deleteEverything} destructive />
-              </View>
+            <View style={[styles.group, styles.groupWithDivider]}>
+              <NavRow label="Privacy Policy" onPress={() => goTo("/settings/privacy")} />
+              <ComingLaterRow label="Terms" />
+              <ActionRow label="Delete my data" onPress={deleteEverything} destructive />
             </View>
           </View>
-        </SafeAreaView>
+        </View>
       </Animated.View>
     </View>
   );
@@ -226,14 +234,15 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 12
   },
-  safe: {
-    flex: 1
-  },
+  // paddingTop/paddingBottom/paddingRight are applied inline (insets.top/
+  // bottom/right + spacing.lg) since this drawer is a standalone overlay
+  // rather than an in-flow screen — explicit useSafeAreaInsets() math,
+  // not SafeAreaView's edges prop, so the top and bottom gaps beyond the
+  // device's safe area are guaranteed equal regardless of notch/home-
+  // indicator height differences.
   content: {
     flex: 1,
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.lg,
-    paddingBottom: theme.spacing.lg
+    paddingHorizontal: theme.spacing.lg
   },
   group: {
     gap: theme.spacing.xs
