@@ -4,16 +4,12 @@ import { theme } from "@/constants/theme";
 
 const HOLD_PLUS_SECTIONS = [
   {
-    title: "What's free, always",
-    body: "The full Going Quiet, Taking Time, Reconnect and Conversations journey. Unlimited Circles and contacts. Unlimited Quiet History and Library storage. Basic Patterns. A generous shared monthly AI-assisted drafting allowance. Every core accessibility and privacy control. Nothing essential is ever paywalled."
-  },
-  {
     title: "What Hold+ would add",
     body: "Unlimited AI-assisted drafting. AI personalisation that learns your writing style and can use saved messages as context. Richer Patterns, including seasonal trends, recurring timing, and longer-term summaries. Optional encrypted sync, so your Circles, Library, History and Patterns are available on a second device."
   },
   {
     title: "Fair by design",
-    body: "A 7–14 day trial rather than a short, high-pressure one. A clear reminder before any trial converts. One-tap cancellation and pausing, with no retention flow. Scholarship and regional pricing considered, not just standard pricing everywhere. No countdown timers, no urgency messaging — Hold exists to reduce burden, not add to it."
+    body: "One-tap cancellation and pausing, with no retention flow. Scholarship and regional pricing considered, not just standard pricing everywhere. No countdown timers, no urgency messaging — Hold exists to reduce burden, not add to it."
   }
 ];
 
@@ -59,14 +55,6 @@ export default function HoldPlusScreen() {
               </View>
             ))}
           </View>
-        </View>
-
-        <View style={styles.separateNote}>
-          <Text style={styles.separateNoteText}>
-            Also available separately: a one-time formatted PDF report for your GP or therapist,
-            no subscription needed. This isn't part of Hold+ — it's a standalone purchase
-            available to everyone, free or not.
-          </Text>
         </View>
       </View>
 
@@ -128,31 +116,20 @@ const styles = StyleSheet.create({
   pricingLabelCell: {
     flex: 1,
     color: theme.colors.text,
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "600",
     padding: theme.spacing.sm
   },
   pricingValueCell: {
     flex: 1,
     color: theme.colors.text,
-    fontSize: 13,
+    fontSize: 15,
     padding: theme.spacing.sm
-  },
-  separateNote: {
-    padding: theme.spacing.md,
-    borderRadius: theme.radius.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border
-  },
-  separateNoteText: {
-    color: theme.colors.textMuted,
-    fontSize: 14,
-    lineHeight: 21
   },
   closingNote: {
     marginTop: theme.spacing.lg,
     color: theme.colors.textMuted,
-    fontSize: 13,
-    lineHeight: 19
+    fontSize: 14,
+    lineHeight: 20
   }
 });

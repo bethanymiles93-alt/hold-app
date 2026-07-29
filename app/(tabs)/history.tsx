@@ -289,30 +289,39 @@ export default function HoldHistoryScreen() {
             <Text style={styles.empty}>No Hold periods yet.</Text>
           ) : (
             <>
-              <View style={styles.statRow}>
-                <Text style={styles.statLabel}>Quiet periods</Text>
-                <Text style={styles.statValue}>{periods.length}</Text>
-              </View>
-              <View style={styles.statRow}>
-                <Text style={styles.statLabel}>Average duration</Text>
-                <Text style={styles.statValue}>
-                  {averageDurationMs !== null ? formatDuration(averageDurationMs) : "—"}
-                </Text>
-              </View>
-              <View style={styles.statRow}>
-                <Text style={styles.statLabel}>Time since last quiet period</Text>
-                <Text style={styles.statValue}>
-                  {mostRecentEndedAt !== null ? formatDuration(Date.now() - mostRecentEndedAt) : "—"}
-                </Text>
-              </View>
-              <View style={styles.statRow}>
-                <Text style={styles.statLabel}>Days spent Taking Time</Text>
-                <Text style={styles.statValue}>{formatDuration(totalDurationMs)}</Text>
+              <View style={styles.statsGrid}>
+                <View style={styles.statTile}>
+                  <Text style={styles.statTileValue}>{periods.length}</Text>
+                  <Text style={styles.statTileLabel}>Quiet periods</Text>
+                </View>
+                <View style={styles.statTile}>
+                  <Text style={styles.statTileValue}>
+                    {averageDurationMs !== null ? formatDuration(averageDurationMs) : "—"}
+                  </Text>
+                  <Text style={styles.statTileLabel}>Average duration</Text>
+                </View>
+                <View style={styles.statTile}>
+                  <Text style={styles.statTileValue}>
+                    {mostRecentEndedAt !== null ? formatDuration(Date.now() - mostRecentEndedAt) : "—"}
+                  </Text>
+                  <Text style={styles.statTileLabel}>Time since last quiet period</Text>
+                </View>
+                <View style={styles.statTile}>
+                  <Text style={styles.statTileValue}>{formatDuration(totalDurationMs)}</Text>
+                  <Text style={styles.statTileLabel}>Days spent Taking Time</Text>
+                </View>
               </View>
 
               <MonthCalendarView periods={periods} onDelete={remove} />
             </>
           )}
+
+          <View style={styles.exportNote}>
+            <Text style={styles.exportNoteText}>
+              Also available separately: a one-time formatted PDF report for your GP or
+              therapist, no subscription needed — not open to purchase yet.
+            </Text>
+          </View>
 
           <Pressable
             accessibilityRole="button"
@@ -477,22 +486,39 @@ const styles = StyleSheet.create({
   patternsSection: {
     gap: theme.spacing.lg
   },
-  statRow: {
+  statsGrid: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-    paddingBottom: theme.spacing.sm
+    flexWrap: "wrap",
+    gap: theme.spacing.sm
   },
-  statLabel: {
-    color: theme.colors.textMuted,
-    fontSize: 15
+  statTile: {
+    flexBasis: "47%",
+    flexGrow: 1,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.md,
+    padding: theme.spacing.md,
+    gap: theme.spacing.xs
   },
-  statValue: {
+  statTileValue: {
     color: theme.colors.text,
+    fontSize: 20,
+    fontWeight: "700"
+  },
+  statTileLabel: {
+    color: theme.colors.textMuted,
+    fontSize: 13,
+    lineHeight: 18
+  },
+  exportNote: {
+    padding: theme.spacing.md,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border
+  },
+  exportNoteText: {
+    color: theme.colors.textMuted,
     fontSize: 15,
-    fontWeight: "600"
+    lineHeight: 22
   },
   holdPlusCard: {
     borderRadius: theme.radius.md,
@@ -510,8 +536,8 @@ const styles = StyleSheet.create({
   },
   holdPlusBody: {
     color: theme.colors.textMuted,
-    fontSize: 13,
-    lineHeight: 19
+    fontSize: 15,
+    lineHeight: 22
   },
   holdPlusLink: {
     color: theme.colors.link,
