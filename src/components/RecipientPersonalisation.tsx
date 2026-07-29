@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
-import { KEYBOARD_DONE_ACCESSORY_ID } from "@/components/KeyboardDoneAccessory";
 import type { GoingQuietRecipient } from "@/types/hold";
 
 interface RecipientPersonalisationProps {
@@ -60,7 +59,6 @@ export function RecipientPersonalisation({
           {recipient.included && recipient.personalisedMessage !== null ? (
             <TextInput
               accessibilityLabel={`Message for ${recipient.name}`}
-              inputAccessoryViewID={KEYBOARD_DONE_ACCESSORY_ID}
               multiline
               onChangeText={(text) => onChangePersonalisedMessage(recipient.contactId, text)}
               style={styles.input}

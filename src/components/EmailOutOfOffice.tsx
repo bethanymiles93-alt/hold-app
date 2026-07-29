@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import { Alert, Pressable, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
-import { KEYBOARD_DONE_ACCESSORY_ID } from "@/components/KeyboardDoneAccessory";
 import { connectEmailAccount, createEmailAccountId } from "@/services/emailAccountService";
 import type { EmailAccount, EmailProvider } from "@/types/hold";
 
@@ -127,7 +126,6 @@ export function EmailOutOfOffice({
           {useSameMessage ? (
             <TextInput
               accessibilityLabel="Out-of-office message"
-              inputAccessoryViewID={KEYBOARD_DONE_ACCESSORY_ID}
               multiline
               onChangeText={onChangeSharedMessage}
               style={styles.input}
@@ -145,7 +143,6 @@ export function EmailOutOfOffice({
                   <View style={styles.accountTopRow}>
                     <TextInput
                       accessibilityLabel="Account label"
-                      inputAccessoryViewID={KEYBOARD_DONE_ACCESSORY_ID}
                       onChangeText={(label) => updateAccount(account.id, { label })}
                       style={styles.labelInput}
                       value={account.label}
@@ -161,7 +158,6 @@ export function EmailOutOfOffice({
                   {!useSameMessage ? (
                     <TextInput
                       accessibilityLabel={`Message for ${account.label}`}
-                      inputAccessoryViewID={KEYBOARD_DONE_ACCESSORY_ID}
                       multiline
                       onChangeText={(message) => updateAccount(account.id, { message })}
                       style={styles.input}

@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import { Alert, StyleSheet, Switch, Text, TextInput, View } from "react-native";
-import { KEYBOARD_DONE_ACCESSORY_ID } from "@/components/KeyboardDoneAccessory";
 import { SecondaryButton } from "@/components/SecondaryButton";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
@@ -50,7 +49,6 @@ export function WiderWorldStatus({
         <View style={styles.body}>
           <TextInput
             accessibilityLabel="Wider-world status line"
-            inputAccessoryViewID={KEYBOARD_DONE_ACCESSORY_ID}
             multiline
             onChangeText={onChangeText}
             style={styles.input}

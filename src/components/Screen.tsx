@@ -24,11 +24,12 @@ export function Screen({ children, contentContainerStyle }: ScreenProps) {
 
   return (
     <SafeAreaView style={styles.safe} edges={["bottom", "left", "right"]}>
-      {/* Second way to dismiss the keyboard, alongside KeyboardDoneAccessory's
-          "Done" bar — tapping anywhere that isn't itself an interactive child
-          (a button, an input) closes the keyboard. keyboardShouldPersistTaps
-          "handled" on the ScrollView means those children still get their own
-          tap first, so this only fires on genuinely empty space. */}
+      {/* Dismisses the keyboard on tap outside an interactive child (a button,
+          an input) — the only dismiss method, since InputAccessoryView's
+          "Done" bar doesn't render under the New Architecture (Fabric).
+          keyboardShouldPersistTaps "handled" on the ScrollView means those
+          children still get their own tap first, so this only fires on
+          genuinely empty space. */}
       <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
         <KeyboardAvoidingView
           style={styles.flex}

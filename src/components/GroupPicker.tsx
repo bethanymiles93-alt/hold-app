@@ -6,7 +6,6 @@ import { useAppTheme } from "@/hooks/useAppTheme";
 import { useHoldFlow } from "@/context/HoldFlowContext";
 import { addContactToGroup, createGroup, getGroups } from "@/services/circleService";
 import { pickContact } from "@/services/contactPickerService";
-import { KEYBOARD_DONE_ACCESSORY_ID } from "@/components/KeyboardDoneAccessory";
 import { RecipientPersonalisation } from "@/components/RecipientPersonalisation";
 import type { CircleGroup } from "@/types/hold";
 
@@ -153,7 +152,6 @@ export function GroupPicker({ selectedGroupIds, onToggle }: GroupPickerProps) {
             <TextInput
               accessibilityLabel="New Circle name"
               autoCapitalize="words"
-              inputAccessoryViewID={KEYBOARD_DONE_ACCESSORY_ID}
               onChangeText={setNewCircleName}
               onSubmitEditing={() => void addCircle(newCircleName)}
               placeholder="Circle name, e.g. Book Club"
