@@ -228,6 +228,7 @@ const styles = StyleSheet.create({
     flex: 1
   },
   content: {
+    flex: 1,
     paddingHorizontal: theme.spacing.lg,
     paddingTop: theme.spacing.lg,
     paddingBottom: theme.spacing.lg
@@ -247,9 +248,11 @@ const styles = StyleSheet.create({
   groupExtraSpaced: {
     marginTop: theme.spacing.xxl
   },
-  // Share Hold now sits close to the divider line rather than a full group-gap away.
+  // Pinned to the bottom of the drawer via the flexible auto margin (content
+  // is flex: 1), rather than a fixed distance from Share Hold above it — sits
+  // the same distance from the bottom edge as Manage Circles is from the top.
   groupWithDivider: {
-    marginTop: theme.spacing.lg,
+    marginTop: "auto",
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
     paddingTop: theme.spacing.md
