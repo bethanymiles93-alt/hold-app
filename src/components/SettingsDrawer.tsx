@@ -100,7 +100,9 @@ export function SettingsDrawer() {
     outputRange: [1, 0]
   });
 
-  const goTo = (path: "/settings/mission" | "/settings/privacy" | "/settings/research" | "/settings/circle") => {
+  const goTo = (
+    path: "/settings/mission" | "/settings/privacy" | "/settings/research" | "/settings/hold-plus" | "/settings/circle"
+  ) => {
     close();
     router.push(path);
   };
@@ -185,7 +187,7 @@ export function SettingsDrawer() {
           <View style={[styles.group, styles.groupSpaced]}>
             <NavRow label="Our Mission" onPress={() => goTo("/settings/mission")} />
             <NavRow label="Research" onPress={() => goTo("/settings/research")} />
-            <ComingLaterRow label="Hold+" />
+            <NavRow label="Hold+" onPress={() => goTo("/settings/hold-plus")} />
           </View>
 
           <View style={styles.bottomCluster}>
