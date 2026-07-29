@@ -1,5 +1,7 @@
+import { useMemo } from "react";
 import { Alert, Pressable, StyleSheet, Switch, Text, TextInput, View } from "react-native";
-import { theme } from "@/constants/theme";
+import { theme, type ThemeColors } from "@/constants/theme";
+import { useAppTheme } from "@/hooks/useAppTheme";
 import { connectEmailAccount, createEmailAccountId } from "@/services/emailAccountService";
 import type { EmailAccount, EmailProvider } from "@/types/hold";
 
@@ -24,6 +26,9 @@ export function EmailOutOfOffice({
   sharedMessage,
   onChangeSharedMessage
 }: EmailOutOfOfficeProps) {
+  const { colors } = useAppTheme("normal");
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   const connect = async (provider: EmailProvider, isWork: boolean) => {
     const result = await connectEmailAccount(provider, isWork);
 
@@ -102,7 +107,7 @@ export function EmailOutOfOffice({
           accessibilityLabel="Enable email out-of-office"
           value={enabled}
           onValueChange={onToggleEnabled}
-          trackColor={{ true: theme.colors.primary, false: theme.colors.border }}
+          trackColor={{ true: colors.primary, false: colors.border }}
         />
       </View>
 
@@ -114,7 +119,7 @@ export function EmailOutOfOffice({
               accessibilityLabel="Use the same message for all accounts"
               value={useSameMessage}
               onValueChange={onToggleUseSameMessage}
-              trackColor={{ true: theme.colors.primary, false: theme.colors.border }}
+              trackColor={{ true: colors.primary, false: colors.border }}
             />
           </View>
 
@@ -146,7 +151,7 @@ export function EmailOutOfOffice({
                       accessibilityLabel={`Enable out-of-office for ${account.label}`}
                       value={account.enabled}
                       onValueChange={(value) => updateAccount(account.id, { enabled: value })}
-                      trackColor={{ true: theme.colors.primary, false: theme.colors.border }}
+                      trackColor={{ true: colors.primary, false: colors.border }}
                     />
                   </View>
 
@@ -182,112 +187,114 @@ export function EmailOutOfOffice({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    gap: theme.spacing.md,
-    borderRadius: theme.radius.md,
-    borderWidth: 1.5,
-    borderColor: theme.colors.border,
-    padding: theme.spacing.md
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.md
-  },
-  headerText: {
-    flex: 1,
-    gap: 4
-  },
-  title: {
-    color: theme.colors.text,
-    fontSize: 17,
-    fontWeight: "600"
-  },
-  subtext: {
-    color: theme.colors.textMuted,
-    fontSize: 14,
-    lineHeight: 20
-  },
-  body: {
-    gap: theme.spacing.md
-  },
-  sameMessageRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: theme.spacing.md
-  },
-  sameMessageLabel: {
-    flex: 1,
-    color: theme.colors.text,
-    fontSize: 15,
-    fontWeight: "500"
-  },
-  input: {
-    minHeight: 90,
-    borderWidth: 1.5,
-    borderColor: theme.colors.border,
-    borderRadius: theme.radius.md,
-    padding: theme.spacing.sm,
-    color: theme.colors.text,
-    fontSize: 16,
-    lineHeight: 22,
-    backgroundColor: theme.colors.white
-  },
-  empty: {
-    color: theme.colors.textMuted,
-    fontSize: 14,
-    lineHeight: 21
-  },
-  accountList: {
-    gap: theme.spacing.md
-  },
-  accountRow: {
-    gap: theme.spacing.xs,
-    borderRadius: theme.radius.sm,
-    backgroundColor: theme.colors.surface,
-    padding: theme.spacing.sm
-  },
-  accountTopRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.sm
-  },
-  labelInput: {
-    flex: 1,
-    minHeight: 40,
-    borderWidth: 1.5,
-    borderColor: theme.colors.border,
-    borderRadius: theme.radius.sm,
-    paddingHorizontal: theme.spacing.sm,
-    color: theme.colors.text,
-    fontSize: 15,
-    fontWeight: "600",
-    backgroundColor: theme.colors.white
-  },
-  remove: {
-    color: theme.colors.error,
-    fontSize: 13,
-    fontWeight: "600",
-    alignSelf: "flex-start"
-  },
-  addPill: {
-    alignSelf: "flex-start",
-    minHeight: 38,
-    borderRadius: theme.radius.pill,
-    borderWidth: 1.5,
-    borderColor: theme.colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: theme.spacing.md
-  },
-  addPillPressed: {
-    backgroundColor: theme.colors.surface
-  },
-  addPillText: {
-    color: theme.colors.primary,
-    fontSize: 14,
-    fontWeight: "600"
-  }
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: {
+      gap: theme.spacing.md,
+      borderRadius: theme.radius.md,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      padding: theme.spacing.md
+    },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.md
+    },
+    headerText: {
+      flex: 1,
+      gap: 4
+    },
+    title: {
+      color: colors.text,
+      fontSize: 17,
+      fontWeight: "600"
+    },
+    subtext: {
+      color: colors.textMuted,
+      fontSize: 14,
+      lineHeight: 20
+    },
+    body: {
+      gap: theme.spacing.md
+    },
+    sameMessageRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: theme.spacing.md
+    },
+    sameMessageLabel: {
+      flex: 1,
+      color: colors.text,
+      fontSize: 15,
+      fontWeight: "500"
+    },
+    input: {
+      minHeight: 90,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      borderRadius: theme.radius.md,
+      padding: theme.spacing.sm,
+      color: colors.text,
+      fontSize: 16,
+      lineHeight: 22,
+      backgroundColor: colors.white
+    },
+    empty: {
+      color: colors.textMuted,
+      fontSize: 14,
+      lineHeight: 21
+    },
+    accountList: {
+      gap: theme.spacing.md
+    },
+    accountRow: {
+      gap: theme.spacing.xs,
+      borderRadius: theme.radius.sm,
+      backgroundColor: colors.surface,
+      padding: theme.spacing.sm
+    },
+    accountTopRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm
+    },
+    labelInput: {
+      flex: 1,
+      minHeight: 40,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      borderRadius: theme.radius.sm,
+      paddingHorizontal: theme.spacing.sm,
+      color: colors.text,
+      fontSize: 15,
+      fontWeight: "600",
+      backgroundColor: colors.white
+    },
+    remove: {
+      color: colors.error,
+      fontSize: 13,
+      fontWeight: "600",
+      alignSelf: "flex-start"
+    },
+    addPill: {
+      alignSelf: "flex-start",
+      minHeight: 38,
+      borderRadius: theme.radius.pill,
+      borderWidth: 1.5,
+      borderColor: colors.primary,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: theme.spacing.md
+    },
+    addPillPressed: {
+      backgroundColor: colors.surface
+    },
+    addPillText: {
+      color: colors.primary,
+      fontSize: 14,
+      fontWeight: "600"
+    }
+  });
+}

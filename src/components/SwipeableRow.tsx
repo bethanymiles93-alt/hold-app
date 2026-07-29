@@ -1,6 +1,7 @@
-import { useRef, type ReactNode } from "react";
+import { useMemo, useRef, type ReactNode } from "react";
 import { Animated, PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
-import { theme } from "@/constants/theme";
+import { theme, type ThemeColors } from "@/constants/theme";
+import { useAppTheme } from "@/hooks/useAppTheme";
 
 const DELETE_WIDTH = 88;
 const SWIPE_OPEN_THRESHOLD = DELETE_WIDTH / 2;
@@ -20,6 +21,8 @@ interface SwipeableRowProps {
  * Close Circle, which can't be deleted).
  */
 export function SwipeableRow({ children, onDelete, disabled = false }: SwipeableRowProps) {
+  const { colors } = useAppTheme("normal");
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const translateX = useRef(new Animated.Value(0)).current;
   const isOpen = useRef(false);
 
@@ -73,33 +76,35 @@ export function SwipeableRow({ children, onDelete, disabled = false }: Swipeable
   );
 }
 
-const styles = StyleSheet.create({
-  wrapper: {
-    overflow: "hidden",
-    borderRadius: theme.radius.md
-  },
-  deleteAction: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: "flex-end",
-    justifyContent: "center"
-  },
-  deleteButton: {
-    width: DELETE_WIDTH,
-    height: "100%",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: theme.colors.error
-  },
-  deleteLabel: {
-    color: theme.colors.white,
-    fontSize: 15,
-    fontWeight: "600"
-  },
-  front: {
-    backgroundColor: theme.colors.background
-  }
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    wrapper: {
+      overflow: "hidden",
+      borderRadius: theme.radius.md
+    },
+    deleteAction: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      alignItems: "flex-end",
+      justifyContent: "center"
+    },
+    deleteButton: {
+      width: DELETE_WIDTH,
+      height: "100%",
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.error
+    },
+    deleteLabel: {
+      color: colors.white,
+      fontSize: 15,
+      fontWeight: "600"
+    },
+    front: {
+      backgroundColor: colors.background
+    }
+  });
+}

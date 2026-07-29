@@ -1,5 +1,7 @@
+import { useMemo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { theme } from "@/constants/theme";
+import { theme, type ThemeColors } from "@/constants/theme";
+import { useAppTheme } from "@/hooks/useAppTheme";
 
 interface ChoiceCardProps {
   title: string;
@@ -14,6 +16,9 @@ export function ChoiceCard({
   selected,
   onPress
 }: ChoiceCardProps) {
+  const { colors } = useAppTheme("normal");
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <Pressable
       accessibilityRole="radio"
@@ -36,55 +41,57 @@ export function ChoiceCard({
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    flexDirection: "row",
-    gap: theme.spacing.sm,
-    padding: theme.spacing.sm,
-    borderRadius: theme.radius.md,
-    borderWidth: 1.5,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.background,
-    minHeight: 68
-  },
-  selected: {
-    borderColor: theme.colors.primary,
-    backgroundColor: theme.colors.surfaceStrong
-  },
-  pressed: {
-    opacity: 0.8
-  },
-  radio: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: theme.colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 2
-  },
-  radioSelected: {
-    backgroundColor: theme.colors.white
-  },
-  dot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: theme.colors.primary
-  },
-  copy: {
-    flex: 1,
-    gap: 4
-  },
-  title: {
-    color: theme.colors.text,
-    fontSize: 17,
-    fontWeight: "600"
-  },
-  description: {
-    color: theme.colors.textMuted,
-    fontSize: 15,
-    lineHeight: 22
-  }
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    card: {
+      flexDirection: "row",
+      gap: theme.spacing.sm,
+      padding: theme.spacing.sm,
+      borderRadius: theme.radius.md,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+      minHeight: 68
+    },
+    selected: {
+      borderColor: colors.primary,
+      backgroundColor: colors.surfaceStrong
+    },
+    pressed: {
+      opacity: 0.8
+    },
+    radio: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      borderWidth: 2,
+      borderColor: colors.primary,
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: 2
+    },
+    radioSelected: {
+      backgroundColor: colors.white
+    },
+    dot: {
+      width: 12,
+      height: 12,
+      borderRadius: 6,
+      backgroundColor: colors.primary
+    },
+    copy: {
+      flex: 1,
+      gap: 4
+    },
+    title: {
+      color: colors.text,
+      fontSize: 17,
+      fontWeight: "600"
+    },
+    description: {
+      color: colors.textMuted,
+      fontSize: 15,
+      lineHeight: 22
+    }
+  });
+}

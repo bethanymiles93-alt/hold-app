@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
+import { useMemo } from "react";
 import { Pressable, StyleSheet, Text } from "react-native";
-import { theme } from "@/constants/theme";
+import { theme, type ThemeColors } from "@/constants/theme";
+import { useAppTheme } from "@/hooks/useAppTheme";
 
 interface NavPillProps {
   label: string;
@@ -9,6 +11,9 @@ interface NavPillProps {
 }
 
 export function NavPill({ label, icon, onPress }: NavPillProps) {
+  const { colors } = useAppTheme("normal");
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -21,26 +26,28 @@ export function NavPill({ label, icon, onPress }: NavPillProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  pill: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: theme.spacing.xs,
-    minHeight: 48,
-    borderRadius: theme.radius.pill,
-    borderWidth: 1.5,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.background,
-    paddingHorizontal: theme.spacing.sm
-  },
-  pressed: {
-    backgroundColor: theme.colors.surface
-  },
-  label: {
-    color: theme.colors.text,
-    fontSize: 14,
-    fontWeight: "600"
-  }
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    pill: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: theme.spacing.xs,
+      minHeight: 48,
+      borderRadius: theme.radius.pill,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+      paddingHorizontal: theme.spacing.sm
+    },
+    pressed: {
+      backgroundColor: colors.surface
+    },
+    label: {
+      color: colors.text,
+      fontSize: 14,
+      fontWeight: "600"
+    }
+  });
+}

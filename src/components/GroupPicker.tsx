@@ -1,7 +1,8 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Link, useFocusEffect } from "expo-router";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { theme } from "@/constants/theme";
+import { theme, type ThemeColors } from "@/constants/theme";
+import { useAppTheme } from "@/hooks/useAppTheme";
 import { useHoldFlow } from "@/context/HoldFlowContext";
 import { addContactToGroup, createGroup, getGroups } from "@/services/circleService";
 import { pickContact } from "@/services/contactPickerService";
@@ -22,6 +23,8 @@ export function GroupPicker({ selectedGroupIds, onToggle }: GroupPickerProps) {
     setRecipientPersonalisedMessage,
     circleDrafts
   } = useHoldFlow();
+  const { colors } = useAppTheme("normal");
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [groups, setGroups] = useState<CircleGroup[]>([]);
   const [creating, setCreating] = useState(false);
   const [newCircleName, setNewCircleName] = useState("");
@@ -152,7 +155,7 @@ export function GroupPicker({ selectedGroupIds, onToggle }: GroupPickerProps) {
               onChangeText={setNewCircleName}
               onSubmitEditing={() => void addCircle(newCircleName)}
               placeholder="Circle name, e.g. Book Club"
-              placeholderTextColor={theme.colors.textMuted}
+              placeholderTextColor={colors.textMuted}
               returnKeyType="done"
               style={styles.input}
               value={newCircleName}
@@ -191,151 +194,153 @@ export function GroupPicker({ selectedGroupIds, onToggle }: GroupPickerProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    gap: theme.spacing.md
-  },
-  pillWrap: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: theme.spacing.sm
-  },
-  pillGroup: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4
-  },
-  pill: {
-    minHeight: 38,
-    borderRadius: theme.radius.pill,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: theme.spacing.md
-  },
-  pillPrimary: {
-    backgroundColor: theme.colors.primary
-  },
-  pillSecondary: {
-    backgroundColor: theme.colors.surfaceStrong
-  },
-  pillSelected: {
-    borderWidth: 2,
-    borderColor: theme.colors.text
-  },
-  pillText: {
-    fontSize: 14,
-    fontWeight: "600"
-  },
-  pillTextPrimary: {
-    color: theme.colors.onPrimary
-  },
-  pillTextSecondary: {
-    color: theme.colors.primary
-  },
-  expandButton: {
-    width: 28,
-    height: 28,
-    borderRadius: theme.radius.pill,
-    borderWidth: 1.5,
-    borderColor: theme.colors.border,
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  expandButtonText: {
-    color: theme.colors.textMuted,
-    fontSize: 10
-  },
-  prompt: {
-    color: theme.colors.textMuted,
-    fontSize: 14,
-    lineHeight: 21
-  },
-  newCirclePill: {
-    alignSelf: "flex-start",
-    minHeight: 38,
-    borderRadius: theme.radius.pill,
-    borderWidth: 1.5,
-    borderColor: theme.colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: theme.spacing.md
-  },
-  newCirclePillPressed: {
-    backgroundColor: theme.colors.surface
-  },
-  newCirclePillText: {
-    color: theme.colors.primary,
-    fontSize: 14,
-    fontWeight: "600"
-  },
-  newCircle: {
-    gap: theme.spacing.sm
-  },
-  label: {
-    color: theme.colors.textMuted,
-    fontSize: 14,
-    fontWeight: "600"
-  },
-  suggestionRow: {
-    flexDirection: "row",
-    gap: theme.spacing.sm
-  },
-  suggestionChip: {
-    minHeight: 40,
-    justifyContent: "center",
-    borderRadius: theme.radius.pill,
-    backgroundColor: theme.colors.surfaceStrong,
-    paddingHorizontal: theme.spacing.md
-  },
-  suggestionPressed: {
-    opacity: 0.7
-  },
-  suggestionText: {
-    color: theme.colors.text,
-    fontSize: 15,
-    fontWeight: "500"
-  },
-  inputRow: {
-    flexDirection: "row",
-    gap: theme.spacing.sm
-  },
-  input: {
-    flex: 1,
-    minHeight: 54,
-    borderWidth: 1.5,
-    borderColor: theme.colors.border,
-    borderRadius: theme.radius.md,
-    paddingHorizontal: theme.spacing.md,
-    color: theme.colors.text,
-    fontSize: 17,
-    backgroundColor: theme.colors.white
-  },
-  addButton: {
-    minWidth: 72,
-    minHeight: 54,
-    borderRadius: theme.radius.md,
-    backgroundColor: theme.colors.primary,
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  addPressed: {
-    backgroundColor: theme.colors.primaryPressed
-  },
-  disabled: {
-    opacity: 0.4
-  },
-  addText: {
-    color: theme.colors.onPrimary,
-    fontSize: 16,
-    fontWeight: "600"
-  },
-  manageLink: {
-    minHeight: 44,
-    justifyContent: "center"
-  },
-  manageLinkText: {
-    color: theme.colors.primary,
-    fontSize: 15,
-    fontWeight: "600"
-  }
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: {
+      gap: theme.spacing.md
+    },
+    pillWrap: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: theme.spacing.sm
+    },
+    pillGroup: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4
+    },
+    pill: {
+      minHeight: 38,
+      borderRadius: theme.radius.pill,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: theme.spacing.md
+    },
+    pillPrimary: {
+      backgroundColor: colors.primary
+    },
+    pillSecondary: {
+      backgroundColor: colors.surfaceStrong
+    },
+    pillSelected: {
+      borderWidth: 2,
+      borderColor: colors.text
+    },
+    pillText: {
+      fontSize: 14,
+      fontWeight: "600"
+    },
+    pillTextPrimary: {
+      color: colors.onPrimary
+    },
+    pillTextSecondary: {
+      color: colors.primary
+    },
+    expandButton: {
+      width: 28,
+      height: 28,
+      borderRadius: theme.radius.pill,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      alignItems: "center",
+      justifyContent: "center"
+    },
+    expandButtonText: {
+      color: colors.textMuted,
+      fontSize: 10
+    },
+    prompt: {
+      color: colors.textMuted,
+      fontSize: 14,
+      lineHeight: 21
+    },
+    newCirclePill: {
+      alignSelf: "flex-start",
+      minHeight: 38,
+      borderRadius: theme.radius.pill,
+      borderWidth: 1.5,
+      borderColor: colors.primary,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: theme.spacing.md
+    },
+    newCirclePillPressed: {
+      backgroundColor: colors.surface
+    },
+    newCirclePillText: {
+      color: colors.primary,
+      fontSize: 14,
+      fontWeight: "600"
+    },
+    newCircle: {
+      gap: theme.spacing.sm
+    },
+    label: {
+      color: colors.textMuted,
+      fontSize: 14,
+      fontWeight: "600"
+    },
+    suggestionRow: {
+      flexDirection: "row",
+      gap: theme.spacing.sm
+    },
+    suggestionChip: {
+      minHeight: 40,
+      justifyContent: "center",
+      borderRadius: theme.radius.pill,
+      backgroundColor: colors.surfaceStrong,
+      paddingHorizontal: theme.spacing.md
+    },
+    suggestionPressed: {
+      opacity: 0.7
+    },
+    suggestionText: {
+      color: colors.text,
+      fontSize: 15,
+      fontWeight: "500"
+    },
+    inputRow: {
+      flexDirection: "row",
+      gap: theme.spacing.sm
+    },
+    input: {
+      flex: 1,
+      minHeight: 54,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      borderRadius: theme.radius.md,
+      paddingHorizontal: theme.spacing.md,
+      color: colors.text,
+      fontSize: 17,
+      backgroundColor: colors.white
+    },
+    addButton: {
+      minWidth: 72,
+      minHeight: 54,
+      borderRadius: theme.radius.md,
+      backgroundColor: colors.primary,
+      alignItems: "center",
+      justifyContent: "center"
+    },
+    addPressed: {
+      backgroundColor: colors.primaryPressed
+    },
+    disabled: {
+      opacity: 0.4
+    },
+    addText: {
+      color: colors.onPrimary,
+      fontSize: 16,
+      fontWeight: "600"
+    },
+    manageLink: {
+      minHeight: 44,
+      justifyContent: "center"
+    },
+    manageLinkText: {
+      color: colors.primary,
+      fontSize: 15,
+      fontWeight: "600"
+    }
+  });
+}

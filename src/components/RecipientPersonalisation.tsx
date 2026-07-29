@@ -1,5 +1,7 @@
+import { useMemo } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { theme } from "@/constants/theme";
+import { theme, type ThemeColors } from "@/constants/theme";
+import { useAppTheme } from "@/hooks/useAppTheme";
 import type { GoingQuietRecipient } from "@/types/hold";
 
 interface RecipientPersonalisationProps {
@@ -19,6 +21,9 @@ export function RecipientPersonalisation({
   onChangePersonalisedMessage,
   defaultMessage
 }: RecipientPersonalisationProps) {
+  const { colors } = useAppTheme("normal");
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <View style={styles.container}>
       {recipients.map((recipient) => (
@@ -67,53 +72,55 @@ export function RecipientPersonalisation({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    gap: theme.spacing.sm
-  },
-  row: {
-    gap: theme.spacing.xs
-  },
-  tapArea: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.sm,
-    minHeight: 40
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: theme.radius.sm,
-    borderWidth: 1.5,
-    borderColor: theme.colors.primary
-  },
-  checkboxChecked: {
-    backgroundColor: theme.colors.primary
-  },
-  name: {
-    color: theme.colors.text,
-    fontSize: 16
-  },
-  nameExcluded: {
-    color: theme.colors.textMuted,
-    textDecorationLine: "line-through"
-  },
-  linkText: {
-    color: theme.colors.link,
-    fontSize: 13,
-    fontWeight: "600",
-    marginLeft: 32
-  },
-  input: {
-    marginLeft: 32,
-    minHeight: 60,
-    borderWidth: 1.5,
-    borderColor: theme.colors.border,
-    borderRadius: theme.radius.sm,
-    padding: theme.spacing.sm,
-    color: theme.colors.text,
-    fontSize: 15,
-    lineHeight: 21,
-    backgroundColor: theme.colors.white
-  }
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: {
+      gap: theme.spacing.sm
+    },
+    row: {
+      gap: theme.spacing.xs
+    },
+    tapArea: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm,
+      minHeight: 40
+    },
+    checkbox: {
+      width: 20,
+      height: 20,
+      borderRadius: theme.radius.sm,
+      borderWidth: 1.5,
+      borderColor: colors.primary
+    },
+    checkboxChecked: {
+      backgroundColor: colors.primary
+    },
+    name: {
+      color: colors.text,
+      fontSize: 16
+    },
+    nameExcluded: {
+      color: colors.textMuted,
+      textDecorationLine: "line-through"
+    },
+    linkText: {
+      color: colors.link,
+      fontSize: 13,
+      fontWeight: "600",
+      marginLeft: 32
+    },
+    input: {
+      marginLeft: 32,
+      minHeight: 60,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      borderRadius: theme.radius.sm,
+      padding: theme.spacing.sm,
+      color: colors.text,
+      fontSize: 15,
+      lineHeight: 21,
+      backgroundColor: colors.white
+    }
+  });
+}

@@ -1,5 +1,7 @@
+import { useMemo } from "react";
 import { StyleSheet, View } from "react-native";
-import { theme } from "@/constants/theme";
+import { type ThemeColors } from "@/constants/theme";
+import { useAppTheme } from "@/hooks/useAppTheme";
 
 interface HeldMarkProps {
   size?: number;
@@ -11,6 +13,8 @@ interface HeldMarkProps {
  * by a hand. CSS-only placeholder, shown for comparison only.
  */
 export function HeldMark({ size = 64 }: HeldMarkProps) {
+  const { colors } = useAppTheme("normal");
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const shape = size * 0.6;
 
   return (
@@ -49,22 +53,24 @@ export function HeldMark({ size = 64 }: HeldMarkProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  frame: {
-    position: "relative"
-  },
-  shape: {
-    position: "absolute",
-    borderWidth: 2
-  },
-  shapeBack: {
-    backgroundColor: theme.colors.surfaceStrong,
-    borderColor: theme.colors.primary,
-    opacity: 0.85
-  },
-  shapeFront: {
-    backgroundColor: theme.colors.primary,
-    borderColor: theme.colors.primary,
-    opacity: 0.8
-  }
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    frame: {
+      position: "relative"
+    },
+    shape: {
+      position: "absolute",
+      borderWidth: 2
+    },
+    shapeBack: {
+      backgroundColor: colors.surfaceStrong,
+      borderColor: colors.primary,
+      opacity: 0.85
+    },
+    shapeFront: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+      opacity: 0.8
+    }
+  });
+}

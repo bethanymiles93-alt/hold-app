@@ -1,5 +1,7 @@
+import { useMemo } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
-import { theme } from "@/constants/theme";
+import { theme, type ThemeColors } from "@/constants/theme";
+import { useAppTheme } from "@/hooks/useAppTheme";
 
 interface ReviewMessageProps {
   recipients: string[];
@@ -14,6 +16,9 @@ export function ReviewMessage({
   message,
   onChangeMessage
 }: ReviewMessageProps) {
+  const { colors } = useAppTheme("normal");
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <View style={styles.container}>
       <View style={styles.recipientPanel}>
@@ -39,43 +44,45 @@ export function ReviewMessage({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    gap: theme.spacing.lg
-  },
-  recipientPanel: {
-    gap: theme.spacing.xs,
-    borderRadius: theme.radius.md,
-    backgroundColor: theme.colors.surface,
-    padding: theme.spacing.md
-  },
-  label: {
-    color: theme.colors.textMuted,
-    fontSize: 14,
-    fontWeight: "600"
-  },
-  recipients: {
-    color: theme.colors.text,
-    fontSize: 17,
-    lineHeight: 24
-  },
-  messageGroup: {
-    gap: theme.spacing.sm
-  },
-  input: {
-    minHeight: 220,
-    borderWidth: 1.5,
-    borderColor: theme.colors.border,
-    borderRadius: theme.radius.md,
-    padding: theme.spacing.md,
-    color: theme.colors.text,
-    fontSize: 17,
-    lineHeight: 25,
-    backgroundColor: theme.colors.white
-  },
-  helper: {
-    color: theme.colors.textMuted,
-    fontSize: 14,
-    lineHeight: 21
-  }
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: {
+      gap: theme.spacing.lg
+    },
+    recipientPanel: {
+      gap: theme.spacing.xs,
+      borderRadius: theme.radius.md,
+      backgroundColor: colors.surface,
+      padding: theme.spacing.md
+    },
+    label: {
+      color: colors.textMuted,
+      fontSize: 14,
+      fontWeight: "600"
+    },
+    recipients: {
+      color: colors.text,
+      fontSize: 17,
+      lineHeight: 24
+    },
+    messageGroup: {
+      gap: theme.spacing.sm
+    },
+    input: {
+      minHeight: 220,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      borderRadius: theme.radius.md,
+      padding: theme.spacing.md,
+      color: colors.text,
+      fontSize: 17,
+      lineHeight: 25,
+      backgroundColor: colors.white
+    },
+    helper: {
+      color: colors.textMuted,
+      fontSize: 14,
+      lineHeight: 21
+    }
+  });
+}

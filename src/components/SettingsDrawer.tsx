@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   Alert,
   Animated,
@@ -14,7 +14,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { theme } from "@/constants/theme";
+import { theme, type ThemeColors } from "@/constants/theme";
+import { useAppTheme } from "@/hooks/useAppTheme";
 import { HAS_SEEN_WELCOME_KEY } from "@/constants/storageKeys";
 import { useHoldFlow } from "@/context/HoldFlowContext";
 import { useSettingsDrawer } from "@/context/SettingsDrawerContext";
@@ -34,9 +35,16 @@ const ANIMATION_MS = 260;
 // on-device. #A6342A pulls the blend back closer to the raw error hue while staying a
 // little darker/calmer than it. If this still reads brown on an actual phone screen,
 // #B3392E is a punchier alternative worth trying — eyeball both before calling it final.
-const DESTRUCTIVE_LABEL_COLOR = "#A6342A";
+// Light-mode only — this exact hex was tuned on-device against the light background.
+// Dark mode has no equivalent tuning yet, so it falls back to the dark palette's own
+// (already calmer, dark-background-appropriate) error colour unmodified; revisit once
+// "Delete my data" has actually been seen in dark mode.
+const DESTRUCTIVE_LABEL_COLOR_LIGHT = "#A6342A";
 
 function NavRow({ label, onPress }: { label: string; onPress: () => void }) {
+  const { colors } = useAppTheme("normal");
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -58,18 +66,25 @@ function ActionRow({
   onPress: () => void;
   destructive?: boolean;
 }) {
+  const { colors, isDark } = useAppTheme("normal");
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const destructiveColor = isDark ? colors.error : DESTRUCTIVE_LABEL_COLOR_LIGHT;
+
   return (
     <Pressable
       accessibilityRole="button"
       onPress={onPress}
       style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
     >
-      <Text style={[styles.rowLabel, destructive && styles.rowLabelDestructive]}>{label}</Text>
+      <Text style={[styles.rowLabel, destructive && { color: destructiveColor }]}>{label}</Text>
     </Pressable>
   );
 }
 
 function ComingLaterRow({ label }: { label: string }) {
+  const { colors } = useAppTheme("normal");
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <View style={styles.row}>
       <Text style={styles.rowLabelMuted}>{label}</Text>
@@ -83,6 +98,8 @@ function ComingLaterRow({ label }: { label: string }) {
 export function SettingsDrawer() {
   const { isOpen, close } = useSettingsDrawer();
   const { resetFlow } = useHoldFlow();
+  const { colors } = useAppTheme("normal");
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const translateX = useRef(new Animated.Value(PANEL_WIDTH)).current;
 
@@ -208,114 +225,113 @@ export function SettingsDrawer() {
   );
 }
 
-const styles = StyleSheet.create({
-  overlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    zIndex: 50
-  },
-  backdrop: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.3)"
-  },
-  backdropTouchable: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0
-  },
-  panel: {
-    backgroundColor: theme.colors.background,
-    shadowOffset: { width: -4, height: 0 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 12
-  },
-  // paddingTop/paddingBottom/paddingRight are applied inline (insets.top/
-  // bottom/right + a fixed amount) since this drawer is a standalone
-  // overlay rather than an in-flow screen — explicit useSafeAreaInsets()
-  // math, not SafeAreaView's edges prop, so the gaps beyond the device's
-  // safe area are deliberate and consistent regardless of notch/home-
-  // indicator height differences.
-  content: {
-    flex: 1,
-    paddingHorizontal: theme.spacing.lg
-  },
-  group: {
-    gap: theme.spacing.xs
-  },
-  // Clearly bigger than a group's own row-to-row gap (xs), so groups read as
-  // distinct sections rather than one continuous list. Used above About Hold
-  // and above Legal and data — both the "small" group gap.
-  groupSpaced: {
-    marginTop: theme.spacing.xl
-  },
-  // The single largest gap in the drawer, above the bottom cluster only —
-  // separates the daily-use groups (Manage Circles, Our Mission) from the
-  // occasional-use cluster (Feedback/Share + Legal and data) below.
-  // Pinned to the bottom of the drawer via the flexible auto margin (content
-  // is flex: 1), rather than a fixed distance from Our Mission above it —
-  // this whole cluster sits the same distance from the bottom edge as
-  // Manage Circles is from the top. Feedback/Share and Legal and data move
-  // as one block so Feedback/Share reads as belonging with the bottom
-  // cluster rather than floating alone in the gap.
-  bottomCluster: {
-    marginTop: "auto"
-  },
-  // marginTop (space above the line) matches paddingTop (space below it,
-  // before Privacy Policy) so the divider sits centred between Share Hold
-  // and Privacy Policy rather than closer to one side.
-  groupWithDivider: {
-    marginTop: theme.spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-    paddingTop: theme.spacing.md
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    minHeight: 36
-  },
-  rowPressed: {
-    opacity: 0.6
-  },
-  rowLabel: {
-    color: theme.colors.text,
-    fontSize: 16,
-    fontWeight: "600"
-  },
-  rowLabelDestructive: {
-    color: DESTRUCTIVE_LABEL_COLOR
-  },
-  rowLabelMuted: {
-    color: theme.colors.textMuted,
-    fontSize: 16,
-    fontWeight: "600"
-  },
-  rowChevron: {
-    color: theme.colors.textMuted,
-    fontSize: 18
-  },
-  comingLaterTag: {
-    borderRadius: theme.radius.pill,
-    backgroundColor: theme.colors.surfaceStrong,
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: 4
-  },
-  comingLaterText: {
-    color: theme.colors.textMuted,
-    fontSize: 12,
-    fontWeight: "600"
-  }
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    overlay: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      flexDirection: "row",
+      justifyContent: "flex-end",
+      zIndex: 50
+    },
+    backdrop: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: "rgba(0,0,0,0.3)"
+    },
+    backdropTouchable: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0
+    },
+    panel: {
+      backgroundColor: colors.background,
+      shadowOffset: { width: -4, height: 0 },
+      shadowOpacity: 0.15,
+      shadowRadius: 12,
+      elevation: 12
+    },
+    // paddingTop/paddingBottom/paddingRight are applied inline (insets.top/
+    // bottom/right + a fixed amount) since this drawer is a standalone
+    // overlay rather than an in-flow screen — explicit useSafeAreaInsets()
+    // math, not SafeAreaView's edges prop, so the gaps beyond the device's
+    // safe area are deliberate and consistent regardless of notch/home-
+    // indicator height differences.
+    content: {
+      flex: 1,
+      paddingHorizontal: theme.spacing.lg
+    },
+    group: {
+      gap: theme.spacing.xs
+    },
+    // Clearly bigger than a group's own row-to-row gap (xs), so groups read as
+    // distinct sections rather than one continuous list. Used above About Hold
+    // and above Legal and data — both the "small" group gap.
+    groupSpaced: {
+      marginTop: theme.spacing.xl
+    },
+    // The single largest gap in the drawer, above the bottom cluster only —
+    // separates the daily-use groups (Manage Circles, Our Mission) from the
+    // occasional-use cluster (Feedback/Share + Legal and data) below.
+    // Pinned to the bottom of the drawer via the flexible auto margin (content
+    // is flex: 1), rather than a fixed distance from Our Mission above it —
+    // this whole cluster sits the same distance from the bottom edge as
+    // Manage Circles is from the top. Feedback/Share and Legal and data move
+    // as one block so Feedback/Share reads as belonging with the bottom
+    // cluster rather than floating alone in the gap.
+    bottomCluster: {
+      marginTop: "auto"
+    },
+    // marginTop (space above the line) matches paddingTop (space below it,
+    // before Privacy Policy) so the divider sits centred between Share Hold
+    // and Privacy Policy rather than closer to one side.
+    groupWithDivider: {
+      marginTop: theme.spacing.md,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      paddingTop: theme.spacing.md
+    },
+    row: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      minHeight: 36
+    },
+    rowPressed: {
+      opacity: 0.6
+    },
+    rowLabel: {
+      color: colors.text,
+      fontSize: 16,
+      fontWeight: "600"
+    },
+    rowLabelMuted: {
+      color: colors.textMuted,
+      fontSize: 16,
+      fontWeight: "600"
+    },
+    rowChevron: {
+      color: colors.textMuted,
+      fontSize: 18
+    },
+    comingLaterTag: {
+      borderRadius: theme.radius.pill,
+      backgroundColor: colors.surfaceStrong,
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: 4
+    },
+    comingLaterText: {
+      color: colors.textMuted,
+      fontSize: 12,
+      fontWeight: "600"
+    }
+  });
+}
