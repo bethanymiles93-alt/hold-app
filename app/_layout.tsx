@@ -3,6 +3,7 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { HeaderSettingsButton } from "@/components/HeaderSettingsButton";
+import { KeyboardDoneAccessory } from "@/components/KeyboardDoneAccessory";
 import { SettingsDrawer } from "@/components/SettingsDrawer";
 import { HoldFlowProvider } from "@/context/HoldFlowContext";
 import { SettingsDrawerProvider } from "@/context/SettingsDrawerContext";
@@ -55,6 +56,7 @@ export default function RootLayout() {
             <Stack.Screen name="settings/circle/detail" options={{ title: "Circle" }} />
           </Stack>
           <SettingsDrawer />
+          <KeyboardDoneAccessory />
         </SettingsDrawerProvider>
       </HoldFlowProvider>
     </SafeAreaProvider>

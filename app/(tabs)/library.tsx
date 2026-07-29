@@ -3,6 +3,7 @@ import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-nativ
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect } from "expo-router";
 import { Screen } from "@/components/Screen";
+import { KEYBOARD_DONE_ACCESSORY_ID } from "@/components/KeyboardDoneAccessory";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { SecondaryButton } from "@/components/SecondaryButton";
 import { theme, type ThemeColors } from "@/constants/theme";
@@ -193,6 +194,7 @@ function PersonaliseAccordion({ person, isOpen, onToggle }: PersonaliseAccordion
           <Text style={styles.fieldLabel}>What they sent</Text>
           <TextInput
             accessibilityLabel="Message they sent"
+            inputAccessoryViewID={KEYBOARD_DONE_ACCESSORY_ID}
             multiline
             onChangeText={changeFriendMessage}
             style={styles.input}
@@ -221,6 +223,7 @@ function PersonaliseAccordion({ person, isOpen, onToggle }: PersonaliseAccordion
           <Text style={styles.fieldLabel}>Your reply</Text>
           <TextInput
             accessibilityLabel="Your reply"
+            inputAccessoryViewID={KEYBOARD_DONE_ACCESSORY_ID}
             multiline
             onChangeText={changeDraft}
             style={styles.input}
@@ -477,6 +480,7 @@ export default function LibraryScreen() {
             <View style={styles.quickBody}>
               <TextInput
                 accessibilityLabel="Message to everyone"
+                inputAccessoryViewID={KEYBOARD_DONE_ACCESSORY_ID}
                 multiline
                 onChangeText={setSharedMessage}
                 style={styles.input}
@@ -532,6 +536,7 @@ export default function LibraryScreen() {
 
                   <TextInput
                     accessibilityLabel={`Message to ${section.circleName}`}
+                    inputAccessoryViewID={KEYBOARD_DONE_ACCESSORY_ID}
                     multiline
                     onChangeText={(text) =>
                       setPerCircleMessages((current) => ({ ...current, [section.circleId]: text }))
@@ -630,6 +635,7 @@ export default function LibraryScreen() {
                   <Text style={styles.circleRowTitle}>{row.circleName}</Text>
                   <TextInput
                     accessibilityLabel={`Saved message for ${row.circleName}`}
+                    inputAccessoryViewID={KEYBOARD_DONE_ACCESSORY_ID}
                     multiline
                     onChangeText={(text) => changeTemplateDraft(row.circleId, text)}
                     style={styles.input}

@@ -5,6 +5,7 @@ import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
 import { GroupPicker } from "@/components/GroupPicker";
 import { ChoiceCard } from "@/components/ChoiceCard";
+import { KEYBOARD_DONE_ACCESSORY_ID } from "@/components/KeyboardDoneAccessory";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { HOLD_INTENTS } from "@/constants/copy";
 import { theme, type ThemeColors } from "@/constants/theme";
@@ -87,6 +88,7 @@ export default function HoldPeopleScreen() {
                 <View style={styles.messageBlock}>
                   <TextInput
                     accessibilityLabel={`Message for ${draft.circleName}`}
+                    inputAccessoryViewID={KEYBOARD_DONE_ACCESSORY_ID}
                     multiline
                     onChangeText={(text) => setCircleDraftMessage(draft.circleId, text)}
                     style={styles.messageInput}

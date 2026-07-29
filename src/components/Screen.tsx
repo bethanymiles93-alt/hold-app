@@ -1,11 +1,13 @@
 import type { PropsWithChildren } from "react";
 import { useMemo } from "react";
 import {
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   type StyleProp,
   StyleSheet,
+  TouchableWithoutFeedback,
   type ViewStyle
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -22,17 +24,24 @@ export function Screen({ children, contentContainerStyle }: ScreenProps) {
 
   return (
     <SafeAreaView style={styles.safe} edges={["bottom", "left", "right"]}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={[styles.content, contentContainerStyle]}
+      {/* Second way to dismiss the keyboard, alongside KeyboardDoneAccessory's
+          "Done" bar — tapping anywhere that isn't itself an interactive child
+          (a button, an input) closes the keyboard. keyboardShouldPersistTaps
+          "handled" on the ScrollView means those children still get their own
+          tap first, so this only fires on genuinely empty space. */}
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <KeyboardAvoidingView
+          style={styles.flex}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
-          {children}
-        </ScrollView>
-      </KeyboardAvoidingView>
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={[styles.content, contentContainerStyle]}
+          >
+            {children}
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </TouchableWithoutFeedback>
     </SafeAreaView>
   );
 }

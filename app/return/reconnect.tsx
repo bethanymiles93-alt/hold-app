@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { router } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
+import { KEYBOARD_DONE_ACCESSORY_ID } from "@/components/KeyboardDoneAccessory";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { SecondaryButton } from "@/components/SecondaryButton";
 import { theme, type ThemeColors } from "@/constants/theme";
@@ -85,6 +86,7 @@ export default function ReconnectScreen() {
         {isEditing ? (
           <TextInput
             accessibilityLabel="Message to send"
+            inputAccessoryViewID={KEYBOARD_DONE_ACCESSORY_ID}
             multiline
             onChangeText={changeMessage}
             style={styles.input}

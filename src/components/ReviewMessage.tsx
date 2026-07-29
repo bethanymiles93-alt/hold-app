@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
+import { KEYBOARD_DONE_ACCESSORY_ID } from "@/components/KeyboardDoneAccessory";
 
 interface ReviewMessageProps {
   recipients: string[];
@@ -30,6 +31,7 @@ export function ReviewMessage({
         <Text style={styles.label}>Message</Text>
         <TextInput
           accessibilityLabel="Message to share"
+          inputAccessoryViewID={KEYBOARD_DONE_ACCESSORY_ID}
           multiline
           onChangeText={onChangeMessage}
           style={styles.input}

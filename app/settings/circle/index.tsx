@@ -3,6 +3,7 @@ import { router, useFocusEffect } from "expo-router";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
+import { KEYBOARD_DONE_ACCESSORY_ID } from "@/components/KeyboardDoneAccessory";
 import { SwipeableRow } from "@/components/SwipeableRow";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
@@ -97,6 +98,7 @@ export default function CircleIndexScreen() {
           <TextInput
             accessibilityLabel="New Circle name"
             autoCapitalize="words"
+            inputAccessoryViewID={KEYBOARD_DONE_ACCESSORY_ID}
             onChangeText={setNewGroupName}
             onSubmitEditing={() => void addGroup(newGroupName)}
             placeholder="Circle name, e.g. School friends"
