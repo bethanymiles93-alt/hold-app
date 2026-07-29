@@ -1,10 +1,11 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { router, useFocusEffect } from "expo-router";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
 import { SwipeableRow } from "@/components/SwipeableRow";
-import { theme } from "@/constants/theme";
+import { theme, type ThemeColors } from "@/constants/theme";
+import { useAppTheme } from "@/hooks/useAppTheme";
 import { createGroup, deleteGroup, getGroups } from "@/services/circleService";
 import type { CircleGroup } from "@/types/hold";
 
@@ -16,6 +17,8 @@ function memberSummary(group: CircleGroup): string {
 }
 
 export default function CircleIndexScreen() {
+  const { colors } = useAppTheme("normal");
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [groups, setGroups] = useState<CircleGroup[]>([]);
   const [newGroupName, setNewGroupName] = useState("");
 
@@ -97,7 +100,7 @@ export default function CircleIndexScreen() {
             onChangeText={setNewGroupName}
             onSubmitEditing={() => void addGroup(newGroupName)}
             placeholder="Circle name, e.g. School friends"
-            placeholderTextColor={theme.colors.textMuted}
+            placeholderTextColor={colors.textMuted}
             returnKeyType="done"
             style={styles.input}
             value={newGroupName}
@@ -121,7 +124,8 @@ export default function CircleIndexScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   content: {
     gap: theme.spacing.xl
   },
@@ -132,19 +136,19 @@ const styles = StyleSheet.create({
     gap: theme.spacing.xs,
     borderRadius: theme.radius.md,
     borderWidth: 1.5,
-    borderColor: theme.colors.border,
+    borderColor: colors.border,
     padding: theme.spacing.md
   },
   cardPressed: {
-    backgroundColor: theme.colors.surface
+    backgroundColor: colors.surface
   },
   cardTitle: {
-    color: theme.colors.text,
+    color: colors.text,
     fontSize: 17,
     fontWeight: "600"
   },
   cardBody: {
-    color: theme.colors.textMuted,
+    color: colors.textMuted,
     fontSize: 15,
     lineHeight: 22
   },
@@ -152,7 +156,7 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm
   },
   label: {
-    color: theme.colors.textMuted,
+    color: colors.textMuted,
     fontSize: 14,
     fontWeight: "600"
   },
@@ -164,14 +168,14 @@ const styles = StyleSheet.create({
     minHeight: 40,
     justifyContent: "center",
     borderRadius: theme.radius.pill,
-    backgroundColor: theme.colors.surfaceStrong,
+    backgroundColor: colors.surfaceStrong,
     paddingHorizontal: theme.spacing.md
   },
   suggestionPressed: {
     opacity: 0.7
   },
   suggestionText: {
-    color: theme.colors.text,
+    color: colors.text,
     fontSize: 15,
     fontWeight: "500"
   },
@@ -183,30 +187,31 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 54,
     borderWidth: 1.5,
-    borderColor: theme.colors.border,
+    borderColor: colors.border,
     borderRadius: theme.radius.md,
     paddingHorizontal: theme.spacing.md,
-    color: theme.colors.text,
+    color: colors.text,
     fontSize: 17,
-    backgroundColor: theme.colors.white
+    backgroundColor: colors.white
   },
   addButton: {
     minWidth: 72,
     minHeight: 54,
     borderRadius: theme.radius.md,
-    backgroundColor: theme.colors.primary,
+    backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center"
   },
   addPressed: {
-    backgroundColor: theme.colors.primaryPressed
+    backgroundColor: colors.primaryPressed
   },
   disabled: {
     opacity: 0.4
   },
   addText: {
-    color: theme.colors.onPrimary,
+    color: colors.onPrimary,
     fontSize: 16,
     fontWeight: "600"
   }
-});
+  });
+}

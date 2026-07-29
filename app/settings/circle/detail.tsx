@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { PrimaryButton } from "@/components/PrimaryButton";
-import { theme } from "@/constants/theme";
+import { theme, type ThemeColors } from "@/constants/theme";
+import { useAppTheme } from "@/hooks/useAppTheme";
 import { pickContact } from "@/services/contactPickerService";
 import {
   addContactToGroup,
@@ -16,6 +17,8 @@ import type { CircleGroup } from "@/types/hold";
 export default function CircleDetailScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const navigation = useNavigation();
+  const { colors } = useAppTheme("normal");
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [group, setGroup] = useState<CircleGroup | null>(null);
 
   const refresh = useCallback(async () => {
@@ -111,7 +114,8 @@ export default function CircleDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   content: {
     flexGrow: 1,
     justifyContent: "space-between",
@@ -121,12 +125,12 @@ const styles = StyleSheet.create({
     gap: theme.spacing.md
   },
   label: {
-    color: theme.colors.textMuted,
+    color: colors.textMuted,
     fontSize: 14,
     fontWeight: "600"
   },
   empty: {
-    color: theme.colors.textMuted,
+    color: colors.textMuted,
     fontSize: 16,
     lineHeight: 24
   },
@@ -139,16 +143,16 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     borderRadius: theme.radius.md,
     borderWidth: 1.5,
-    borderColor: theme.colors.border,
+    borderColor: colors.border,
     padding: theme.spacing.md
   },
   itemName: {
-    color: theme.colors.text,
+    color: colors.text,
     fontSize: 17,
     fontWeight: "600"
   },
   itemMeta: {
-    color: theme.colors.textMuted,
+    color: colors.textMuted,
     fontSize: 14,
     marginTop: 2
   },
@@ -157,12 +161,12 @@ const styles = StyleSheet.create({
     justifyContent: "center"
   },
   removeLabel: {
-    color: theme.colors.error,
+    color: colors.error,
     fontSize: 14,
     fontWeight: "600"
   },
   note: {
-    color: theme.colors.textMuted,
+    color: colors.textMuted,
     fontSize: 14,
     lineHeight: 21
   },
@@ -175,8 +179,9 @@ const styles = StyleSheet.create({
     justifyContent: "center"
   },
   deleteLabel: {
-    color: theme.colors.error,
+    color: colors.error,
     fontSize: 15,
     fontWeight: "600"
   }
-});
+  });
+}

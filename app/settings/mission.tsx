@@ -1,6 +1,8 @@
+import { useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Screen } from "@/components/Screen";
-import { theme } from "@/constants/theme";
+import { theme, type ThemeColors } from "@/constants/theme";
+import { useAppTheme } from "@/hooks/useAppTheme";
 
 const MISSION_SECTIONS = [
   {
@@ -18,6 +20,9 @@ const MISSION_SECTIONS = [
 ];
 
 export default function MissionScreen() {
+  const { colors } = useAppTheme("normal");
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <Screen>
       <Text style={styles.heading}>Why Hold exists.</Text>
@@ -39,36 +44,38 @@ export default function MissionScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  heading: {
-    color: theme.colors.text,
-    fontSize: 22,
-    fontWeight: "600",
-    marginBottom: theme.spacing.md
-  },
-  intro: {
-    color: theme.colors.textMuted,
-    fontSize: 17,
-    lineHeight: 26
-  },
-  sections: {
-    marginTop: theme.spacing.xl,
-    gap: theme.spacing.md
-  },
-  section: {
-    padding: theme.spacing.md,
-    borderRadius: theme.radius.md,
-    backgroundColor: theme.colors.surface,
-    gap: theme.spacing.sm
-  },
-  title: {
-    color: theme.colors.text,
-    fontSize: 17,
-    fontWeight: "600"
-  },
-  body: {
-    color: theme.colors.textMuted,
-    fontSize: 15,
-    lineHeight: 23
-  }
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    heading: {
+      color: colors.text,
+      fontSize: 22,
+      fontWeight: "600",
+      marginBottom: theme.spacing.md
+    },
+    intro: {
+      color: colors.textMuted,
+      fontSize: 17,
+      lineHeight: 26
+    },
+    sections: {
+      marginTop: theme.spacing.xl,
+      gap: theme.spacing.md
+    },
+    section: {
+      padding: theme.spacing.md,
+      borderRadius: theme.radius.md,
+      backgroundColor: colors.surface,
+      gap: theme.spacing.sm
+    },
+    title: {
+      color: colors.text,
+      fontSize: 17,
+      fontWeight: "600"
+    },
+    body: {
+      color: colors.textMuted,
+      fontSize: 15,
+      lineHeight: 23
+    }
+  });
+}

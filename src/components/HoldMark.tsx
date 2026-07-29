@@ -1,5 +1,7 @@
+import { useMemo } from "react";
 import { StyleSheet, View } from "react-native";
-import { theme } from "@/constants/theme";
+import { type ThemeColors } from "@/constants/theme";
+import { useAppTheme } from "@/hooks/useAppTheme";
 
 interface HoldMarkProps {
   size?: number;
@@ -10,6 +12,8 @@ interface HoldMarkProps {
  * Replace with the approved vector asset without changing its semantic role.
  */
 export function HoldMark({ size = 64 }: HoldMarkProps) {
+  const { colors } = useAppTheme("normal");
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const circle = size * 0.48;
 
   return (
@@ -46,18 +50,20 @@ export function HoldMark({ size = 64 }: HoldMarkProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  frame: {
-    position: "relative"
-  },
-  circle: {
-    position: "absolute",
-    backgroundColor: theme.colors.surfaceStrong,
-    borderWidth: 2,
-    borderColor: theme.colors.primary
-  },
-  hand: {
-    position: "absolute",
-    backgroundColor: theme.colors.primary
-  }
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    frame: {
+      position: "relative"
+    },
+    circle: {
+      position: "absolute",
+      backgroundColor: colors.surfaceStrong,
+      borderWidth: 2,
+      borderColor: colors.primary
+    },
+    hand: {
+      position: "absolute",
+      backgroundColor: colors.primary
+    }
+  });
+}

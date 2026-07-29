@@ -1,6 +1,8 @@
+import { useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Screen } from "@/components/Screen";
-import { theme } from "@/constants/theme";
+import { theme, type ThemeColors } from "@/constants/theme";
+import { useAppTheme } from "@/hooks/useAppTheme";
 
 const HOLD_PLUS_SECTIONS = [
   {
@@ -19,6 +21,9 @@ const PRICING_ROWS = [
 ];
 
 export default function HoldPlusScreen() {
+  const { colors } = useAppTheme("normal");
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <Screen>
       <Text style={styles.heading}>Hold+.</Text>
@@ -63,73 +68,75 @@ export default function HoldPlusScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  heading: {
-    color: theme.colors.text,
-    fontSize: 22,
-    fontWeight: "600",
-    marginBottom: theme.spacing.md
-  },
-  intro: {
-    color: theme.colors.textMuted,
-    fontSize: 17,
-    lineHeight: 26
-  },
-  sections: {
-    marginTop: theme.spacing.xl,
-    gap: theme.spacing.md
-  },
-  section: {
-    padding: theme.spacing.md,
-    borderRadius: theme.radius.md,
-    backgroundColor: theme.colors.surface,
-    gap: theme.spacing.sm
-  },
-  title: {
-    color: theme.colors.text,
-    fontSize: 17,
-    fontWeight: "600"
-  },
-  body: {
-    color: theme.colors.textMuted,
-    fontSize: 15,
-    lineHeight: 23
-  },
-  pricingTable: {
-    borderRadius: theme.radius.sm,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    overflow: "hidden"
-  },
-  pricingRow: {
-    flexDirection: "row",
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border
-  },
-  pricingHeaderCell: {
-    flex: 1,
-    color: theme.colors.textMuted,
-    fontSize: 12,
-    fontWeight: "600",
-    padding: theme.spacing.sm
-  },
-  pricingLabelCell: {
-    flex: 1,
-    color: theme.colors.text,
-    fontSize: 15,
-    fontWeight: "600",
-    padding: theme.spacing.sm
-  },
-  pricingValueCell: {
-    flex: 1,
-    color: theme.colors.text,
-    fontSize: 15,
-    padding: theme.spacing.sm
-  },
-  closingNote: {
-    marginTop: theme.spacing.lg,
-    color: theme.colors.textMuted,
-    fontSize: 14,
-    lineHeight: 20
-  }
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    heading: {
+      color: colors.text,
+      fontSize: 22,
+      fontWeight: "600",
+      marginBottom: theme.spacing.md
+    },
+    intro: {
+      color: colors.textMuted,
+      fontSize: 17,
+      lineHeight: 26
+    },
+    sections: {
+      marginTop: theme.spacing.xl,
+      gap: theme.spacing.md
+    },
+    section: {
+      padding: theme.spacing.md,
+      borderRadius: theme.radius.md,
+      backgroundColor: colors.surface,
+      gap: theme.spacing.sm
+    },
+    title: {
+      color: colors.text,
+      fontSize: 17,
+      fontWeight: "600"
+    },
+    body: {
+      color: colors.textMuted,
+      fontSize: 15,
+      lineHeight: 23
+    },
+    pricingTable: {
+      borderRadius: theme.radius.sm,
+      borderWidth: 1,
+      borderColor: colors.border,
+      overflow: "hidden"
+    },
+    pricingRow: {
+      flexDirection: "row",
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border
+    },
+    pricingHeaderCell: {
+      flex: 1,
+      color: colors.textMuted,
+      fontSize: 12,
+      fontWeight: "600",
+      padding: theme.spacing.sm
+    },
+    pricingLabelCell: {
+      flex: 1,
+      color: colors.text,
+      fontSize: 15,
+      fontWeight: "600",
+      padding: theme.spacing.sm
+    },
+    pricingValueCell: {
+      flex: 1,
+      color: colors.text,
+      fontSize: 15,
+      padding: theme.spacing.sm
+    },
+    closingNote: {
+      marginTop: theme.spacing.lg,
+      color: colors.textMuted,
+      fontSize: 14,
+      lineHeight: 20
+    }
+  });
+}
