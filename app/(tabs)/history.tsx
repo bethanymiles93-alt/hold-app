@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { router } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
 import { theme } from "@/constants/theme";
@@ -313,9 +314,18 @@ export default function HoldHistoryScreen() {
             </>
           )}
 
-          <Text style={styles.holdPlusNote}>
-            Hold+ adds multi-month trends, recurring timing, and longer-term summaries.
-          </Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push("/settings/hold-plus")}
+            style={({ pressed }) => [styles.holdPlusCard, pressed && styles.holdPlusCardPressed]}
+          >
+            <Text style={styles.holdPlusTitle}>More with Hold+</Text>
+            <Text style={styles.holdPlusBody}>
+              A multi-month view, seasonal and recurring-timing trends, how things change over
+              time, and optional health-note correlations — here's more depth if it'd help you.
+            </Text>
+            <Text style={styles.holdPlusLink}>Learn more ›</Text>
+          </Pressable>
         </View>
       )}
     </Screen>
@@ -484,9 +494,28 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600"
   },
-  holdPlusNote: {
+  holdPlusCard: {
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.surface,
+    padding: theme.spacing.md,
+    gap: theme.spacing.xs
+  },
+  holdPlusCardPressed: {
+    opacity: 0.7
+  },
+  holdPlusTitle: {
+    color: theme.colors.text,
+    fontSize: 15,
+    fontWeight: "600"
+  },
+  holdPlusBody: {
     color: theme.colors.textMuted,
     fontSize: 13,
     lineHeight: 19
+  },
+  holdPlusLink: {
+    color: theme.colors.link,
+    fontSize: 13,
+    fontWeight: "600"
   }
 });
