@@ -15,7 +15,7 @@ import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { buildAudienceCircles, useHoldFlow } from "@/context/HoldFlowContext";
 import { createDraft } from "@/services/draftService";
-import { startHoldPeriod } from "@/services/holdHistoryService";
+import { recordPostSendChoices, startHoldPeriod } from "@/services/holdHistoryService";
 import { circleDraftKey, clearDraft } from "@/services/messageDraftService";
 import { seedPersonaliseRecipient } from "@/services/conversationService";
 import { activateOutOfOffice } from "@/services/emailAccountService";
@@ -167,6 +167,11 @@ export default function HoldPeopleScreen() {
     if (widerWorldEnabled && widerWorldText.trim()) {
       await copyToClipboard(widerWorldText.trim());
     }
+
+    await recordPostSendChoices({
+      emailOutOfOfficeEnabled: emailEnabled,
+      widerWorldStatusEnabled: widerWorldEnabled
+    });
 
     router.replace("/create/done");
   };

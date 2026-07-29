@@ -21,7 +21,14 @@ import { HeaderSettingsButton } from "@/components/HeaderSettingsButton";
 import { theme } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { useHoldFlow } from "@/context/HoldFlowContext";
-import { addToAudience, endOpenHoldPeriod, getOpenHoldPeriod } from "@/services/holdHistoryService";
+import {
+  addToAudience,
+  beginReconnecting,
+  endOpenHoldPeriod,
+  getOpenHoldPeriod,
+  getReconnectCoverage,
+  getReconnectingPeriod
+} from "@/services/holdHistoryService";
 import {
   completeAll,
   getProgress as getConversationProgress,
@@ -60,7 +67,7 @@ const PALETTE_FADE_MS = 1200;
 const BREATHE_MIN_SCALE = 0.98;
 const BREATHE_HALF_CYCLE_MS = 4000;
 
-type HomeState = "loading" | "normal" | "taking-time" | "post-reconnect";
+type HomeState = "loading" | "normal" | "taking-time" | "reconnecting" | "post-reconnect";
 
 interface PostReconnectProgress {
   done: number;
@@ -74,6 +81,9 @@ export default function HomeScreen() {
   const [openPeriod, setOpenPeriod] = useState<HoldPeriod | null>(null);
   const [homeState, setHomeState] = useState<HomeState>("loading");
   const [postReconnectProgress, setPostReconnectProgress] = useState<PostReconnectProgress | null>(
+    null
+  );
+  const [reconnectingProgress, setReconnectingProgress] = useState<PostReconnectProgress | null>(
     null
   );
   const [isAnimating, setIsAnimating] = useState(false);
@@ -130,20 +140,33 @@ export default function HomeScreen() {
 
         let resolvedState: HomeState = "normal";
         let progress: PostReconnectProgress | null = null;
+        let reconnecting: PostReconnectProgress | null = null;
 
         if (period) {
           resolvedState = "taking-time";
         } else {
-          const conversationProgress = await getConversationProgress().catch(() => null);
+          const reconnectingPeriod = await getReconnectingPeriod().catch(() => null);
+          const coverage = reconnectingPeriod ? getReconnectCoverage(reconnectingPeriod) : null;
 
-          if (conversationProgress && conversationProgress.completed < conversationProgress.total) {
-            resolvedState = "post-reconnect";
-            progress = { done: conversationProgress.completed, total: conversationProgress.total };
+          if (reconnectingPeriod && coverage && !coverage.complete) {
+            // Coverage gate not yet satisfied — resume the Reconnect picker
+            // directly rather than showing a misleading Normal Home, so a
+            // force-quit mid-Reconnect never loses track of who's left.
+            resolvedState = "reconnecting";
+            reconnecting = { done: coverage.contactedIds.length, total: coverage.totalIds.length };
+          } else {
+            const conversationProgress = await getConversationProgress().catch(() => null);
+
+            if (conversationProgress && conversationProgress.completed < conversationProgress.total) {
+              resolvedState = "post-reconnect";
+              progress = { done: conversationProgress.completed, total: conversationProgress.total };
+            }
           }
         }
 
         setHomeState(resolvedState);
         setPostReconnectProgress(progress);
+        setReconnectingProgress(reconnecting);
 
         scaleAnim.setValue(resolvedState === "taking-time" ? QUIET_CIRCLE_SCALE : 1);
         Animated.timing(paletteAnim, {
@@ -165,11 +188,18 @@ export default function HomeScreen() {
     const circles = openPeriod?.audienceCircles ?? [];
     const ungrouped = openPeriod?.audienceUngrouped ?? [];
 
+    if (openPeriod) {
+      await beginReconnecting(openPeriod.id);
+    }
     await endOpenHoldPeriod();
     await seedFromAudience(circles, ungrouped);
     resetFlow("return");
     setAudience(circles, ungrouped);
     router.push("/return/transition");
+  };
+
+  const continueReconnecting = () => {
+    router.push("/return/reconnect");
   };
 
   const finishReconnecting = () => {
@@ -370,6 +400,31 @@ export default function HomeScreen() {
                 </Animated.View>
               </View>
             </Pressable>
+          ) : homeState === "reconnecting" ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Continue reconnecting"
+              disabled={isAnimating}
+              onPress={() => animateAndNavigate(QUIET_CIRCLE_SCALE, continueReconnecting)}
+            >
+              <Animated.View style={[styles.circleBox, { transform: [{ scale: scaleAnim }] }]}>
+                <Animated.View
+                  style={[
+                    styles.circleVisual,
+                    { backgroundColor: animatedPrimary, shadowColor: animatedPrimary }
+                  ]}
+                >
+                  <Text style={[styles.circleLabel, { color: currentTheme.colors.onPrimary }]}>
+                    Continue reconnecting
+                  </Text>
+                  <Text style={[styles.circleSubtext, { color: currentTheme.colors.onPrimary }]}>
+                    {reconnectingProgress
+                      ? `${reconnectingProgress.done} of ${reconnectingProgress.total} reached`
+                      : "Pick up where you left off"}
+                  </Text>
+                </Animated.View>
+              </Animated.View>
+            </Pressable>
           ) : homeState === "post-reconnect" ? (
             <Pressable
               accessibilityRole="button"
@@ -421,9 +476,11 @@ export default function HomeScreen() {
           <Text style={[styles.reassuranceText, { color: currentTheme.colors.textMuted }]}>
             {homeState === "taking-time"
               ? "Come back at your own pace."
-              : homeState === "post-reconnect"
-                ? "There's no rush to finish."
-                : "Take the time you need."}
+              : homeState === "reconnecting"
+                ? "Reach everyone at your own pace, a few at a time."
+                : homeState === "post-reconnect"
+                  ? "There's no rush to finish."
+                  : "Take the time you need."}
           </Text>
 
           {homeState === "taking-time" ? (

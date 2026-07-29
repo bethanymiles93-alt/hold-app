@@ -3,6 +3,7 @@ import type { AudienceCircle, HoldPeriod } from "@/types/hold";
 
 const INDEX_KEY = "hold.history.index";
 const OPEN_KEY = "hold.history.open";
+const RECONNECTING_KEY = "hold.history.reconnecting";
 const RECORD_PREFIX = "hold.history.";
 
 function recordKey(id: string): string {
@@ -53,6 +54,8 @@ export async function startHoldPeriod(input: StartHoldPeriodInput): Promise<void
 
   await writeRecord(period);
   await SecureStore.setItemAsync(OPEN_KEY, period.id);
+  // A fresh Hold period makes any previous, unfinished Reconnect moot.
+  await endReconnecting();
 }
 
 /**
@@ -127,4 +130,74 @@ export async function deleteAllHoldHistory(): Promise<void> {
   await Promise.all(ids.map((id) => SecureStore.deleteItemAsync(recordKey(id))));
   await SecureStore.deleteItemAsync(INDEX_KEY);
   await SecureStore.deleteItemAsync(OPEN_KEY);
+  await SecureStore.deleteItemAsync(RECONNECTING_KEY);
+}
+
+/**
+ * Writes the OOO/status choices made at Going Quiet's "Done" step onto the
+ * still-open period (Send already started it; Done is when these are set).
+ */
+export async function recordPostSendChoices(choices: {
+  emailOutOfOfficeEnabled: boolean;
+  widerWorldStatusEnabled: boolean;
+}): Promise<void> {
+  const openId = await SecureStore.getItemAsync(OPEN_KEY);
+  if (!openId) return;
+
+  const period = await readRecord(openId);
+  if (!period) return;
+
+  await writeRecord({ ...period, ...choices });
+}
+
+/**
+ * Marks which period is currently being reconnected from — a durable marker,
+ * separate from OPEN_KEY, since endOpenHoldPeriod() closes the period the
+ * moment Reconnect begins. Lets the app resume correctly after a force-quit:
+ * see docs/03-privacy-model.md for why this is stored at all.
+ */
+export async function beginReconnecting(periodId: string): Promise<void> {
+  await SecureStore.setItemAsync(RECONNECTING_KEY, periodId);
+}
+
+/** The period currently being reconnected from, if any — read fresh, not from in-memory context. */
+export async function getReconnectingPeriod(): Promise<HoldPeriod | null> {
+  const periodId = await SecureStore.getItemAsync(RECONNECTING_KEY);
+  if (!periodId) return null;
+
+  return readRecord(periodId);
+}
+
+/** Appends a Circle id or ungrouped phone number to the period's contacted list — idempotent. */
+export async function markReconnectContacted(periodId: string, contactedId: string): Promise<void> {
+  const period = await readRecord(periodId);
+  if (!period) return;
+
+  const existing = period.reconnectContactedIds ?? [];
+  if (existing.includes(contactedId)) return;
+
+  await writeRecord({ ...period, reconnectContactedIds: [...existing, contactedId] });
+}
+
+/** Clears the reconnecting marker once Reconnect has genuinely finished. */
+export async function endReconnecting(): Promise<void> {
+  await SecureStore.deleteItemAsync(RECONNECTING_KEY);
+}
+
+export interface ReconnectCoverage {
+  totalIds: string[];
+  contactedIds: string[];
+  complete: boolean;
+}
+
+/** Pure: whether every Circle/ungrouped person in the period's audience has been reached. */
+export function getReconnectCoverage(period: HoldPeriod): ReconnectCoverage {
+  const totalIds = [
+    ...(period.audienceCircles ?? []).map((circle) => circle.circleId),
+    ...(period.audienceUngrouped ?? []).map((contact) => contact.phoneNumber)
+  ];
+  const contactedIds = period.reconnectContactedIds ?? [];
+  const complete = totalIds.length > 0 && totalIds.every((id) => contactedIds.includes(id));
+
+  return { totalIds, contactedIds, complete };
 }

@@ -35,6 +35,11 @@ export async function activateOutOfOffice(accounts: EmailAccount[]): Promise<voi
   return;
 }
 
+/** Mocked, symmetric to activateOutOfOffice — same honesty boundary, no real provider call yet. */
+export async function deactivateOutOfOffice(): Promise<void> {
+  return;
+}
+
 export function createEmailAccountId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }

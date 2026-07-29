@@ -7,6 +7,7 @@ import { PrimaryButton } from "@/components/PrimaryButton";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { useHoldFlow } from "@/context/HoldFlowContext";
+import { endReconnecting } from "@/services/holdHistoryService";
 
 export default function ReturnDoneScreen() {
   const { resetFlow } = useHoldFlow();
@@ -14,6 +15,7 @@ export default function ReturnDoneScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const finish = () => {
+    void endReconnecting();
     // Back to the neutral default, not "return" — otherwise mode stays stuck on
     // "return" forever, and a later standalone Library visit would wrongly look
     // like it's still inside a Reconnect journey.

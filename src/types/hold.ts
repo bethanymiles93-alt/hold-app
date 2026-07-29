@@ -90,6 +90,11 @@ export interface HoldPeriod {
   recipients: string[];
   audienceCircles?: AudienceCircle[];
   audienceUngrouped?: AudienceContact[];
+  /** Whether email out-of-office / wider-world status were turned on at Going Quiet's "Done" step. */
+  emailOutOfOfficeEnabled?: boolean;
+  widerWorldStatusEnabled?: boolean;
+  /** Circle ids and ungrouped phone numbers already sent an instant message this Reconnect session — see docs/03-privacy-model.md. */
+  reconnectContactedIds?: string[];
 }
 
 export interface CircleContact {

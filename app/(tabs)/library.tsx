@@ -190,6 +190,12 @@ function PersonaliseAccordion({ person, isOpen, onToggle }: PersonaliseAccordion
 
       {isOpen ? (
         <View style={styles.accordionPanel}>
+          <Text style={styles.contactedStatus}>
+            {person.sentAt !== null
+              ? "Already sent them a message."
+              : "This will be your first message to them."}
+          </Text>
+
           <Text style={styles.fieldLabel}>What they sent</Text>
           <TextInput
             accessibilityLabel="Message they sent"
@@ -946,6 +952,11 @@ function createStyles(colors: ThemeColors) {
   },
   accordionPanel: {
     gap: theme.spacing.xs
+  },
+  contactedStatus: {
+    color: colors.textMuted,
+    fontSize: 13,
+    fontStyle: "italic"
   },
   fieldLabel: {
     color: colors.textMuted,
