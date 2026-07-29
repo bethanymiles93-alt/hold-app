@@ -174,15 +174,17 @@ export function SettingsDrawer() {
               <ComingLaterRow label="Hold+" />
             </View>
 
-            <View style={[styles.group, styles.groupExtraSpaced]}>
-              <ActionRow label="Feedback" onPress={giveFeedback} />
-              <ActionRow label="Share Hold" onPress={shareApp} />
-            </View>
+            <View style={styles.bottomCluster}>
+              <View style={styles.group}>
+                <ActionRow label="Feedback" onPress={giveFeedback} />
+                <ActionRow label="Share Hold" onPress={shareApp} />
+              </View>
 
-            <View style={[styles.group, styles.groupWithDivider]}>
-              <NavRow label="Privacy Policy" onPress={() => goTo("/settings/privacy")} />
-              <ComingLaterRow label="Terms" />
-              <ActionRow label="Delete my data" onPress={deleteEverything} destructive />
+              <View style={[styles.group, styles.groupWithDivider]}>
+                <NavRow label="Privacy Policy" onPress={() => goTo("/settings/privacy")} />
+                <ComingLaterRow label="Terms" />
+                <ActionRow label="Delete my data" onPress={deleteEverything} destructive />
+              </View>
             </View>
           </View>
         </SafeAreaView>
@@ -242,17 +244,20 @@ const styles = StyleSheet.create({
   groupSpaced: {
     marginTop: theme.spacing.xl
   },
-  // The single largest gap in the drawer, above Support only — About Hold
-  // (values/browsing) to Support (Feedback/Share) is the one section break
-  // meant to read as more of a beat than the others.
-  groupExtraSpaced: {
-    marginTop: theme.spacing.xxl
-  },
+  // The single largest gap in the drawer, above the bottom cluster only —
+  // separates the daily-use groups (Manage Circles, Our Mission) from the
+  // occasional-use cluster (Feedback/Share + Legal and data) below.
   // Pinned to the bottom of the drawer via the flexible auto margin (content
-  // is flex: 1), rather than a fixed distance from Share Hold above it — sits
-  // the same distance from the bottom edge as Manage Circles is from the top.
+  // is flex: 1), rather than a fixed distance from Our Mission above it —
+  // this whole cluster sits the same distance from the bottom edge as
+  // Manage Circles is from the top. Feedback/Share and Legal and data move
+  // as one block so Feedback/Share reads as belonging with the bottom
+  // cluster rather than floating alone in the gap.
+  bottomCluster: {
+    marginTop: "auto"
+  },
   groupWithDivider: {
-    marginTop: "auto",
+    marginTop: theme.spacing.lg,
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
     paddingTop: theme.spacing.md
