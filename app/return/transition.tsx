@@ -1,11 +1,16 @@
+import { useMemo } from "react";
 import { router } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
 import { Screen } from "@/components/Screen";
 import { HoldMark } from "@/components/HoldMark";
 import { PrimaryButton } from "@/components/PrimaryButton";
-import { theme } from "@/constants/theme";
+import { theme, type ThemeColors } from "@/constants/theme";
+import { useAppTheme } from "@/hooks/useAppTheme";
 
 export default function ReconnectTransitionScreen() {
+  const { colors } = useAppTheme("normal");
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   const goToReconnect = () => {
     router.replace("/return/reconnect");
   };
@@ -25,27 +30,29 @@ export default function ReconnectTransitionScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  content: {
-    justifyContent: "space-between",
-    paddingTop: 88
-  },
-  message: {
-    alignItems: "center",
-    gap: theme.spacing.md
-  },
-  title: {
-    color: theme.colors.text,
-    fontSize: 22,
-    lineHeight: 28,
-    textAlign: "center",
-    fontWeight: "600"
-  },
-  subtitle: {
-    color: theme.colors.textMuted,
-    fontSize: 17,
-    lineHeight: 25,
-    textAlign: "center",
-    maxWidth: 300
-  }
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    content: {
+      justifyContent: "space-between",
+      paddingTop: 88
+    },
+    message: {
+      alignItems: "center",
+      gap: theme.spacing.md
+    },
+    title: {
+      color: colors.text,
+      fontSize: 22,
+      lineHeight: 28,
+      textAlign: "center",
+      fontWeight: "600"
+    },
+    subtitle: {
+      color: colors.textMuted,
+      fontSize: 17,
+      lineHeight: 25,
+      textAlign: "center",
+      maxWidth: 300
+    }
+  });
+}

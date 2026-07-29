@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { SecondaryButton } from "@/components/SecondaryButton";
-import { theme } from "@/constants/theme";
+import { theme, type ThemeColors } from "@/constants/theme";
+import { useAppTheme } from "@/hooks/useAppTheme";
 import {
   DRAFT_REPLY_RETENTION_HOURS,
   FRIEND_MESSAGE_RETENTION_HOURS,
@@ -78,6 +79,8 @@ interface PersonaliseAccordionProps {
 }
 
 function PersonaliseAccordion({ person, isOpen, onToggle }: PersonaliseAccordionProps) {
+  const { colors } = useAppTheme("normal");
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [loaded, setLoaded] = useState(false);
   const [friendMessage, setFriendMessage] = useState("");
   const [style, setStyle] = useState<ReturnStyle | null>(null);
@@ -237,6 +240,8 @@ function PersonaliseAccordion({ person, isOpen, onToggle }: PersonaliseAccordion
 
 export default function LibraryScreen() {
   const { mode } = useHoldFlow();
+  const { colors } = useAppTheme("normal");
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [people, setPeople] = useState<ConversationPerson[]>([]);
   const [allSelected, setAllSelected] = useState(true);
   const [sharedMessage, setSharedMessage] = useState(DEFAULT_QUICK_MESSAGE);
@@ -646,33 +651,34 @@ export default function LibraryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   content: {
     gap: theme.spacing.xl
   },
   pageTitle: {
-    color: theme.colors.text,
+    color: colors.text,
     fontSize: 22,
     fontWeight: "600"
   },
   empty: {
-    color: theme.colors.textMuted,
+    color: colors.textMuted,
     fontSize: 16,
     lineHeight: 24
   },
   section: {
     gap: theme.spacing.md,
     borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
+    borderTopColor: colors.border,
     paddingTop: theme.spacing.md
   },
   sectionTitle: {
-    color: theme.colors.text,
+    color: colors.text,
     fontSize: 17,
     fontWeight: "600"
   },
   helper: {
-    color: theme.colors.textMuted,
+    color: colors.textMuted,
     fontSize: 14,
     lineHeight: 20
   },
@@ -685,22 +691,22 @@ const styles = StyleSheet.create({
     minHeight: 36,
     borderRadius: theme.radius.pill,
     borderWidth: 1.5,
-    borderColor: theme.colors.border,
+    borderColor: colors.border,
     paddingHorizontal: theme.spacing.md,
     alignItems: "center",
     justifyContent: "center"
   },
   chipSelected: {
-    backgroundColor: theme.colors.primary,
-    borderColor: theme.colors.primary
+    backgroundColor: colors.primary,
+    borderColor: colors.primary
   },
   chipText: {
-    color: theme.colors.text,
+    color: colors.text,
     fontSize: 14,
     fontWeight: "600"
   },
   chipTextSelected: {
-    color: theme.colors.onPrimary
+    color: colors.onPrimary
   },
   chipSent: {
     minHeight: 36,
@@ -708,10 +714,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.md,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: theme.colors.surfaceStrong
+    backgroundColor: colors.surfaceStrong
   },
   chipSentText: {
-    color: theme.colors.textMuted,
+    color: colors.textMuted,
     fontSize: 14,
     fontWeight: "600"
   },
@@ -721,13 +727,13 @@ const styles = StyleSheet.create({
   input: {
     minHeight: 60,
     borderWidth: 1.5,
-    borderColor: theme.colors.border,
+    borderColor: colors.border,
     borderRadius: theme.radius.md,
     padding: theme.spacing.sm,
-    color: theme.colors.text,
+    color: colors.text,
     fontSize: 16,
     lineHeight: 22,
-    backgroundColor: theme.colors.white
+    backgroundColor: colors.white
   },
   circleRows: {
     gap: theme.spacing.md
@@ -741,7 +747,7 @@ const styles = StyleSheet.create({
     alignItems: "center"
   },
   circleRowTitle: {
-    color: theme.colors.text,
+    color: colors.text,
     fontSize: 15,
     fontWeight: "600"
   },
@@ -752,19 +758,19 @@ const styles = StyleSheet.create({
     minHeight: 40,
     borderRadius: theme.radius.md,
     paddingHorizontal: theme.spacing.md,
-    backgroundColor: theme.colors.surfaceStrong
+    backgroundColor: colors.surfaceStrong
   },
   circleRowSentText: {
-    color: theme.colors.textMuted,
+    color: colors.textMuted,
     fontSize: 15,
     fontWeight: "600"
   },
   circleRowSentLabel: {
-    color: theme.colors.textMuted,
+    color: colors.textMuted,
     fontSize: 13
   },
   linkText: {
-    color: theme.colors.link,
+    color: colors.link,
     fontSize: 13,
     fontWeight: "600"
   },
@@ -780,7 +786,7 @@ const styles = StyleSheet.create({
     minHeight: 32
   },
   expandedPersonName: {
-    color: theme.colors.text,
+    color: colors.text,
     fontSize: 15
   },
   personList: {
@@ -806,21 +812,21 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: theme.radius.sm,
     borderWidth: 1.5,
-    borderColor: theme.colors.primary
+    borderColor: colors.primary
   },
   checkboxChecked: {
-    backgroundColor: theme.colors.primary
+    backgroundColor: colors.primary
   },
   personName: {
-    color: theme.colors.text,
+    color: colors.text,
     fontSize: 16
   },
   personNameDone: {
-    color: theme.colors.textMuted,
+    color: colors.textMuted,
     textDecorationLine: "line-through"
   },
   circleTag: {
-    color: theme.colors.textMuted,
+    color: colors.textMuted,
     fontSize: 12
   },
   personaliseBlock: {
@@ -831,7 +837,7 @@ const styles = StyleSheet.create({
     gap: theme.spacing.xs
   },
   fieldLabel: {
-    color: theme.colors.textMuted,
+    color: colors.textMuted,
     fontSize: 13,
     fontWeight: "600",
     marginTop: theme.spacing.xs
@@ -845,25 +851,26 @@ const styles = StyleSheet.create({
     minHeight: 32,
     borderRadius: theme.radius.pill,
     borderWidth: 1.5,
-    borderColor: theme.colors.border,
+    borderColor: colors.border,
     paddingHorizontal: theme.spacing.sm,
     alignItems: "center",
     justifyContent: "center"
   },
   styleChipSelected: {
-    backgroundColor: theme.colors.primary,
-    borderColor: theme.colors.primary
+    backgroundColor: colors.primary,
+    borderColor: colors.primary
   },
   styleChipText: {
-    color: theme.colors.text,
+    color: colors.text,
     fontSize: 13,
     fontWeight: "600"
   },
   styleChipTextSelected: {
-    color: theme.colors.onPrimary
+    color: colors.onPrimary
   },
   accordionActions: {
     gap: theme.spacing.sm,
     marginTop: theme.spacing.sm
   }
-});
+  });
+}

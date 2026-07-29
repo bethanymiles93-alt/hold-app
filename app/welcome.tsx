@@ -1,15 +1,19 @@
+import { useMemo } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
 import { Screen } from "@/components/Screen";
 import { HoldMark } from "@/components/HoldMark";
 import { PrimaryButton } from "@/components/PrimaryButton";
-import { theme } from "@/constants/theme";
+import { theme, type ThemeColors } from "@/constants/theme";
+import { useAppTheme } from "@/hooks/useAppTheme";
 import { useHoldFlow } from "@/context/HoldFlowContext";
 import { HAS_SEEN_WELCOME_KEY } from "@/constants/storageKeys";
 
 export default function WelcomeScreen() {
   const { resetFlow } = useHoldFlow();
+  const { colors } = useAppTheme("normal");
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const getStarted = async () => {
     await AsyncStorage.setItem(HAS_SEEN_WELCOME_KEY, "true");
@@ -44,27 +48,29 @@ export default function WelcomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  content: {
-    justifyContent: "space-between",
-    paddingTop: 56,
-    gap: theme.spacing.xl
-  },
-  brand: {
-    alignItems: "center"
-  },
-  body: {
-    gap: theme.spacing.lg
-  },
-  title: {
-    color: theme.colors.text,
-    fontSize: 22,
-    lineHeight: 28,
-    fontWeight: "600"
-  },
-  paragraph: {
-    color: theme.colors.text,
-    fontSize: 17,
-    lineHeight: 26
-  }
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    content: {
+      justifyContent: "space-between",
+      paddingTop: 56,
+      gap: theme.spacing.xl
+    },
+    brand: {
+      alignItems: "center"
+    },
+    body: {
+      gap: theme.spacing.lg
+    },
+    title: {
+      color: colors.text,
+      fontSize: 22,
+      lineHeight: 28,
+      fontWeight: "600"
+    },
+    paragraph: {
+      color: colors.text,
+      fontSize: 17,
+      lineHeight: 26
+    }
+  });
+}

@@ -3,21 +3,23 @@ import { HeaderSettingsButton } from "@/components/HeaderSettingsButton";
 import { HoldMark } from "@/components/HoldMark";
 import { LibraryIcon } from "@/components/LibraryIcon";
 import { HistoryIcon } from "@/components/HistoryIcon";
-import { theme } from "@/constants/theme";
+import { useAppTheme } from "@/hooks/useAppTheme";
 
 export default function TabsLayout() {
+  const { colors } = useAppTheme("normal");
+
   return (
     <Tabs
       screenOptions={{
         headerShadowVisible: false,
-        headerTintColor: theme.colors.text,
-        headerStyle: { backgroundColor: theme.colors.background },
+        headerTintColor: colors.text,
+        headerStyle: { backgroundColor: colors.background },
         headerRight: () => <HeaderSettingsButton />,
-        tabBarActiveTintColor: theme.colors.primary,
-        tabBarInactiveTintColor: theme.colors.textMuted,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
-          backgroundColor: theme.colors.background,
-          borderTopColor: theme.colors.border
+          backgroundColor: colors.background,
+          borderTopColor: colors.border
         },
         tabBarLabelStyle: {
           fontSize: 12,

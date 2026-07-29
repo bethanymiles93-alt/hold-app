@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { router } from "expo-router";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Screen } from "@/components/Screen";
@@ -7,7 +7,8 @@ import { GroupPicker } from "@/components/GroupPicker";
 import { ChoiceCard } from "@/components/ChoiceCard";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { HOLD_INTENTS } from "@/constants/copy";
-import { theme } from "@/constants/theme";
+import { theme, type ThemeColors } from "@/constants/theme";
+import { useAppTheme } from "@/hooks/useAppTheme";
 import { useHoldFlow } from "@/context/HoldFlowContext";
 import { createDraft } from "@/services/draftService";
 import type { HoldIntent } from "@/types/hold";
@@ -21,6 +22,8 @@ export default function HoldPeopleScreen() {
     setCircleDraftMessage,
     saveCircleDraftAsDefault
   } = useHoldFlow();
+  const { colors } = useAppTheme("normal");
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [showingChipsFor, setShowingChipsFor] = useState<Set<string>>(new Set());
 
   const canContinue =
@@ -126,69 +129,71 @@ export default function HoldPeopleScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  content: {
-    justifyContent: "space-between",
-    gap: theme.spacing.md,
-    paddingTop: theme.spacing.md,
-    paddingBottom: theme.spacing.md
-  },
-  top: {
-    gap: theme.spacing.lg
-  },
-  circleSection: {
-    gap: theme.spacing.sm
-  },
-  sectionLabel: {
-    color: theme.colors.text,
-    fontSize: 22,
-    lineHeight: 28,
-    fontWeight: "600",
-    letterSpacing: -0.3
-  },
-  choices: {
-    gap: theme.spacing.sm
-  },
-  messageBlock: {
-    gap: theme.spacing.xs
-  },
-  messageInput: {
-    minHeight: 120,
-    borderWidth: 1.5,
-    borderColor: theme.colors.border,
-    borderRadius: theme.radius.md,
-    padding: theme.spacing.md,
-    color: theme.colors.text,
-    fontSize: 17,
-    lineHeight: 25,
-    backgroundColor: theme.colors.white
-  },
-  messageControls: {
-    flexDirection: "row",
-    gap: theme.spacing.lg
-  },
-  linkText: {
-    color: theme.colors.link,
-    fontSize: 14,
-    fontWeight: "600"
-  },
-  savedPill: {
-    minHeight: 28,
-    borderRadius: theme.radius.pill,
-    paddingHorizontal: theme.spacing.sm,
-    alignItems: "center",
-    justifyContent: "center",
-    alignSelf: "flex-start",
-    backgroundColor: theme.colors.surfaceStrong
-  },
-  savedPillText: {
-    color: theme.colors.textMuted,
-    fontSize: 13,
-    fontWeight: "600"
-  },
-  helper: {
-    color: theme.colors.textMuted,
-    fontSize: 13,
-    lineHeight: 19
-  }
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    content: {
+      justifyContent: "space-between",
+      gap: theme.spacing.md,
+      paddingTop: theme.spacing.md,
+      paddingBottom: theme.spacing.md
+    },
+    top: {
+      gap: theme.spacing.lg
+    },
+    circleSection: {
+      gap: theme.spacing.sm
+    },
+    sectionLabel: {
+      color: colors.text,
+      fontSize: 22,
+      lineHeight: 28,
+      fontWeight: "600",
+      letterSpacing: -0.3
+    },
+    choices: {
+      gap: theme.spacing.sm
+    },
+    messageBlock: {
+      gap: theme.spacing.xs
+    },
+    messageInput: {
+      minHeight: 120,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      borderRadius: theme.radius.md,
+      padding: theme.spacing.md,
+      color: colors.text,
+      fontSize: 17,
+      lineHeight: 25,
+      backgroundColor: colors.white
+    },
+    messageControls: {
+      flexDirection: "row",
+      gap: theme.spacing.lg
+    },
+    linkText: {
+      color: colors.link,
+      fontSize: 14,
+      fontWeight: "600"
+    },
+    savedPill: {
+      minHeight: 28,
+      borderRadius: theme.radius.pill,
+      paddingHorizontal: theme.spacing.sm,
+      alignItems: "center",
+      justifyContent: "center",
+      alignSelf: "flex-start",
+      backgroundColor: colors.surfaceStrong
+    },
+    savedPillText: {
+      color: colors.textMuted,
+      fontSize: 13,
+      fontWeight: "600"
+    },
+    helper: {
+      color: colors.textMuted,
+      fontSize: 13,
+      lineHeight: 19
+    }
+  });
+}

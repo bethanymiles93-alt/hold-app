@@ -1,11 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { router } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { SecondaryButton } from "@/components/SecondaryButton";
-import { theme } from "@/constants/theme";
+import { theme, type ThemeColors } from "@/constants/theme";
+import { useAppTheme } from "@/hooks/useAppTheme";
 import { QUICK_RECONNECT_MESSAGES } from "@/constants/copy";
 import { useHoldFlow } from "@/context/HoldFlowContext";
 import { sendOrShare } from "@/services/smsService";
@@ -16,6 +17,8 @@ const RECONNECT_DRAFT_KEY = "reconnect";
 
 export default function ReconnectScreen() {
   const { audienceCircles, audienceUngrouped } = useHoldFlow();
+  const { colors } = useAppTheme("normal");
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [message, setMessage] = useState(QUICK_RECONNECT_MESSAGES[0]?.text ?? "");
   const [isEditing, setIsEditing] = useState(false);
   const [sentAt, setSentAt] = useState<number | null>(null);
@@ -119,72 +122,74 @@ export default function ReconnectScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  content: {
-    justifyContent: "space-between",
-    gap: theme.spacing.xl
-  },
-  top: {
-    gap: theme.spacing.lg
-  },
-  recipientPanel: {
-    gap: theme.spacing.xs,
-    borderRadius: theme.radius.md,
-    backgroundColor: theme.colors.surface,
-    padding: theme.spacing.md
-  },
-  label: {
-    color: theme.colors.textMuted,
-    fontSize: 14,
-    fontWeight: "600"
-  },
-  recipients: {
-    color: theme.colors.text,
-    fontSize: 17,
-    lineHeight: 24
-  },
-  messageBox: {
-    borderWidth: 1.5,
-    borderColor: theme.colors.border,
-    borderRadius: theme.radius.md,
-    padding: theme.spacing.md,
-    backgroundColor: theme.colors.white
-  },
-  messageText: {
-    color: theme.colors.text,
-    fontSize: 17,
-    lineHeight: 25
-  },
-  input: {
-    minHeight: 100,
-    borderWidth: 1.5,
-    borderColor: theme.colors.border,
-    borderRadius: theme.radius.md,
-    padding: theme.spacing.md,
-    color: theme.colors.text,
-    fontSize: 17,
-    lineHeight: 25,
-    backgroundColor: theme.colors.white
-  },
-  linkText: {
-    color: theme.colors.link,
-    fontSize: 14,
-    fontWeight: "600"
-  },
-  sentState: {
-    gap: theme.spacing.xs
-  },
-  sentLabel: {
-    color: theme.colors.text,
-    fontSize: 17,
-    fontWeight: "600"
-  },
-  gatePrompt: {
-    color: theme.colors.textMuted,
-    fontSize: 15,
-    lineHeight: 22
-  },
-  actions: {
-    gap: theme.spacing.sm
-  }
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    content: {
+      justifyContent: "space-between",
+      gap: theme.spacing.xl
+    },
+    top: {
+      gap: theme.spacing.lg
+    },
+    recipientPanel: {
+      gap: theme.spacing.xs,
+      borderRadius: theme.radius.md,
+      backgroundColor: colors.surface,
+      padding: theme.spacing.md
+    },
+    label: {
+      color: colors.textMuted,
+      fontSize: 14,
+      fontWeight: "600"
+    },
+    recipients: {
+      color: colors.text,
+      fontSize: 17,
+      lineHeight: 24
+    },
+    messageBox: {
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      borderRadius: theme.radius.md,
+      padding: theme.spacing.md,
+      backgroundColor: colors.white
+    },
+    messageText: {
+      color: colors.text,
+      fontSize: 17,
+      lineHeight: 25
+    },
+    input: {
+      minHeight: 100,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      borderRadius: theme.radius.md,
+      padding: theme.spacing.md,
+      color: colors.text,
+      fontSize: 17,
+      lineHeight: 25,
+      backgroundColor: colors.white
+    },
+    linkText: {
+      color: colors.link,
+      fontSize: 14,
+      fontWeight: "600"
+    },
+    sentState: {
+      gap: theme.spacing.xs
+    },
+    sentLabel: {
+      color: colors.text,
+      fontSize: 17,
+      fontWeight: "600"
+    },
+    gatePrompt: {
+      color: colors.textMuted,
+      fontSize: 15,
+      lineHeight: 22
+    },
+    actions: {
+      gap: theme.spacing.sm
+    }
+  });
+}
