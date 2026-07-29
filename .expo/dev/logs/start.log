@@ -454,3 +454,11 @@
 {"_e":"metro:server_log","_t":1785317514298,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","com.holdapp.mobile","iPhone","60"]}
 {"_e":"metro:bundling:started","_t":1785317873106,"id":"a","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
 {"_e":"metro:bundling:done","_t":1785317873153,"id":"a","total":1,"ms":46.762917}
+{"_e":"metro:bundling:started","_t":1785318234987,"id":"b","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1785318235127,"id":"b","total":1,"ms":137.417542}
+{"_e":"metro:bundling:started","_t":1785318679688,"id":"c","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1785318679842,"id":"c","total":1,"ms":153.584542}
+{"_e":"metro:bundling:started","_t":1785318683546,"id":"d","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1785318683615,"id":"d","total":1,"ms":68.531292}
+{"_e":"metro:bundling:started","_t":1785319248282,"id":"e","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1785319248432,"id":"e","total":1,"ms":148.059875}
