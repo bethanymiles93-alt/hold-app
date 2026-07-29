@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
-import { theme } from "@/constants/theme";
+import { theme, type ThemeColors } from "@/constants/theme";
+import { useAppTheme } from "@/hooks/useAppTheme";
 import {
   buildMonthGrid,
   formatDateTime,
@@ -35,6 +36,9 @@ interface PeriodCardProps {
 }
 
 function PeriodCard({ period, onDelete }: PeriodCardProps) {
+  const { colors } = useAppTheme("normal");
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <View style={styles.item}>
       <Text style={styles.itemRecipients}>{period.recipients.join(", ")}</Text>
@@ -63,6 +67,8 @@ interface MonthCalendarViewProps {
 
 /** A month grid with quiet days marked, tap a day for its period(s) — its own independent month/selection state. */
 function MonthCalendarView({ periods, onDelete }: MonthCalendarViewProps) {
+  const { colors } = useAppTheme("normal");
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [monthStart, setMonthStart] = useState(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
@@ -173,6 +179,8 @@ function MonthCalendarView({ periods, onDelete }: MonthCalendarViewProps) {
 }
 
 export default function HoldHistoryScreen() {
+  const { colors } = useAppTheme("normal");
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [periods, setPeriods] = useState<HoldPeriod[]>([]);
   const [segment, setSegment] = useState<Segment>("history");
   const [view, setView] = useState<ViewMode>("list");
@@ -341,7 +349,8 @@ export default function HoldHistoryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   content: {
     gap: theme.spacing.lg
   },
@@ -356,22 +365,22 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: theme.radius.md,
     borderWidth: 1.5,
-    borderColor: theme.colors.border
+    borderColor: colors.border
   },
   toggleActive: {
-    borderColor: theme.colors.primary,
-    backgroundColor: theme.colors.surfaceStrong
+    borderColor: colors.primary,
+    backgroundColor: colors.surfaceStrong
   },
   toggleLabel: {
-    color: theme.colors.textMuted,
+    color: colors.textMuted,
     fontSize: 15,
     fontWeight: "600"
   },
   toggleLabelActive: {
-    color: theme.colors.text
+    color: colors.text
   },
   empty: {
-    color: theme.colors.textMuted,
+    color: colors.textMuted,
     fontSize: 16,
     lineHeight: 24
   },
@@ -382,22 +391,22 @@ const styles = StyleSheet.create({
     gap: 2,
     borderRadius: theme.radius.md,
     borderWidth: 1.5,
-    borderColor: theme.colors.border,
+    borderColor: colors.border,
     padding: theme.spacing.md
   },
   itemRecipients: {
-    color: theme.colors.text,
+    color: colors.text,
     fontSize: 17,
     fontWeight: "600",
     marginBottom: theme.spacing.xs
   },
   itemMeta: {
-    color: theme.colors.textMuted,
+    color: colors.textMuted,
     fontSize: 14,
     lineHeight: 20
   },
   itemDuration: {
-    color: theme.colors.link,
+    color: colors.link,
     fontSize: 14,
     fontWeight: "600",
     marginTop: theme.spacing.xs
@@ -409,7 +418,7 @@ const styles = StyleSheet.create({
     justifyContent: "center"
   },
   deleteLabel: {
-    color: theme.colors.error,
+    color: colors.error,
     fontSize: 14,
     fontWeight: "600"
   },
@@ -420,12 +429,12 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.sm
   },
   monthNav: {
-    color: theme.colors.primary,
+    color: colors.primary,
     fontSize: 24,
     paddingHorizontal: theme.spacing.md
   },
   monthLabel: {
-    color: theme.colors.text,
+    color: colors.text,
     fontSize: 17,
     fontWeight: "600"
   },
@@ -435,7 +444,7 @@ const styles = StyleSheet.create({
   weekdayLabel: {
     flex: 1,
     textAlign: "center",
-    color: theme.colors.textMuted,
+    color: colors.textMuted,
     fontSize: 12,
     fontWeight: "600"
   },
@@ -454,7 +463,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 32,
-    backgroundColor: theme.colors.surfaceStrong
+    backgroundColor: colors.surfaceStrong
   },
   dayBandRoundStart: {
     borderTopLeftRadius: 16,
@@ -473,10 +482,10 @@ const styles = StyleSheet.create({
   },
   dayCircleSelected: {
     borderWidth: 1.5,
-    borderColor: theme.colors.primary
+    borderColor: colors.primary
   },
   dayNumber: {
-    color: theme.colors.text,
+    color: colors.text,
     fontSize: 14
   },
   dayDetail: {
@@ -494,18 +503,18 @@ const styles = StyleSheet.create({
   statTile: {
     flexBasis: "47%",
     flexGrow: 1,
-    backgroundColor: theme.colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: theme.radius.md,
     padding: theme.spacing.md,
     gap: theme.spacing.xs
   },
   statTileValue: {
-    color: theme.colors.text,
+    color: colors.text,
     fontSize: 20,
     fontWeight: "700"
   },
   statTileLabel: {
-    color: theme.colors.textMuted,
+    color: colors.textMuted,
     fontSize: 13,
     lineHeight: 18
   },
@@ -513,16 +522,16 @@ const styles = StyleSheet.create({
     padding: theme.spacing.md,
     borderRadius: theme.radius.md,
     borderWidth: 1,
-    borderColor: theme.colors.border
+    borderColor: colors.border
   },
   exportNoteText: {
-    color: theme.colors.textMuted,
+    color: colors.textMuted,
     fontSize: 15,
     lineHeight: 22
   },
   holdPlusCard: {
     borderRadius: theme.radius.md,
-    backgroundColor: theme.colors.surface,
+    backgroundColor: colors.surface,
     padding: theme.spacing.md,
     gap: theme.spacing.xs
   },
@@ -530,18 +539,19 @@ const styles = StyleSheet.create({
     opacity: 0.7
   },
   holdPlusTitle: {
-    color: theme.colors.text,
+    color: colors.text,
     fontSize: 15,
     fontWeight: "600"
   },
   holdPlusBody: {
-    color: theme.colors.textMuted,
+    color: colors.textMuted,
     fontSize: 15,
     lineHeight: 22
   },
   holdPlusLink: {
-    color: theme.colors.link,
+    color: colors.link,
     fontSize: 13,
     fontWeight: "600"
   }
-});
+  });
+}
