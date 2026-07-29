@@ -120,7 +120,7 @@ function createStyles(colors: ThemeColors) {
       color: colors.text,
       fontSize: 15,
       lineHeight: 21,
-      backgroundColor: colors.white
+      backgroundColor: colors.surface
     }
   });
 }

@@ -239,7 +239,7 @@ function createStyles(colors: ThemeColors) {
       color: colors.text,
       fontSize: 16,
       lineHeight: 22,
-      backgroundColor: colors.white
+      backgroundColor: colors.surface
     },
     empty: {
       color: colors.textMuted,
@@ -270,7 +270,7 @@ function createStyles(colors: ThemeColors) {
       color: colors.text,
       fontSize: 15,
       fontWeight: "600",
-      backgroundColor: colors.white
+      backgroundColor: colors.surfaceStrong
     },
     remove: {
       color: colors.error,

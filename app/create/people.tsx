@@ -165,7 +165,7 @@ function createStyles(colors: ThemeColors) {
       color: colors.text,
       fontSize: 17,
       lineHeight: 25,
-      backgroundColor: colors.white
+      backgroundColor: colors.surface
     },
     messageControls: {
       flexDirection: "row",

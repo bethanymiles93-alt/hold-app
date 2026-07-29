@@ -71,7 +71,7 @@ function createStyles(colors: ThemeColors) {
       marginTop: 2
     },
     radioSelected: {
-      backgroundColor: colors.white
+      backgroundColor: colors.surface
     },
     dot: {
       width: 12,

@@ -152,7 +152,7 @@ function createStyles(colors: ThemeColors) {
       borderColor: colors.border,
       borderRadius: theme.radius.md,
       padding: theme.spacing.md,
-      backgroundColor: colors.white
+      backgroundColor: colors.surface
     },
     messageText: {
       color: colors.text,
@@ -168,7 +168,7 @@ function createStyles(colors: ThemeColors) {
       color: colors.text,
       fontSize: 17,
       lineHeight: 25,
-      backgroundColor: colors.white
+      backgroundColor: colors.surface
     },
     linkText: {
       color: colors.link,

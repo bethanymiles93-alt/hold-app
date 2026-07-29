@@ -192,7 +192,7 @@ function createStyles(colors: ThemeColors) {
     paddingHorizontal: theme.spacing.md,
     color: colors.text,
     fontSize: 17,
-    backgroundColor: colors.white
+    backgroundColor: colors.surface
   },
   addButton: {
     minWidth: 72,
