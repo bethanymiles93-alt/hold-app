@@ -5,6 +5,7 @@ import { router, useFocusEffect } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { SecondaryButton } from "@/components/SecondaryButton";
+import { AmendWithAI } from "@/components/AmendWithAI";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import {
@@ -83,6 +84,10 @@ function PersonaliseAccordion({ person, isOpen, onToggle }: PersonaliseAccordion
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [loaded, setLoaded] = useState(false);
   const [friendMessage, setFriendMessage] = useState("");
+  // Settles into a muted, read-only-looking card once populated — pinned above
+  // the reply box throughout drafting, never collapses. "Edit" is the only way
+  // back to an editable field, no implicit/hidden gesture.
+  const [friendMessageEditing, setFriendMessageEditing] = useState(true);
   const [style, setStyle] = useState<ReturnStyle | null>(null);
   const [draft, setDraft] = useState("");
   const [status, setStatus] = useState<"none" | "draft" | "sent">("none");
@@ -95,6 +100,7 @@ function PersonaliseAccordion({ person, isOpen, onToggle }: PersonaliseAccordion
       const existing = await getReply(person.id);
       if (existing) {
         setFriendMessage(existing.friendMessage);
+        setFriendMessageEditing(!existing.friendMessage.trim());
         setDraft(existing.draftReply);
         setStatus(existing.sentAt ? "sent" : "draft");
         setSentAt(existing.sentAt ?? null);
@@ -131,6 +137,10 @@ function PersonaliseAccordion({ person, isOpen, onToggle }: PersonaliseAccordion
   const changeFriendMessage = (text: string) => {
     setFriendMessage(text);
     void persist(sentAt, { friendMessage: text });
+  };
+
+  const settleFriendMessage = () => {
+    if (friendMessage.trim()) setFriendMessageEditing(false);
   };
 
   const changeDraft = (text: string) => {
@@ -197,14 +207,24 @@ function PersonaliseAccordion({ person, isOpen, onToggle }: PersonaliseAccordion
           </Text>
 
           <Text style={styles.fieldLabel}>What they sent</Text>
-          <TextInput
-            accessibilityLabel="Message they sent"
-            multiline
-            onChangeText={changeFriendMessage}
-            style={styles.input}
-            textAlignVertical="top"
-            value={friendMessage}
-          />
+          {friendMessageEditing ? (
+            <TextInput
+              accessibilityLabel="Message they sent"
+              multiline
+              onBlur={settleFriendMessage}
+              onChangeText={changeFriendMessage}
+              style={styles.input}
+              textAlignVertical="top"
+              value={friendMessage}
+            />
+          ) : (
+            <View style={styles.friendMessageSettled}>
+              <Text style={styles.friendMessageSettledText}>{friendMessage}</Text>
+              <Pressable accessibilityRole="button" onPress={() => setFriendMessageEditing(true)}>
+                <Text style={styles.linkText}>Edit</Text>
+              </Pressable>
+            </View>
+          )}
 
           <Text style={styles.fieldLabel}>Starting point</Text>
           <View style={styles.styleChipRow}>
@@ -232,6 +252,13 @@ function PersonaliseAccordion({ person, isOpen, onToggle }: PersonaliseAccordion
             style={styles.input}
             textAlignVertical="top"
             value={draft}
+          />
+
+          <AmendWithAI
+            surface="conversations-reply"
+            currentMessage={draft}
+            onApply={changeDraft}
+            context={{ returnStyle: style ?? undefined, friendMessage }}
           />
 
           <View style={styles.accordionActions}>
@@ -832,6 +859,17 @@ function createStyles(colors: ThemeColors) {
     fontSize: 16,
     lineHeight: 22,
     backgroundColor: colors.surface
+  },
+  friendMessageSettled: {
+    gap: theme.spacing.xs,
+    padding: theme.spacing.sm,
+    borderRadius: theme.radius.md,
+    backgroundColor: colors.surfaceStrong
+  },
+  friendMessageSettledText: {
+    color: colors.textMuted,
+    fontSize: 15,
+    lineHeight: 21
   },
   circleRows: {
     gap: theme.spacing.md
