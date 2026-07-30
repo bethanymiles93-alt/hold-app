@@ -515,7 +515,7 @@ function createStyles(colors: ThemeColors) {
   },
   statTileValue: {
     color: colors.text,
-    fontSize: 20,
+    fontSize: 17,
     fontWeight: "700"
   },
   statTileLabel: {

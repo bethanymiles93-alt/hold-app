@@ -360,10 +360,10 @@ function createStyles(colors: ThemeColors) {
     },
     sectionLabel: {
       color: colors.text,
-      fontSize: 22,
-      lineHeight: 28,
+      fontSize: 17,
+      lineHeight: 23,
       fontWeight: "600",
-      letterSpacing: -0.3
+      letterSpacing: -0.2
     },
     choices: {
       gap: theme.spacing.sm

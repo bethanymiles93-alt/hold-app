@@ -221,9 +221,9 @@ function createStyles(colors: ThemeColors) {
     },
     confirmationText: {
       color: colors.text,
-      fontSize: 19,
+      fontSize: 17,
       fontWeight: "600",
-      lineHeight: 27,
+      lineHeight: 24,
       textAlign: "center"
     }
   });

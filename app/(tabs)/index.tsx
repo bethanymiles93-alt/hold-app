@@ -565,8 +565,8 @@ const styles = StyleSheet.create({
     gap: theme.spacing.xs
   },
   comingBackLabel: {
-    fontSize: 22,
-    fontWeight: "700",
+    fontSize: 17,
+    fontWeight: "600",
     textAlign: "center"
   },
   quietSinceText: {
