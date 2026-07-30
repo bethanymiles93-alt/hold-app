@@ -211,6 +211,23 @@ export async function markQuickSent(ids: string[]): Promise<void> {
   );
 }
 
+/**
+ * Keeps sentAt truthfully in sync for an instant message sent outside the
+ * Quick message flow (Reconnect) without marking the conversation complete —
+ * unlike markQuickSent, an instant message alone doesn't answer "have you
+ * replied properly," so completed must stay whatever it already was.
+ */
+export async function markContacted(ids: string[]): Promise<void> {
+  const sentAt = Date.now();
+  await Promise.all(
+    ids.map(async (id) => {
+      const person = await readRecord(id);
+      if (!person) return;
+      await writeRecord({ ...person, sentAt });
+    })
+  );
+}
+
 /** Unticking someone out of Quick message — they move to Personalise/Conversations. */
 export async function moveToPersonalise(id: string): Promise<void> {
   const person = await readRecord(id);

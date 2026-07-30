@@ -16,7 +16,7 @@ import {
   markReconnectContacted,
   recordSendChannel
 } from "@/services/holdHistoryService";
-import { getAll as getAllConversationPeople, markQuickSent } from "@/services/conversationService";
+import { getAll as getAllConversationPeople, markContacted } from "@/services/conversationService";
 import { deactivateOutOfOffice } from "@/services/emailAccountService";
 import { channelKey, sendOrShare } from "@/services/smsService";
 import { clearDraft, getDraft, saveDraft } from "@/services/messageDraftService";
@@ -120,7 +120,7 @@ export default function ReconnectScreen() {
       .filter((person) => sentNumbers.has(person.phoneNumber))
       .map((person) => person.id);
     if (matchedIds.length > 0) {
-      await markQuickSent(matchedIds);
+      await markContacted(matchedIds);
     }
 
     await clearDraft(RECONNECT_DRAFT_KEY);
