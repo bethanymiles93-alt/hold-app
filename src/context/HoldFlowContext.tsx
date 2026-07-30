@@ -17,7 +17,6 @@ import type {
   ReturnStyle
 } from "@/types/hold";
 import { getCircleTemplate, saveCircleTemplate } from "@/services/templateService";
-import { circleDraftKey, clearDraft, getDraft, saveDraft } from "@/services/messageDraftService";
 
 interface HoldFlowContextValue extends HoldFlowState {
   setRecipients: (recipients: string[]) => void;
@@ -28,6 +27,8 @@ interface HoldFlowContextValue extends HoldFlowState {
   setRecipientRouteToPersonalise: (contactId: string, route: boolean) => void;
   setCircleDraftIntent: (circleId: string, intent: HoldIntent) => void;
   setCircleDraftMessage: (circleId: string, message: string) => void;
+  /** Applies a freshly-generated template as the Circle's message AND its auto-persisted default — no explicit save needed. */
+  applyGeneratedTemplate: (circleId: string, text: string) => Promise<void>;
   saveCircleDraftAsDefault: (circleId: string) => Promise<void>;
   setReturnStyle: (style: ReturnStyle) => void;
   setAudience: (circles: AudienceCircle[], ungrouped: AudienceContact[]) => void;
@@ -135,10 +136,7 @@ export function HoldFlowProvider({ children }: PropsWithChildren) {
           return;
         }
 
-        const [savedDefault, unsavedDraft] = await Promise.all([
-          getCircleTemplate(group.id),
-          getDraft(circleDraftKey(group.id))
-        ]);
+        const savedDefault = await getCircleTemplate(group.id);
 
         setState((current) => {
           const selectedGroups = [...current.selectedGroups, group];
@@ -146,7 +144,7 @@ export function HoldFlowProvider({ children }: PropsWithChildren) {
             circleId: group.id,
             circleName: group.name,
             intent: null,
-            message: unsavedDraft ?? savedDefault ?? "",
+            message: savedDefault ?? "",
             savedMessage: savedDefault
           };
 
@@ -213,11 +211,19 @@ export function HoldFlowProvider({ children }: PropsWithChildren) {
           )
         })),
       setCircleDraftMessage: (circleId, message) => {
-        void saveDraft(circleDraftKey(circleId), message);
         setState((current) => ({
           ...current,
           circleDrafts: current.circleDrafts.map((draft) =>
             draft.circleId === circleId ? { ...draft, message } : draft
+          )
+        }));
+      },
+      applyGeneratedTemplate: async (circleId, text) => {
+        await saveCircleTemplate(circleId, text);
+        setState((current) => ({
+          ...current,
+          circleDrafts: current.circleDrafts.map((draft) =>
+            draft.circleId === circleId ? { ...draft, message: text, savedMessage: text } : draft
           )
         }));
       },
@@ -226,7 +232,6 @@ export function HoldFlowProvider({ children }: PropsWithChildren) {
         if (!draft) return;
 
         await saveCircleTemplate(circleId, draft.message);
-        await clearDraft(circleDraftKey(circleId));
         setState((current) => ({
           ...current,
           circleDrafts: current.circleDrafts.map((existing) =>

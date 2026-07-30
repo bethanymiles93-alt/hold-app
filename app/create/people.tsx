@@ -16,7 +16,6 @@ import { useAppTheme } from "@/hooks/useAppTheme";
 import { buildAudienceCircles, useHoldFlow } from "@/context/HoldFlowContext";
 import { createDraft } from "@/services/draftService";
 import { recordPostSendChoices, startHoldPeriod } from "@/services/holdHistoryService";
-import { circleDraftKey, clearDraft } from "@/services/messageDraftService";
 import { seedPersonaliseRecipient } from "@/services/conversationService";
 import { activateOutOfOffice } from "@/services/emailAccountService";
 import { copyToClipboard } from "@/services/clipboardService";
@@ -35,6 +34,7 @@ export default function HoldPeopleScreen() {
     circleDrafts,
     setCircleDraftIntent,
     setCircleDraftMessage,
+    applyGeneratedTemplate,
     saveCircleDraftAsDefault,
     goingQuietRecipients,
     toggleRecipientIncluded,
@@ -75,7 +75,7 @@ export default function HoldPeopleScreen() {
     const recipientNames =
       selectedGroups.find((group) => group.id === circleId)?.contacts.map((contact) => contact.name) ?? [];
     const draftText = await createDraft({ mode: "hold", recipients: recipientNames, intent: choice });
-    setCircleDraftMessage(circleId, draftText);
+    await applyGeneratedTemplate(circleId, draftText);
     setShowingChipsFor((current) => {
       const next = new Set(current);
       next.delete(circleId);
@@ -136,8 +136,6 @@ export default function HoldPeopleScreen() {
           circleName: recipient.circleName
         });
       }
-
-      await clearDraft(circleDraftKey(draft.circleId));
     }
 
     await startHoldPeriod({ recipients, audienceCircles: buildAudienceCircles(selectedGroups) });

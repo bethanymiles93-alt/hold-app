@@ -14,11 +14,6 @@ function recordKey(key: string): string {
   return `${RECORD_PREFIX}${key}`;
 }
 
-/** Draft key for a Going Quiet Circle's message. Reconnect's uses the fixed key "reconnect". */
-export function circleDraftKey(circleId: string): string {
-  return `circle-${circleId}`;
-}
-
 async function readIndex(): Promise<string[]> {
   const raw = await SecureStore.getItemAsync(INDEX_KEY);
   return raw ? (JSON.parse(raw) as string[]) : [];
@@ -29,10 +24,10 @@ async function writeIndex(keys: string[]): Promise<void> {
 }
 
 /**
- * An unsaved Going Quiet/Reconnect message edit — the effortful, personal
- * content that must survive interruption. Persists until sent, explicitly
- * discarded, or a 48h backstop, whichever comes first. Never becomes a saved
- * Library template on its own; that only happens via an explicit Save.
+ * An unsaved Reconnect message edit — the effortful, personal content that
+ * must survive interruption across a "reach everyone at your own pace"
+ * session. Persists until sent, explicitly discarded, or a 48h backstop,
+ * whichever comes first.
  */
 export async function saveDraft(key: string, text: string): Promise<void> {
   if (!text) {
