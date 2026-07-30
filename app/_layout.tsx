@@ -34,10 +34,7 @@ export default function RootLayout() {
           >
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="welcome" options={{ headerShown: false, gestureEnabled: false }} />
-            <Stack.Screen
-              name="create/people"
-              options={{ title: "Going Quiet", animationDuration: 450 }}
-            />
+            <Stack.Screen name="create/people" options={{ title: "Going Quiet" }} />
             <Stack.Screen name="create/done" options={{ headerShown: false, gestureEnabled: false }} />
             <Stack.Screen
               name="return/transition"
