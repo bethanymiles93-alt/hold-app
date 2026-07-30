@@ -53,6 +53,7 @@ export default function HoldPeopleScreen() {
   );
   const [personalNoteDrafts, setPersonalNoteDrafts] = useState<Record<string, string>>({});
   const [personalNoteSentAt, setPersonalNoteSentAt] = useState<Record<string, number>>({});
+  const [oooExpanded, setOooExpanded] = useState(false);
 
   const [emailEnabled, setEmailEnabled] = useState(false);
   const [emailAccounts, setEmailAccounts] = useState<EmailAccount[]>([]);
@@ -70,6 +71,9 @@ export default function HoldPeopleScreen() {
   const excludedNotRemoved = goingQuietRecipients.filter(
     (recipient) => !recipient.included && !recipient.individuallyRemoved
   );
+  // Strict one-at-a-time reveal: nothing to personalise means stage 2 has
+  // nothing to answer, so it's treated as already resolved.
+  const personalPromptResolved = excludedNotRemoved.length === 0 || personalPromptChoice !== "pending";
 
   const chooseIntent = async (circleId: string, choice: HoldIntent) => {
     setCircleDraftIntent(circleId, choice);
@@ -197,6 +201,14 @@ export default function HoldPeopleScreen() {
           (recipient) => recipient.circleId === draft.circleId
         );
 
+        if (sentAt !== null) {
+          return (
+            <View key={draft.circleId} style={styles.circleSentRow}>
+              <Text style={styles.circleSentRowText}>✓ {draft.circleName}</Text>
+            </View>
+          );
+        }
+
         return (
           <View key={draft.circleId} style={styles.circleSection}>
             <Text style={styles.sectionLabel}>{draft.circleName}</Text>
@@ -209,11 +221,7 @@ export default function HoldPeopleScreen() {
               onSetRouteToPersonalise={setRecipientRouteToPersonalise}
             />
 
-            {sentAt !== null ? (
-              <View style={styles.sentPill}>
-                <Text style={styles.sentPillText}>✓ Sent</Text>
-              </View>
-            ) : showChips ? (
+            {showChips ? (
               <View accessibilityRole="radiogroup" style={styles.choices}>
                 {HOLD_INTENTS.map((choice) => (
                   <ChoiceCard
@@ -273,81 +281,106 @@ export default function HoldPeopleScreen() {
             Sent. You've communicated to everyone who needs to know.
           </Text>
 
-          {excludedNotRemoved.length > 0 ? (
-            <View style={styles.personalPrompt}>
-              {personalPromptChoice === "pending" ? (
-                <View style={styles.personalPromptRow}>
-                  <Text style={styles.personalPromptText}>
-                    Want to send anyone something more personal?
-                  </Text>
-                  <View style={styles.personalPromptActions}>
-                    <SecondaryButton
-                      label="Not now"
-                      onPress={() => setPersonalPromptChoice("not-now")}
-                    />
-                    <SecondaryButton label="Yes" onPress={() => setPersonalPromptChoice("yes")} />
-                  </View>
-                </View>
-              ) : personalPromptChoice === "yes" ? (
-                <View style={styles.personalNoteList}>
-                  {excludedNotRemoved.map((recipient) => {
-                    const noteSentAt = personalNoteSentAt[recipient.contactId];
-                    return (
-                      <View key={recipient.contactId} style={styles.personalNoteBlock}>
-                        <Text style={styles.name}>{recipient.name}</Text>
-                        {noteSentAt ? (
-                          <View style={styles.sentPill}>
-                            <Text style={styles.sentPillText}>✓ Sent</Text>
-                          </View>
-                        ) : (
-                          <>
-                            <TextInput
-                              accessibilityLabel={`Personal note for ${recipient.name}`}
-                              multiline
-                              onChangeText={(text) =>
-                                setPersonalNoteDrafts((current) => ({
-                                  ...current,
-                                  [recipient.contactId]: text
-                                }))
-                              }
-                              style={styles.messageInput}
-                              textAlignVertical="top"
-                              value={personalNoteDrafts[recipient.contactId] ?? ""}
-                            />
-                            <SecondaryButton
-                              disabled={!(personalNoteDrafts[recipient.contactId] ?? "").trim()}
-                              label="Send"
-                              onPress={() => void sendPersonalNote(recipient)}
-                            />
-                          </>
-                        )}
-                      </View>
-                    );
-                  })}
-                </View>
-              ) : null}
+          {!personalPromptResolved ? (
+            <View style={styles.personalPromptRow}>
+              <Text style={styles.personalPromptText}>
+                Want to send anyone something more personal?
+              </Text>
+              <View style={styles.personalPromptActions}>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setPersonalPromptChoice("not-now")}
+                  style={styles.smallPill}
+                >
+                  <Text style={styles.smallPillText}>Not now</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setPersonalPromptChoice("yes")}
+                  style={styles.smallPill}
+                >
+                  <Text style={styles.smallPillText}>Yes</Text>
+                </Pressable>
+              </View>
             </View>
           ) : null}
 
-          <EmailOutOfOffice
-            enabled={emailEnabled}
-            onToggleEnabled={setEmailEnabled}
-            accounts={emailAccounts}
-            onAccountsChange={setEmailAccounts}
-            useSameMessage={useSameEmailMessage}
-            onToggleUseSameMessage={setUseSameEmailMessage}
-            sharedMessage={sharedEmailMessage}
-            onChangeSharedMessage={setSharedEmailMessage}
-          />
+          {personalPromptResolved && personalPromptChoice === "yes" ? (
+            <View style={styles.personalNoteList}>
+              {excludedNotRemoved.map((recipient) => {
+                const noteSentAt = personalNoteSentAt[recipient.contactId];
+                return (
+                  <View key={recipient.contactId} style={styles.personalNoteBlock}>
+                    <Text style={styles.name}>{recipient.name}</Text>
+                    {noteSentAt ? (
+                      <View style={styles.sentPill}>
+                        <Text style={styles.sentPillText}>✓ Sent</Text>
+                      </View>
+                    ) : (
+                      <>
+                        <TextInput
+                          accessibilityLabel={`Personal note for ${recipient.name}`}
+                          multiline
+                          onChangeText={(text) =>
+                            setPersonalNoteDrafts((current) => ({
+                              ...current,
+                              [recipient.contactId]: text
+                            }))
+                          }
+                          style={styles.messageInput}
+                          textAlignVertical="top"
+                          value={personalNoteDrafts[recipient.contactId] ?? ""}
+                        />
+                        <SecondaryButton
+                          disabled={!(personalNoteDrafts[recipient.contactId] ?? "").trim()}
+                          label="Send"
+                          onPress={() => void sendPersonalNote(recipient)}
+                        />
+                      </>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          ) : null}
 
-          <WiderWorldStatus
-            enabled={widerWorldEnabled}
-            onToggleEnabled={setWiderWorldEnabled}
-            text={widerWorldText}
-            onChangeText={setWiderWorldText}
-          />
+          {personalPromptResolved ? (
+            <>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ expanded: oooExpanded }}
+                onPress={() => setOooExpanded((current) => !current)}
+                style={styles.oooHeader}
+              >
+                <Text style={styles.oooHeaderText}>OOO and status</Text>
+                <Text style={styles.oooChevron}>{oooExpanded ? "▲" : "▼"}</Text>
+              </Pressable>
 
-          <PrimaryButton label="Done" onPress={() => void finish()} />
+              {oooExpanded ? (
+                <View style={styles.oooBody}>
+                  <EmailOutOfOffice
+                    enabled={emailEnabled}
+                    onToggleEnabled={setEmailEnabled}
+                    accounts={emailAccounts}
+                    onAccountsChange={setEmailAccounts}
+                    useSameMessage={useSameEmailMessage}
+                    onToggleUseSameMessage={setUseSameEmailMessage}
+                    sharedMessage={sharedEmailMessage}
+                    onChangeSharedMessage={setSharedEmailMessage}
+                  />
+
+                  <WiderWorldStatus
+                    enabled={widerWorldEnabled}
+                    onToggleEnabled={setWiderWorldEnabled}
+                    text={widerWorldText}
+                    onChangeText={setWiderWorldText}
+                  />
+                </View>
+              ) : null}
+
+              <PrimaryButton label="Done" onPress={() => void finish()} />
+            </>
+          ) : null}
         </>
       )}
     </Screen>
@@ -423,14 +456,25 @@ function createStyles(colors: ThemeColors) {
       fontSize: 14,
       fontWeight: "600"
     },
+    circleSentRow: {
+      alignSelf: "flex-start",
+      minHeight: 40,
+      borderRadius: theme.radius.pill,
+      paddingHorizontal: theme.spacing.md,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.surfaceStrong
+    },
+    circleSentRowText: {
+      color: colors.textMuted,
+      fontSize: 15,
+      fontWeight: "600"
+    },
     confirmation: {
       color: colors.text,
       fontSize: 17,
       fontWeight: "600",
       lineHeight: 24
-    },
-    personalPrompt: {
-      gap: theme.spacing.md
     },
     personalPromptRow: {
       gap: theme.spacing.sm
@@ -443,6 +487,37 @@ function createStyles(colors: ThemeColors) {
     personalPromptActions: {
       flexDirection: "row",
       gap: theme.spacing.sm
+    },
+    smallPill: {
+      minHeight: 40,
+      borderRadius: theme.radius.pill,
+      paddingHorizontal: theme.spacing.md,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.surfaceStrong
+    },
+    smallPillText: {
+      color: colors.text,
+      fontSize: 14,
+      fontWeight: "600"
+    },
+    oooHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      minHeight: 44
+    },
+    oooHeaderText: {
+      color: colors.text,
+      fontSize: 15,
+      fontWeight: "600"
+    },
+    oooChevron: {
+      color: colors.textMuted,
+      fontSize: 13
+    },
+    oooBody: {
+      gap: theme.spacing.md
     },
     personalNoteList: {
       gap: theme.spacing.md

@@ -34,6 +34,7 @@ export default function ReconnectScreen() {
   const [emailOff, setEmailOff] = useState(false);
   const [statusCleared, setStatusCleared] = useState(false);
   const [suggestedPrompt, setSuggestedPrompt] = useState<string | undefined>(undefined);
+  const [oooExpanded, setOooExpanded] = useState(false);
 
   const refresh = useCallback(async () => {
     const current = await getReconnectingPeriod();
@@ -257,6 +258,8 @@ export default function ReconnectScreen() {
     );
   }
 
+  const showOoo = period.emailOutOfOfficeEnabled || period.widerWorldStatusEnabled;
+
   return (
     <Screen contentContainerStyle={styles.content}>
       <View style={styles.top}>
@@ -264,24 +267,42 @@ export default function ReconnectScreen() {
 
         <Text style={styles.gatePrompt}>Want to reply to anyone properly?</Text>
 
-        {period.emailOutOfOfficeEnabled ? (
-          emailOff ? (
-            <Text style={styles.settledText}>Out-of-office turned off.</Text>
-          ) : (
-            <Pressable accessibilityRole="button" onPress={turnOffEmail}>
-              <Text style={styles.linkText}>Turn off out-of-office</Text>
+        {showOoo ? (
+          <>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ expanded: oooExpanded }}
+              onPress={() => setOooExpanded((current) => !current)}
+              style={styles.oooHeader}
+            >
+              <Text style={styles.oooHeaderText}>OOO and status</Text>
+              <Text style={styles.oooChevron}>{oooExpanded ? "▲" : "▼"}</Text>
             </Pressable>
-          )
-        ) : null}
 
-        {period.widerWorldStatusEnabled ? (
-          statusCleared ? (
-            <Text style={styles.settledText}>Status cleared.</Text>
-          ) : (
-            <Pressable accessibilityRole="button" onPress={clearStatus}>
-              <Text style={styles.linkText}>Clear my status</Text>
-            </Pressable>
-          )
+            {oooExpanded ? (
+              <View style={styles.oooBody}>
+                {period.emailOutOfOfficeEnabled ? (
+                  emailOff ? (
+                    <Text style={styles.settledText}>Out-of-office turned off.</Text>
+                  ) : (
+                    <Pressable accessibilityRole="button" onPress={turnOffEmail}>
+                      <Text style={styles.linkText}>Turn off out-of-office</Text>
+                    </Pressable>
+                  )
+                ) : null}
+
+                {period.widerWorldStatusEnabled ? (
+                  statusCleared ? (
+                    <Text style={styles.settledText}>Status cleared.</Text>
+                  ) : (
+                    <Pressable accessibilityRole="button" onPress={clearStatus}>
+                      <Text style={styles.linkText}>Clear my status</Text>
+                    </Pressable>
+                  )
+                ) : null}
+              </View>
+            ) : null}
+          </>
         ) : null}
       </View>
 
@@ -370,6 +391,24 @@ function createStyles(colors: ThemeColors) {
     settledText: {
       color: colors.textMuted,
       fontSize: 14
+    },
+    oooHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      minHeight: 44
+    },
+    oooHeaderText: {
+      color: colors.text,
+      fontSize: 15,
+      fontWeight: "600"
+    },
+    oooChevron: {
+      color: colors.textMuted,
+      fontSize: 13
+    },
+    oooBody: {
+      gap: theme.spacing.md
     },
     actions: {
       gap: theme.spacing.sm
