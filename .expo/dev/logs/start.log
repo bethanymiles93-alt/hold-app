@@ -462,3 +462,55 @@
 {"_e":"metro:bundling:done","_t":1785318683615,"id":"d","total":1,"ms":68.531292}
 {"_e":"metro:bundling:started","_t":1785319248282,"id":"e","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
 {"_e":"metro:bundling:done","_t":1785319248432,"id":"e","total":1,"ms":148.059875}
+{"_e":"root:init","_t":1785359134476,"format":"v0-jsonl","version":"57.0.9"}
+{"_e":"env:mode","_t":1785359134476,"nodeEnv":"development","babelEnv":"development","mode":"development"}
+{"_e":"env:load","_t":1785359134478,"mode":"development","files":[],"env":{}}
+{"_e":"devserver:start","_t":1785359134741,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../../../app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1785359135007,"serverRoot":"../../..","projectRoot":"../../..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"expo:dev-tools-plugin:load","_t":1785359135153,"plugins":[]}
+{"_e":"metro:instantiate","_t":1785359135535,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:bundling:started","_t":1785359143118,"id":"1","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:server_log","_t":1785359148244,"level":"error","data":["An unknown error occurred while installing React Native DevTools. Details:\n\ndotslash error: problem with `/Users/bethanymiles/Documents/GitHub/hold-app/node_modules/@react-native/debugger-shell/bin/react-native-devtools`\ncaused by: failed to execute `/Users/bethanymiles/Library/Caches/dotslash/bd/ca7d7f918f0cb1fcc2496e8f07601f4394bcfc/React Native DevTools.app/Contents/MacOS/React Native DevTools` because it was not found\ncaused by: No such file or directory (os error 2)\n"]}
+{"_e":"metro:bundling:done","_t":1785359148485,"id":"1","total":1333,"ms":5367.095209}
+{"_e":"metro:bundling:started","_t":1785359200963,"id":"2","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1785359201002,"id":"2","total":1,"ms":38.201}
+{"_e":"root:init","_t":1785415240741,"format":"v0-jsonl","version":"57.0.9"}
+{"_e":"env:mode","_t":1785415240742,"nodeEnv":"development","babelEnv":"development","mode":"development"}
+{"_e":"env:load","_t":1785415240744,"mode":"development","files":[],"env":{}}
+{"_e":"devserver:start","_t":1785415241123,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../../../app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1785415241500,"serverRoot":"../../..","projectRoot":"../../..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"expo:dev-tools-plugin:load","_t":1785415241702,"plugins":[]}
+{"_e":"metro:instantiate","_t":1785415242237,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:server_log","_t":1785415250356,"level":"error","data":["An unknown error occurred while installing React Native DevTools. Details:\n\ndotslash error: problem with `/Users/bethanymiles/Documents/GitHub/hold-app/node_modules/@react-native/debugger-shell/bin/react-native-devtools`\ncaused by: failed to execute `/Users/bethanymiles/Library/Caches/dotslash/bd/ca7d7f918f0cb1fcc2496e8f07601f4394bcfc/React Native DevTools.app/Contents/MacOS/React Native DevTools` because it was not found\ncaused by: No such file or directory (os error 2)\n"]}
+{"_e":"root:init","_t":1785417524139,"format":"v0-jsonl","version":"57.0.9"}
+{"_e":"env:mode","_t":1785417524140,"nodeEnv":"development","babelEnv":"development","mode":"development"}
+{"_e":"env:load","_t":1785417524143,"mode":"development","files":["../../../.env"],"env":{"EXPO_PUBLIC_AI_CLIENT_KEY":"b86740a4c22d0fdfe61aaf7b419435e924e28c97f01432689493498cb2d9238f","EXPO_PUBLIC_AI_PROXY_URL":"https://hold-ai-proxy.bethany-miles-93.workers.dev"}}
+{"_e":"root:init","_t":1785417564194,"format":"v0-jsonl","version":"57.0.9"}
+{"_e":"env:mode","_t":1785417564194,"nodeEnv":"development","babelEnv":"development","mode":"development"}
+{"_e":"env:load","_t":1785417564197,"mode":"development","files":["../../../.env"],"env":{"EXPO_PUBLIC_AI_CLIENT_KEY":"b86740a4c22d0fdfe61aaf7b419435e924e28c97f01432689493498cb2d9238f","EXPO_PUBLIC_AI_PROXY_URL":"https://hold-ai-proxy.bethany-miles-93.workers.dev"}}
+{"_e":"devserver:start","_t":1785417564445,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../../../app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1785417564706,"serverRoot":"../../..","projectRoot":"../../..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"expo:dev-tools-plugin:load","_t":1785417564866,"plugins":[]}
+{"_e":"metro:instantiate","_t":1785417565239,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:server_log","_t":1785417572414,"level":"error","data":["An unknown error occurred while installing React Native DevTools. Details:\n\ndotslash error: problem with `/Users/bethanymiles/Documents/GitHub/hold-app/node_modules/@react-native/debugger-shell/bin/react-native-devtools`\ncaused by: failed to execute `/Users/bethanymiles/Library/Caches/dotslash/bd/ca7d7f918f0cb1fcc2496e8f07601f4394bcfc/React Native DevTools.app/Contents/MacOS/React Native DevTools` because it was not found\ncaused by: No such file or directory (os error 2)\n"]}
+{"_e":"metro:bundling:started","_t":1785417715305,"id":"1","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1785417720965,"id":"1","total":1336,"ms":5654.007541}
+{"_e":"metro:bundling:started","_t":1785417799164,"id":"2","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1785417799229,"id":"2","total":1,"ms":64.456458}
+{"_e":"root:init","_t":1785419680898,"format":"v0-jsonl","version":"57.0.9"}
+{"_e":"env:mode","_t":1785419680899,"nodeEnv":"development","babelEnv":"development","mode":"development"}
+{"_e":"env:load","_t":1785419680902,"mode":"development","files":["../../../.env"],"env":{"EXPO_PUBLIC_AI_CLIENT_KEY":"b86740a4c22d0fdfe61aaf7b419435e924e28c97f01432689493498cb2d9238f","EXPO_PUBLIC_AI_PROXY_URL":"https://hold-ai-proxy.bethany-miles-93.workers.dev"}}
+{"_e":"devserver:start","_t":1785419681210,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../../../app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1785419681495,"serverRoot":"../../..","projectRoot":"../../..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"expo:dev-tools-plugin:load","_t":1785419681658,"plugins":[]}
+{"_e":"metro:instantiate","_t":1785419682094,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:server_log","_t":1785419690437,"level":"error","data":["An unknown error occurred while installing React Native DevTools. Details:\n\ndotslash error: problem with `/Users/bethanymiles/Documents/GitHub/hold-app/node_modules/@react-native/debugger-shell/bin/react-native-devtools`\ncaused by: failed to execute `/Users/bethanymiles/Library/Caches/dotslash/bd/ca7d7f918f0cb1fcc2496e8f07601f4394bcfc/React Native DevTools.app/Contents/MacOS/React Native DevTools` because it was not found\ncaused by: No such file or directory (os error 2)\n"]}
+{"_e":"metro:bundling:started","_t":1785419888340,"id":"1","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1785419893516,"id":"1","total":1336,"ms":5175.386334}
+{"_e":"metro:server_log","_t":1785421138409,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","com.holdapp.mobile","iPhone","60"]}
+{"_e":"metro:bundling:started","_t":1785423634852,"id":"2","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1785423635562,"id":"2","total":1,"ms":708.034167}
+{"_e":"metro:bundling:started","_t":1785423654208,"id":"3","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1785423654258,"id":"3","total":1,"ms":49.455}
+{"_e":"metro:bundling:started","_t":1785425142829,"id":"4","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1785425143433,"id":"4","total":1,"ms":602.36475}
