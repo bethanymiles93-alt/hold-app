@@ -23,10 +23,11 @@ export default function CircleIndexScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [groups, setGroups] = useState<CircleGroup[]>([]);
 
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  // Staged, not persisted, until "Update circle" — keyed by existing contact id.
-  const [stagedExcluded, setStagedExcluded] = useState<Set<string>>(new Set());
-  const [stagedAdditions, setStagedAdditions] = useState<PickedContact[]>([]);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  // Staged, not persisted, until "Update circle" — keyed by circle id, since
+  // more than one card can be open at once (via "All").
+  const [stagedExcludedByCircle, setStagedExcludedByCircle] = useState<Record<string, Set<string>>>({});
+  const [stagedAdditionsByCircle, setStagedAdditionsByCircle] = useState<Record<string, PickedContact[]>>({});
 
   const [creatingStage, setCreatingStage] = useState<"none" | "naming">("none");
   const [newCircleContacts, setNewCircleContacts] = useState<PickedContact[]>([]);
@@ -42,61 +43,99 @@ export default function CircleIndexScreen() {
     }, [refresh])
   );
 
-  const toggleExpanded = (group: CircleGroup) => {
-    setExpandedId((current) => {
-      if (current === group.id) return null;
-
-      setStagedExcluded(new Set());
-      setStagedAdditions([]);
-      return group.id;
+  const clearStagedFor = (circleId: string) => {
+    setStagedExcludedByCircle((current) => {
+      const { [circleId]: _removed, ...rest } = current;
+      return rest;
+    });
+    setStagedAdditionsByCircle((current) => {
+      const { [circleId]: _removed, ...rest } = current;
+      return rest;
     });
   };
 
-  const toggleMember = (contactId: string) => {
-    setStagedExcluded((current) => {
+  const toggleExpanded = (group: CircleGroup) => {
+    setExpandedIds((current) => {
       const next = new Set(current);
-      if (next.has(contactId)) {
-        next.delete(contactId);
+      if (next.has(group.id)) {
+        next.delete(group.id);
+        clearStagedFor(group.id);
       } else {
-        next.add(contactId);
+        next.add(group.id);
       }
       return next;
     });
   };
 
-  const addMemberToStaged = async () => {
+  const allExpanded = groups.length > 0 && groups.every((group) => expandedIds.has(group.id));
+
+  const toggleAllExpanded = () => {
+    if (allExpanded) {
+      setExpandedIds(new Set());
+      setStagedExcludedByCircle({});
+      setStagedAdditionsByCircle({});
+    } else {
+      setExpandedIds(new Set(groups.map((group) => group.id)));
+    }
+  };
+
+  const toggleMember = (circleId: string, contactId: string) => {
+    setStagedExcludedByCircle((current) => {
+      const next = new Set(current[circleId] ?? []);
+      if (next.has(contactId)) {
+        next.delete(contactId);
+      } else {
+        next.add(contactId);
+      }
+      return { ...current, [circleId]: next };
+    });
+  };
+
+  const addMemberToStaged = async (circleId: string) => {
     const picked = await pickContact();
     if (!picked) return;
 
-    setStagedAdditions((current) =>
-      current.some((contact) => contact.phoneNumber === picked.phoneNumber)
-        ? current
-        : [...current, picked]
-    );
+    setStagedAdditionsByCircle((current) => {
+      const existing = current[circleId] ?? [];
+      if (existing.some((contact) => contact.phoneNumber === picked.phoneNumber)) return current;
+      return { ...current, [circleId]: [...existing, picked] };
+    });
   };
 
-  const removeStagedAddition = (phoneNumber: string) => {
-    setStagedAdditions((current) => current.filter((contact) => contact.phoneNumber !== phoneNumber));
+  const removeStagedAddition = (circleId: string, phoneNumber: string) => {
+    setStagedAdditionsByCircle((current) => ({
+      ...current,
+      [circleId]: (current[circleId] ?? []).filter((contact) => contact.phoneNumber !== phoneNumber)
+    }));
   };
 
-  const stagedCountFor = (group: CircleGroup) =>
-    group.contacts.filter((contact) => !stagedExcluded.has(contact.id)).length + stagedAdditions.length;
+  const stagedCountFor = (group: CircleGroup) => {
+    const excluded = stagedExcludedByCircle[group.id] ?? new Set<string>();
+    const additions = stagedAdditionsByCircle[group.id] ?? [];
+    return group.contacts.filter((contact) => !excluded.has(contact.id)).length + additions.length;
+  };
 
   const updateCircle = async (group: CircleGroup) => {
     if (stagedCountFor(group) === 0) return;
 
+    const excluded = stagedExcludedByCircle[group.id] ?? new Set<string>();
+    const additions = stagedAdditionsByCircle[group.id] ?? [];
+
     for (const contact of group.contacts) {
-      if (stagedExcluded.has(contact.id)) {
+      if (excluded.has(contact.id)) {
         await removeContactFromGroup(group.id, contact.id);
       }
     }
-    for (const contact of stagedAdditions) {
+    for (const contact of additions) {
       await addContactToGroup(group.id, contact);
     }
 
-    setExpandedId(null);
-    setStagedExcluded(new Set());
-    setStagedAdditions([]);
+    setExpandedIds((current) => {
+      const next = new Set(current);
+      next.delete(group.id);
+      return next;
+    });
+    clearStagedFor(group.id);
     await refresh();
   };
 
@@ -108,7 +147,12 @@ export default function CircleIndexScreen() {
         style: "destructive",
         onPress: () => {
           void deleteGroup(group.id).then(() => {
-            setExpandedId(null);
+            setExpandedIds((current) => {
+              const next = new Set(current);
+              next.delete(group.id);
+              return next;
+            });
+            clearStagedFor(group.id);
             void refresh();
           });
         }
@@ -156,9 +200,22 @@ export default function CircleIndexScreen() {
     <Screen contentContainerStyle={styles.content}>
       <StepHeader body="Create and amend your circles." />
 
+      <View style={styles.pinnedRow}>
+        {groups.length > 0 ? (
+          <CirclePill label="All" selected={allExpanded} onPress={toggleAllExpanded} accessibilityRole="button" />
+        ) : null}
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => void startCreating()}
+          style={({ pressed }) => [styles.newCirclePill, pressed && styles.newCirclePillPressed]}
+        >
+          <Text style={styles.newCirclePillText}>+ New Circle</Text>
+        </Pressable>
+      </View>
+
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillRow}>
         {groups.map((group) => {
-          const selected = expandedId === group.id;
+          const selected = expandedIds.has(group.id);
           return (
             <CirclePill
               key={group.id}
@@ -172,70 +229,7 @@ export default function CircleIndexScreen() {
         })}
       </ScrollView>
 
-      {groups
-        .filter((group) => group.id === expandedId)
-        .map((group) => {
-          const resultingCount = stagedCountFor(group);
-
-          return (
-            <View key={group.id} style={styles.card}>
-              {group.contacts.length === 0 && stagedAdditions.length === 0 ? (
-                <Text style={styles.empty}>No one added yet.</Text>
-              ) : (
-                <View style={styles.memberList}>
-                  {group.contacts.map((contact) => {
-                    const included = !stagedExcluded.has(contact.id);
-                    return (
-                      <View key={contact.id} style={styles.memberRow}>
-                        <SelectionCircle
-                          selected={included}
-                          onPress={() => toggleMember(contact.id)}
-                          accessibilityLabel={`${included ? "Included" : "Excluded"}: ${contact.name}`}
-                        />
-                        <Text style={[styles.memberName, !included && styles.memberNameExcluded]}>
-                          {contact.name}
-                        </Text>
-                      </View>
-                    );
-                  })}
-                  {stagedAdditions.map((contact) => (
-                    <View key={contact.phoneNumber} style={styles.memberRow}>
-                      <SelectionCircle
-                        selected={true}
-                        onPress={() => removeStagedAddition(contact.phoneNumber)}
-                        accessibilityLabel={`Remove ${contact.name} before saving`}
-                      />
-                      <Text style={styles.memberName}>{contact.name}</Text>
-                      <Text style={styles.newTag}>New</Text>
-                    </View>
-                  ))}
-                </View>
-              )}
-
-              <Pressable accessibilityRole="button" onPress={() => void addMemberToStaged()}>
-                <Text style={styles.linkText}>Add from Contacts</Text>
-              </Pressable>
-
-              <PrimaryButton
-                disabled={resultingCount === 0}
-                label="Update circle"
-                onPress={() => void updateCircle(group)}
-              />
-
-              {!group.isCloseCircle ? (
-                <Pressable accessibilityRole="button" onPress={() => removeGroup(group)}>
-                  <Text style={styles.deleteLabel}>Delete Circle</Text>
-                </Pressable>
-              ) : null}
-            </View>
-          );
-        })}
-
-      {creatingStage === "none" ? (
-        <Pressable accessibilityRole="button" onPress={() => void startCreating()}>
-          <Text style={styles.linkText}>Create a new circle</Text>
-        </Pressable>
-      ) : (
+      {creatingStage === "naming" ? (
         <View style={styles.newCircle}>
           <Text style={styles.label}>New Circle</Text>
 
@@ -282,7 +276,72 @@ export default function CircleIndexScreen() {
             <Text style={styles.cancelText}>Cancel</Text>
           </Pressable>
         </View>
-      )}
+      ) : null}
+
+      <View style={styles.cardList}>
+        {groups
+          .filter((group) => expandedIds.has(group.id))
+          .map((group) => {
+            const excluded = stagedExcludedByCircle[group.id] ?? new Set<string>();
+            const additions = stagedAdditionsByCircle[group.id] ?? [];
+            const resultingCount = stagedCountFor(group);
+
+            return (
+              <View key={group.id} style={styles.card}>
+                <Text style={styles.cardTitle}>{group.name}</Text>
+
+                {group.contacts.length === 0 && additions.length === 0 ? (
+                  <Text style={styles.empty}>No one added yet.</Text>
+                ) : (
+                  <View style={styles.memberList}>
+                    {group.contacts.map((contact) => {
+                      const included = !excluded.has(contact.id);
+                      return (
+                        <View key={contact.id} style={styles.memberRow}>
+                          <SelectionCircle
+                            selected={included}
+                            onPress={() => toggleMember(group.id, contact.id)}
+                            accessibilityLabel={`${included ? "Included" : "Excluded"}: ${contact.name}`}
+                          />
+                          <Text style={[styles.memberName, !included && styles.memberNameExcluded]}>
+                            {contact.name}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                    {additions.map((contact) => (
+                      <View key={contact.phoneNumber} style={styles.memberRow}>
+                        <SelectionCircle
+                          selected={true}
+                          onPress={() => removeStagedAddition(group.id, contact.phoneNumber)}
+                          accessibilityLabel={`Remove ${contact.name} before saving`}
+                        />
+                        <Text style={styles.memberName}>{contact.name}</Text>
+                        <Text style={styles.newTag}>New</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                <Pressable accessibilityRole="button" onPress={() => void addMemberToStaged(group.id)}>
+                  <Text style={styles.linkText}>Add from Contacts</Text>
+                </Pressable>
+
+                <PrimaryButton
+                  disabled={resultingCount === 0}
+                  label="Update circle"
+                  onPress={() => void updateCircle(group)}
+                />
+
+                {!group.isCloseCircle ? (
+                  <Pressable accessibilityRole="button" onPress={() => removeGroup(group)}>
+                    <Text style={styles.deleteLabel}>Delete Circle</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            );
+          })}
+      </View>
     </Screen>
   );
 }
@@ -290,12 +349,37 @@ export default function CircleIndexScreen() {
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
   content: {
-    gap: theme.spacing.xl
+    gap: theme.spacing.lg
+  },
+  pinnedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.sm
+  },
+  newCirclePill: {
+    minHeight: 38,
+    borderRadius: theme.radius.pill,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: theme.spacing.md
+  },
+  newCirclePillPressed: {
+    backgroundColor: colors.surface
+  },
+  newCirclePillText: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: "600"
   },
   pillRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing.sm
+  },
+  cardList: {
+    gap: theme.spacing.lg
   },
   card: {
     gap: theme.spacing.md,
@@ -303,6 +387,11 @@ function createStyles(colors: ThemeColors) {
     borderWidth: 1.5,
     borderColor: colors.border,
     padding: theme.spacing.md
+  },
+  cardTitle: {
+    color: colors.text,
+    fontSize: 17,
+    fontWeight: "600"
   },
   empty: {
     color: colors.textMuted,
