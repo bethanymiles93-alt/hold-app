@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { SecondaryButton } from "@/components/SecondaryButton";
 import { AmendWithAI } from "@/components/AmendWithAI";
+import { SelectionCircle } from "@/components/SelectionCircle";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import {
@@ -17,15 +18,13 @@ import {
 import { HAS_SEEN_RETENTION_NOTE_KEY } from "@/constants/storageKeys";
 import { useHoldFlow } from "@/context/HoldFlowContext";
 import {
-  addCircleMembers,
   addPerson,
   getAll as getAllConversationPeople,
   markQuickSent,
-  moveToPersonalise,
   toggleComplete,
   type ConversationPerson
 } from "@/services/conversationService";
-import { addContactToGroup, createGroup, getGroup, getGroups } from "@/services/circleService";
+import { addContactToGroup, createGroup, getGroups } from "@/services/circleService";
 import { pickContact } from "@/services/contactPickerService";
 import { sendOrShare } from "@/services/smsService";
 import { createReplyDraft } from "@/services/draftService";
@@ -34,52 +33,48 @@ import { formatSentLabel } from "@/services/holdHistoryFormat";
 import { getAllTemplates, saveCircleTemplate } from "@/services/templateService";
 import type { ReturnStyle, StoredReply } from "@/types/hold";
 
+const DEFAULT_QUICK_MESSAGE = QUICK_RECONNECT_MESSAGES[0]?.text ?? "";
+
 interface TemplateRow {
   circleId: string;
   circleName: string;
   text: string;
 }
 
-const DEFAULT_QUICK_MESSAGE = QUICK_RECONNECT_MESSAGES[0]?.text ?? "";
-
 interface CircleSection {
   circleId: string;
   circleName: string;
   people: ConversationPerson[];
-  sentAt: number | null;
 }
 
 function groupByCircle(people: ConversationPerson[]): CircleSection[] {
-  const sections: Array<Omit<CircleSection, "sentAt">> = [];
-  const indexByKey = new Map<string, number>();
+  const sections: CircleSection[] = [];
+  const indexByCircleId = new Map<string, number>();
 
   for (const person of people) {
-    const key = person.circleId ?? "other";
-    let index = indexByKey.get(key);
+    if (!person.circleId) continue;
 
+    let index = indexByCircleId.get(person.circleId);
     if (index === undefined) {
       index = sections.length;
-      indexByKey.set(key, index);
-      sections.push({ circleId: key, circleName: person.circleName ?? "Other", people: [] });
+      indexByCircleId.set(person.circleId, index);
+      sections.push({ circleId: person.circleId, circleName: person.circleName ?? "Circle", people: [] });
     }
 
     sections[index]?.people.push(person);
   }
 
-  // A send is one bulk action per Circle, so a section is atomically all-sent or not.
-  return sections.map((section) => ({
-    ...section,
-    sentAt: section.people.every((person) => person.sentAt) ? (section.people[0]?.sentAt ?? null) : null
-  }));
+  return sections;
 }
 
 interface PersonaliseAccordionProps {
   person: ConversationPerson;
   isOpen: boolean;
   onToggle: () => void;
+  onSent: () => void;
 }
 
-function PersonaliseAccordion({ person, isOpen, onToggle }: PersonaliseAccordionProps) {
+function PersonaliseAccordion({ person, isOpen, onToggle, onSent }: PersonaliseAccordionProps) {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [loaded, setLoaded] = useState(false);
@@ -182,6 +177,7 @@ function PersonaliseAccordion({ person, isOpen, onToggle }: PersonaliseAccordion
       setStatus("sent");
       setSentAt(now);
       onToggle();
+      onSent();
     })();
   };
 
@@ -276,18 +272,22 @@ export default function LibraryScreen() {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [people, setPeople] = useState<ConversationPerson[]>([]);
-  const [allSelected, setAllSelected] = useState(true);
-  const [sharedMessage, setSharedMessage] = useState(DEFAULT_QUICK_MESSAGE);
-  const [perCircleMessages, setPerCircleMessages] = useState<Record<string, string>>({});
-  const [expandedCircleId, setExpandedCircleId] = useState<string | null>(null);
-  const [expandedPersonId, setExpandedPersonId] = useState<string | null>(null);
-  const [templates, setTemplates] = useState<TemplateRow[]>([]);
-  const [templateDrafts, setTemplateDrafts] = useState<Record<string, string>>({});
-  const [reopenedCircleIds, setReopenedCircleIds] = useState<Set<string>>(new Set());
-  const [allReopened, setAllReopened] = useState(false);
+  const [templateTextByCircleId, setTemplateTextByCircleId] = useState<Record<string, string>>({});
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [sharedMessages, setSharedMessages] = useState<Record<string, string>>({});
+  const [excludedPersonIds, setExcludedPersonIds] = useState<Set<string>>(new Set());
+  const [individualMessages, setIndividualMessages] = useState<Record<string, string>>({});
+  const [personaliseSwapIds, setPersonaliseSwapIds] = useState<Set<string>>(new Set());
+  const [expandedPersonaliseId, setExpandedPersonaliseId] = useState<string | null>(null);
+
   const [selectedOtherIds, setSelectedOtherIds] = useState<Set<string>>(new Set());
   const [circlePromptStage, setCirclePromptStage] = useState<"none" | "confirm" | "naming">("none");
   const [newOtherCircleName, setNewOtherCircleName] = useState("");
+
+  const [templates, setTemplates] = useState<TemplateRow[]>([]);
+  const [templateDrafts, setTemplateDrafts] = useState<Record<string, string>>({});
 
   const refresh = useCallback(async () => {
     const all = await getAllConversationPeople();
@@ -301,6 +301,11 @@ export default function LibraryScreen() {
 
     const [savedTemplates, groups] = await Promise.all([getAllTemplates(), getGroups()]);
     const nameById = new Map(groups.map((group) => [group.id, group.name]));
+
+    const templateTextNext: Record<string, string> = {};
+    for (const template of savedTemplates) templateTextNext[template.circleId] = template.text;
+    setTemplateTextByCircleId(templateTextNext);
+
     const rows = savedTemplates
       .map((template) => {
         const circleName = nameById.get(template.circleId);
@@ -334,100 +339,149 @@ export default function LibraryScreen() {
     }, [refresh])
   );
 
-  const quickPeopleAll = people.filter((person) => person.bucket === "quick");
-  const quickPeoplePending = quickPeopleAll.filter((person) => !person.sentAt);
-  const personalisePeople = people.filter((person) => person.bucket === "personalise");
-  const quickSections = groupByCircle(quickPeopleAll);
-
-  const allQuickFullySent = quickPeopleAll.length > 0 && quickPeopleAll.every((person) => person.sentAt);
-  const allQuickTargets = allQuickFullySent ? quickPeopleAll : quickPeoplePending;
-  const mostRecentQuickSentAt = quickPeopleAll.reduce<number | null>(
-    (latest, person) => (person.sentAt && (!latest || person.sentAt > latest) ? person.sentAt : latest),
-    null
+  const circleSections = useMemo(() => groupByCircle(people), [people]);
+  const ungroupedPeople = useMemo(() => people.filter((person) => person.circleId === null), [people]);
+  const allIds = useMemo(
+    () => [...circleSections.map((section) => section.circleId), ...ungroupedPeople.map((person) => person.id)],
+    [circleSections, ungroupedPeople]
   );
+  const allSelected = allIds.length > 0 && allIds.every((id) => selectedIds.has(id));
 
-  const confirmAndSend = (message: string, targets: ConversationPerson[], onDone: () => void) => {
-    const text = message.trim();
-    if (targets.length === 0 || !text) return;
+  const toggleAll = () => {
+    setSelectedIds(allSelected ? new Set() : new Set(allIds));
+  };
 
-    Alert.alert(`Send "${text}" to ${targets.length} people?`, undefined, [
+  const toggleId = (id: string) => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleExpanded = (id: string) => {
+    setExpandedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const defaultMessageForCircle = (circleId: string) =>
+    sharedMessages[circleId] ?? templateTextByCircleId[circleId] ?? DEFAULT_QUICK_MESSAGE;
+
+  const toggleExcludeMember = (section: CircleSection, person: ConversationPerson) => {
+    // A single-contact Circle never offers this — excluding the only person
+    // already has the same effect as not selecting the Circle at all.
+    if (section.people.length <= 1) return;
+
+    setExcludedPersonIds((current) => {
+      const next = new Set(current);
+      if (next.has(person.id)) {
+        next.delete(person.id);
+      } else {
+        next.add(person.id);
+        setIndividualMessages((currentMessages) =>
+          currentMessages[person.id] !== undefined
+            ? currentMessages
+            : { ...currentMessages, [person.id]: defaultMessageForCircle(section.circleId) }
+        );
+      }
+      return next;
+    });
+  };
+
+  const togglePersonaliseSwap = (personId: string) => {
+    setPersonaliseSwapIds((current) => {
+      const next = new Set(current);
+      if (next.has(personId)) {
+        next.delete(personId);
+      } else {
+        next.add(personId);
+      }
+      return next;
+    });
+  };
+
+  const sendCircle = (section: CircleSection) => {
+    // Already-completed members are treated as handled — the shared box
+    // doesn't resend to them by default, though they're still visible (and
+    // individually re-toggleable) in the expanded member list.
+    const included = section.people.filter(
+      (person) => !excludedPersonIds.has(person.id) && !person.completed
+    );
+    const text = defaultMessageForCircle(section.circleId).trim();
+    const excludedMembers = section.people.filter((person) => excludedPersonIds.has(person.id));
+    const instantExcluded = excludedMembers.filter((person) => !personaliseSwapIds.has(person.id));
+
+    const recipientCount = included.length + instantExcluded.length;
+    if (recipientCount === 0) return;
+
+    Alert.alert(`Send to ${section.circleName}?`, `Reaches ${recipientCount} people.`, [
       { text: "Cancel", style: "cancel" },
       {
         text: "Send",
         onPress: () =>
           void (async () => {
-            await sendOrShare(targets.map((person) => person.phoneNumber), text);
-            await markQuickSent(targets.map((person) => person.id));
-            onDone();
+            if (included.length > 0 && text) {
+              try {
+                await sendOrShare(included.map((person) => person.phoneNumber), text);
+              } catch {
+                // Move on even if this compose sheet was dismissed.
+              }
+              await markQuickSent(included.map((person) => person.id));
+            }
+
+            for (const person of instantExcluded) {
+              const individualText = (individualMessages[person.id] ?? "").trim();
+              if (!individualText) continue;
+              try {
+                await sendOrShare([person.phoneNumber], individualText);
+              } catch {
+                // Move on to the next person even if this compose sheet was dismissed.
+              }
+              await markQuickSent([person.id]);
+            }
+
+            setExcludedPersonIds((current) => {
+              const next = new Set(current);
+              for (const person of section.people) next.delete(person.id);
+              return next;
+            });
             await refresh();
           })()
       }
     ]);
   };
 
-  const sendToEveryone = () =>
-    confirmAndSend(sharedMessage, allQuickTargets, () => setAllReopened(false));
+  const sendIndividual = (person: ConversationPerson) => {
+    const text = (individualMessages[person.id] ?? "").trim();
+    if (!text) return;
 
-  const sendToCircle = (section: CircleSection) => {
-    const message = perCircleMessages[section.circleId] ?? sharedMessage;
-    const targets = section.sentAt !== null ? section.people : section.people.filter((person) => !person.sentAt);
-    confirmAndSend(message, targets, () => {
-      if (expandedCircleId === section.circleId) setExpandedCircleId(null);
-      setReopenedCircleIds((current) => {
-        const next = new Set(current);
-        next.delete(section.circleId);
-        return next;
-      });
-    });
-  };
-
-  const reopenCircle = (circleId: string) => {
-    setReopenedCircleIds((current) => new Set(current).add(circleId));
-    selectCircle(circleId);
-  };
-
-  const selectAll = () => {
-    setAllSelected(true);
-    setExpandedCircleId(null);
-  };
-
-  const selectCircle = (circleId: string) => {
-    setAllSelected(false);
-    setPerCircleMessages((current) =>
-      current[circleId] !== undefined ? current : { ...current, [circleId]: sharedMessage }
-    );
-  };
-
-  const untickFromQuick = (person: ConversationPerson) => {
     void (async () => {
-      await moveToPersonalise(person.id);
+      try {
+        await sendOrShare([person.phoneNumber], text);
+      } catch {
+        // The compose sheet closing is the only signal available either way.
+      }
+      await markQuickSent([person.id]);
       await refresh();
     })();
   };
 
-  const expandToFullCircle = (section: CircleSection) => {
-    void (async () => {
-      const group = await getGroup(section.circleId);
-      if (!group) return;
-
-      await addCircleMembers(
-        group.id,
-        group.name,
-        group.contacts.map((contact) => ({ name: contact.name, phoneNumber: contact.phoneNumber }))
-      );
-      await refresh();
-    })();
-  };
-
-  const toggle = (person: ConversationPerson) => {
+  const toggleCompletePerson = (person: ConversationPerson) => {
     void (async () => {
       await toggleComplete(person.id, !person.completed);
       await refresh();
     })();
-  };
-
-  const togglePersonalise = (personId: string) => {
-    setExpandedPersonId((current) => (current === personId ? null : personId));
   };
 
   const addNewPerson = () => {
@@ -464,7 +518,7 @@ export default function LibraryScreen() {
     const name = newOtherCircleName.trim();
     if (!name) return;
 
-    const selectedPeople = personalisePeople.filter((person) => selectedOtherIds.has(person.id));
+    const selectedPeople = ungroupedPeople.filter((person) => selectedOtherIds.has(person.id));
     const group = await createGroup(name);
     for (const person of selectedPeople) {
       await addContactToGroup(group.id, { name: person.name, phoneNumber: person.phoneNumber });
@@ -473,6 +527,7 @@ export default function LibraryScreen() {
     setNewOtherCircleName("");
     setCirclePromptStage("none");
     setSelectedOtherIds(new Set());
+    await refresh();
   };
 
   if (people.length === 0) {
@@ -490,254 +545,301 @@ export default function LibraryScreen() {
     <Screen contentContainerStyle={styles.content}>
       <Text style={styles.pageTitle}>Conversations</Text>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Quick message</Text>
-
-        <View style={styles.chipRow}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+        {allIds.length > 0 ? (
           <Pressable
             accessibilityRole="button"
             accessibilityState={{ selected: allSelected }}
-            onPress={selectAll}
+            onPress={toggleAll}
             style={[styles.chip, allSelected && styles.chipSelected]}
           >
             <Text style={[styles.chipText, allSelected && styles.chipTextSelected]}>All</Text>
           </Pressable>
-          {quickSections.map((section) =>
-            section.sentAt !== null ? (
-              <Pressable
-                key={section.circleId}
-                accessibilityRole="button"
-                accessibilityLabel={`${section.circleName}, sent. Tap to send another message.`}
-                onPress={() => reopenCircle(section.circleId)}
-                style={styles.chipSent}
-              >
-                <Text style={styles.chipSentText}>✓ {section.circleName}</Text>
-              </Pressable>
-            ) : (
-              <Pressable
-                key={section.circleId}
-                accessibilityRole="button"
-                accessibilityState={{ selected: !allSelected }}
-                onPress={() => selectCircle(section.circleId)}
-                style={[styles.chip, !allSelected && styles.chipSelected]}
-              >
-                <Text style={[styles.chipText, !allSelected && styles.chipTextSelected]}>
-                  {section.circleName}
-                </Text>
-              </Pressable>
-            )
-          )}
-        </View>
-
-        {allSelected ? (
-          allQuickFullySent && !allReopened ? (
+        ) : null}
+        {circleSections.map((section) => {
+          const selected = selectedIds.has(section.circleId);
+          return (
             <Pressable
+              key={section.circleId}
               accessibilityRole="button"
-              accessibilityLabel="Sent to everyone. Tap to send another message."
-              onPress={() => setAllReopened(true)}
-              style={styles.circleRowSent}
+              accessibilityState={{ selected }}
+              onPress={() => toggleId(section.circleId)}
+              style={[styles.chip, selected && styles.chipSelected]}
             >
-              <Text style={styles.circleRowSentText}>✓ Sent to everyone</Text>
-              <Text style={styles.circleRowSentLabel}>
-                {mostRecentQuickSentAt !== null
-                  ? formatSentLabel(mostRecentQuickSentAt, "Instant message sent.")
-                  : null}
+              <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
+                {section.circleName}
               </Text>
             </Pressable>
-          ) : (
-            <View style={styles.quickBody}>
-              <TextInput
-                accessibilityLabel="Message to everyone"
-                multiline
-                onChangeText={setSharedMessage}
-                style={styles.input}
-                value={sharedMessage}
-              />
-              <PrimaryButton
-                disabled={allQuickTargets.length === 0}
-                label={`Send to everyone (${allQuickTargets.length})`}
-                onPress={sendToEveryone}
-              />
-            </View>
-          )
-        ) : (
-          <View style={styles.circleRows}>
-            {quickSections.map((section) => {
-              if (section.sentAt !== null && !reopenedCircleIds.has(section.circleId)) {
-                return (
+          );
+        })}
+        {ungroupedPeople.map((person) => {
+          const selected = selectedIds.has(person.id);
+          return (
+            <Pressable
+              key={person.id}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              onPress={() => toggleId(person.id)}
+              style={[styles.chip, selected && styles.chipSelected]}
+            >
+              <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{person.name}</Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+
+      <View style={styles.cardList}>
+        {circleSections
+          .filter((section) => selectedIds.has(section.circleId))
+          .map((section) => {
+            const expanded = expandedIds.has(section.circleId);
+            const includedMembers = section.people.filter(
+              (person) => !excludedPersonIds.has(person.id) && !person.completed
+            );
+            const excludedMembers = section.people.filter((person) => excludedPersonIds.has(person.id));
+            const isSoleContact = section.people.length === 1;
+
+            return (
+              <View key={section.circleId} style={styles.card}>
+                <View style={styles.cardHeader}>
+                  <Text style={styles.cardTitle}>{section.circleName}</Text>
+                  <Pressable accessibilityRole="button" onPress={() => toggleExpanded(section.circleId)}>
+                    <Text style={styles.linkText}>{expanded ? "Hide people" : "Show people"}</Text>
+                  </Pressable>
+                </View>
+
+                {expanded ? (
+                  <View style={styles.memberList}>
+                    {section.people.map((person) => (
+                      <View key={person.id} style={styles.memberRow}>
+                        <View style={styles.memberRowStart}>
+                          {isSoleContact ? null : (
+                            <SelectionCircle
+                              selected={!excludedPersonIds.has(person.id)}
+                              onPress={() => toggleExcludeMember(section, person)}
+                              accessibilityLabel={`${
+                                excludedPersonIds.has(person.id) ? "Excluded" : "Included"
+                              }: ${person.name}`}
+                            />
+                          )}
+                          <Text style={[styles.memberName, person.completed && styles.memberNameDone]}>
+                            {person.name}
+                          </Text>
+                        </View>
+                        <Pressable
+                          accessibilityRole="checkbox"
+                          accessibilityLabel={`Mark ${person.name} complete`}
+                          accessibilityState={{ checked: person.completed }}
+                          onPress={() => toggleCompletePerson(person)}
+                          hitSlop={8}
+                        >
+                          <View style={[styles.checkbox, person.completed && styles.checkboxChecked]} />
+                        </Pressable>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+
+                <TextInput
+                  accessibilityLabel={`Message to ${section.circleName}`}
+                  multiline
+                  onChangeText={(text) =>
+                    setSharedMessages((current) => ({ ...current, [section.circleId]: text }))
+                  }
+                  style={styles.input}
+                  textAlignVertical="top"
+                  value={defaultMessageForCircle(section.circleId)}
+                />
+                <AmendWithAI
+                  surface="conversations-reply"
+                  currentMessage={defaultMessageForCircle(section.circleId)}
+                  onApply={(text) =>
+                    setSharedMessages((current) => ({ ...current, [section.circleId]: text }))
+                  }
+                  context={{ recipientLabel: section.circleName }}
+                />
+
+                {expanded && excludedMembers.length > 0 ? (
+                  <View style={styles.excludedList}>
+                    {excludedMembers.map((person) => (
+                      <View key={person.id} style={styles.excludedBlock}>
+                        <Text style={styles.memberName}>{person.name}</Text>
+
+                        {personaliseSwapIds.has(person.id) ? (
+                          <>
+                            <PersonaliseAccordion
+                              person={person}
+                              isOpen={expandedPersonaliseId === person.id}
+                              onToggle={() =>
+                                setExpandedPersonaliseId((current) =>
+                                  current === person.id ? null : person.id
+                                )
+                              }
+                              onSent={() => void refresh()}
+                            />
+                            <Pressable
+                              accessibilityRole="button"
+                              onPress={() => togglePersonaliseSwap(person.id)}
+                            >
+                              <Text style={styles.linkText}>Use a quick message instead</Text>
+                            </Pressable>
+                          </>
+                        ) : (
+                          <>
+                            <TextInput
+                              accessibilityLabel={`Message for ${person.name}`}
+                              multiline
+                              onChangeText={(text) =>
+                                setIndividualMessages((current) => ({ ...current, [person.id]: text }))
+                              }
+                              style={styles.input}
+                              textAlignVertical="top"
+                              value={individualMessages[person.id] ?? ""}
+                            />
+                            <AmendWithAI
+                              surface="conversations-reply"
+                              currentMessage={individualMessages[person.id] ?? ""}
+                              onApply={(text) =>
+                                setIndividualMessages((current) => ({ ...current, [person.id]: text }))
+                              }
+                              context={{ recipientLabel: person.name }}
+                            />
+                            <View style={styles.excludedActions}>
+                              <SecondaryButton
+                                disabled={!(individualMessages[person.id] ?? "").trim()}
+                                label="Send"
+                                onPress={() => sendIndividual(person)}
+                              />
+                              <Pressable
+                                accessibilityRole="button"
+                                onPress={() => togglePersonaliseSwap(person.id)}
+                              >
+                                <Text style={styles.linkText}>Personalise</Text>
+                              </Pressable>
+                            </View>
+                          </>
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+
+                <SecondaryButton
+                  label={`Send${includedMembers.length > 0 ? ` (${includedMembers.length})` : ""}`}
+                  onPress={() => sendCircle(section)}
+                />
+              </View>
+            );
+          })}
+
+        {ungroupedPeople
+          .filter((person) => selectedIds.has(person.id))
+          .map((person) => {
+            const selectedForCircle = selectedOtherIds.has(person.id);
+
+            return (
+              <View key={person.id} style={styles.card}>
+                <View style={styles.cardHeader}>
                   <Pressable
-                    key={section.circleId}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${section.circleName}, sent. Tap to send another message.`}
-                    onPress={() => reopenCircle(section.circleId)}
-                    style={styles.circleRowSent}
+                    accessibilityRole="checkbox"
+                    accessibilityLabel={`Select ${person.name} to group into a Circle`}
+                    accessibilityState={{ checked: selectedForCircle }}
+                    onPress={() => toggleOtherSelection(person)}
                   >
-                    <Text style={styles.circleRowSentText}>✓ {section.circleName}</Text>
-                    <Text style={styles.circleRowSentLabel}>
-                      {formatSentLabel(section.sentAt, "Instant message sent.")}
+                    <Text style={[styles.cardTitle, selectedForCircle && styles.cardTitleSelected]}>
+                      {person.name}
                     </Text>
                   </Pressable>
-                );
-              }
-
-              const pendingPeople =
-                section.sentAt !== null ? section.people : section.people.filter((person) => !person.sentAt);
-
-              return (
-                <View key={section.circleId} style={styles.circleRow}>
-                  <View style={styles.circleRowHeader}>
-                    <Text style={styles.circleRowTitle}>{section.circleName}</Text>
-                    <Pressable
-                      accessibilityRole="button"
-                      onPress={() =>
-                        setExpandedCircleId((current) =>
-                          current === section.circleId ? null : section.circleId
-                        )
-                      }
-                    >
-                      <Text style={styles.linkText}>
-                        {expandedCircleId === section.circleId ? "Hide people" : "Show people"}
-                      </Text>
-                    </Pressable>
-                  </View>
-
-                  <TextInput
-                    accessibilityLabel={`Message to ${section.circleName}`}
-                    multiline
-                    onChangeText={(text) =>
-                      setPerCircleMessages((current) => ({ ...current, [section.circleId]: text }))
-                    }
-                    style={styles.input}
-                    value={perCircleMessages[section.circleId] ?? sharedMessage}
-                  />
-                  <SecondaryButton
-                    label={`Send to ${section.circleName} (${pendingPeople.length})`}
-                    onPress={() => sendToCircle(section)}
-                  />
-
-                  {expandedCircleId === section.circleId ? (
-                    <View style={styles.expandedPeople}>
-                      {pendingPeople.map((person) => (
-                        <View key={person.id} style={styles.expandedPersonRow}>
-                          <Text style={styles.expandedPersonName}>{person.name}</Text>
-                          <Pressable accessibilityRole="button" onPress={() => untickFromQuick(person)}>
-                            <Text style={styles.linkText}>Untick</Text>
-                          </Pressable>
-                        </View>
-                      ))}
-                      {section.circleId !== "other" ? (
-                        <Pressable
-                          accessibilityRole="button"
-                          onPress={() => expandToFullCircle(section)}
-                        >
-                          <Text style={styles.linkText}>Expand to full Circle</Text>
-                        </Pressable>
-                      ) : null}
-                    </View>
-                  ) : null}
+                  <Pressable
+                    accessibilityRole="checkbox"
+                    accessibilityLabel={`Mark ${person.name} complete`}
+                    accessibilityState={{ checked: person.completed }}
+                    onPress={() => toggleCompletePerson(person)}
+                    hitSlop={8}
+                  >
+                    <View style={[styles.checkbox, person.completed && styles.checkboxChecked]} />
+                  </Pressable>
                 </View>
-              );
-            })}
-          </View>
-        )}
-      </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Personalise</Text>
-
-        {personalisePeople.length === 0 ? (
-          <Text style={styles.helper}>
-            Anyone unticked from Quick message, or added below, appears here.
-          </Text>
-        ) : (
-          <View style={styles.personList}>
-            {personalisePeople.map((person) => {
-              const isOther = person.circleId === null;
-              const selectedForCircle = selectedOtherIds.has(person.id);
-
-              return (
-                <View key={person.id} style={styles.personBlock}>
-                  <View style={styles.personTapArea}>
-                    <Pressable
-                      accessibilityRole="checkbox"
-                      accessibilityLabel={`Mark ${person.name} complete`}
-                      accessibilityState={{ checked: person.completed }}
-                      onPress={() => toggle(person)}
-                      hitSlop={8}
-                    >
-                      <View style={[styles.checkbox, person.completed && styles.checkboxChecked]} />
-                    </Pressable>
-                    {isOther ? (
-                      <Pressable
-                        accessibilityRole="checkbox"
-                        accessibilityLabel={`Select ${person.name} to group into a Circle`}
-                        accessibilityState={{ checked: selectedForCircle }}
-                        onPress={() => toggleOtherSelection(person)}
-                      >
-                        <Text
-                          style={[
-                            styles.personName,
-                            person.completed && styles.personNameDone,
-                            selectedForCircle && styles.personNameSelected
-                          ]}
-                        >
-                          {person.name}
-                        </Text>
-                      </Pressable>
-                    ) : (
-                      <View>
-                        <Text style={[styles.personName, person.completed && styles.personNameDone]}>
-                          {person.name}
-                        </Text>
-                        {person.circleName ? (
-                          <Text style={styles.circleTag}>{person.circleName}</Text>
-                        ) : null}
-                      </View>
-                    )}
-                  </View>
-
-                  {!person.completed ? (
+                {personaliseSwapIds.has(person.id) ? (
+                  <>
                     <PersonaliseAccordion
                       person={person}
-                      isOpen={expandedPersonId === person.id}
-                      onToggle={() => togglePersonalise(person.id)}
+                      isOpen={expandedPersonaliseId === person.id}
+                      onToggle={() =>
+                        setExpandedPersonaliseId((current) => (current === person.id ? null : person.id))
+                      }
+                      onSent={() => void refresh()}
                     />
-                  ) : null}
-                </View>
-              );
-            })}
-          </View>
-        )}
-
-        {circlePromptStage === "confirm" ? (
-          <View style={styles.createCirclePrompt}>
-            <Text style={styles.createCirclePromptText}>Create a Circle for these people?</Text>
-            <View style={styles.createCircleActions}>
-              <SecondaryButton label="No" onPress={declineCreateCircle} />
-              <SecondaryButton label="Yes" onPress={() => setCirclePromptStage("naming")} />
-            </View>
-          </View>
-        ) : circlePromptStage === "naming" ? (
-          <View style={styles.createCirclePrompt}>
-            <TextInput
-              accessibilityLabel="New Circle name"
-              autoCapitalize="words"
-              onChangeText={setNewOtherCircleName}
-              placeholder="Circle name"
-              placeholderTextColor={colors.textMuted}
-              style={styles.input}
-              value={newOtherCircleName}
-            />
-            <SecondaryButton
-              disabled={!newOtherCircleName.trim()}
-              label="Create Circle"
-              onPress={() => void submitCreateCircle()}
-            />
-          </View>
-        ) : null}
-
-        <SecondaryButton label="+ Add person" onPress={addNewPerson} />
+                    <Pressable accessibilityRole="button" onPress={() => togglePersonaliseSwap(person.id)}>
+                      <Text style={styles.linkText}>Use a quick message instead</Text>
+                    </Pressable>
+                  </>
+                ) : (
+                  <>
+                    <TextInput
+                      accessibilityLabel={`Message for ${person.name}`}
+                      multiline
+                      onChangeText={(text) =>
+                        setIndividualMessages((current) => ({ ...current, [person.id]: text }))
+                      }
+                      style={styles.input}
+                      textAlignVertical="top"
+                      value={individualMessages[person.id] ?? DEFAULT_QUICK_MESSAGE}
+                    />
+                    <AmendWithAI
+                      surface="conversations-reply"
+                      currentMessage={individualMessages[person.id] ?? DEFAULT_QUICK_MESSAGE}
+                      onApply={(text) =>
+                        setIndividualMessages((current) => ({ ...current, [person.id]: text }))
+                      }
+                      context={{ recipientLabel: person.name }}
+                    />
+                    <View style={styles.excludedActions}>
+                      <SecondaryButton
+                        disabled={!(individualMessages[person.id] ?? DEFAULT_QUICK_MESSAGE).trim()}
+                        label="Send"
+                        onPress={() => sendIndividual(person)}
+                      />
+                      <Pressable accessibilityRole="button" onPress={() => togglePersonaliseSwap(person.id)}>
+                        <Text style={styles.linkText}>Personalise</Text>
+                      </Pressable>
+                    </View>
+                  </>
+                )}
+              </View>
+            );
+          })}
       </View>
+
+      {circlePromptStage === "confirm" ? (
+        <View style={styles.createCirclePrompt}>
+          <Text style={styles.createCirclePromptText}>Create a Circle for these people?</Text>
+          <View style={styles.createCircleActions}>
+            <SecondaryButton label="No" onPress={declineCreateCircle} />
+            <SecondaryButton label="Yes" onPress={() => setCirclePromptStage("naming")} />
+          </View>
+        </View>
+      ) : circlePromptStage === "naming" ? (
+        <View style={styles.createCirclePrompt}>
+          <TextInput
+            accessibilityLabel="New Circle name"
+            autoCapitalize="words"
+            onChangeText={setNewOtherCircleName}
+            placeholder="Circle name"
+            placeholderTextColor={colors.textMuted}
+            style={styles.input}
+            value={newOtherCircleName}
+          />
+          <SecondaryButton
+            disabled={!newOtherCircleName.trim()}
+            label="Create Circle"
+            onPress={() => void submitCreateCircle()}
+          />
+        </View>
+      ) : null}
+
+      <SecondaryButton label="+ Add person" onPress={addNewPerson} />
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Templates</Text>
@@ -752,7 +854,7 @@ export default function LibraryScreen() {
               const draft = templateDrafts[row.circleId] ?? row.text;
               return (
                 <View key={row.circleId} style={styles.templateBlock}>
-                  <Text style={styles.circleRowTitle}>{row.circleName}</Text>
+                  <Text style={styles.cardTitle}>{row.circleName}</Text>
                   <TextInput
                     accessibilityLabel={`Saved message for ${row.circleName}`}
                     multiline
@@ -779,7 +881,7 @@ export default function LibraryScreen() {
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
   content: {
-    gap: theme.spacing.xl
+    gap: theme.spacing.lg
   },
   pageTitle: {
     color: colors.text,
@@ -807,9 +909,14 @@ function createStyles(colors: ThemeColors) {
     fontSize: 14,
     lineHeight: 20
   },
+  templateList: {
+    gap: theme.spacing.md
+  },
+  templateBlock: {
+    gap: theme.spacing.xs
+  },
   chipRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
     gap: theme.spacing.sm
   },
   chip: {
@@ -833,21 +940,28 @@ function createStyles(colors: ThemeColors) {
   chipTextSelected: {
     color: colors.onPrimary
   },
-  chipSent: {
-    minHeight: 36,
-    borderRadius: theme.radius.pill,
-    paddingHorizontal: theme.spacing.md,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.surfaceStrong
+  cardList: {
+    gap: theme.spacing.lg
   },
-  chipSentText: {
-    color: colors.textMuted,
-    fontSize: 14,
+  card: {
+    gap: theme.spacing.sm,
+    borderRadius: theme.radius.md,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    padding: theme.spacing.md
+  },
+  cardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center"
+  },
+  cardTitle: {
+    color: colors.text,
+    fontSize: 17,
     fontWeight: "600"
   },
-  quickBody: {
-    gap: theme.spacing.sm
+  cardTitleSelected: {
+    color: colors.primary
   },
   input: {
     minHeight: 60,
@@ -871,77 +985,47 @@ function createStyles(colors: ThemeColors) {
     fontSize: 15,
     lineHeight: 21
   },
-  circleRows: {
-    gap: theme.spacing.md
-  },
-  circleRow: {
-    gap: theme.spacing.xs
-  },
-  circleRowHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center"
-  },
-  circleRowTitle: {
-    color: colors.text,
-    fontSize: 15,
-    fontWeight: "600"
-  },
-  circleRowSent: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    minHeight: 40,
-    borderRadius: theme.radius.md,
-    paddingHorizontal: theme.spacing.md,
-    backgroundColor: colors.surfaceStrong
-  },
-  circleRowSentText: {
-    color: colors.textMuted,
-    fontSize: 15,
-    fontWeight: "600"
-  },
-  circleRowSentLabel: {
-    color: colors.textMuted,
-    fontSize: 13
-  },
   linkText: {
     color: colors.link,
     fontSize: 13,
     fontWeight: "600"
   },
-  expandedPeople: {
-    gap: theme.spacing.xs,
-    marginTop: theme.spacing.xs,
-    paddingLeft: theme.spacing.sm
+  memberList: {
+    gap: theme.spacing.xs
   },
-  expandedPersonRow: {
+  memberRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    minHeight: 32
+    justifyContent: "space-between",
+    minHeight: 36
   },
-  expandedPersonName: {
+  memberRowStart: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.sm
+  },
+  memberName: {
     color: colors.text,
     fontSize: 15
   },
-  personList: {
-    gap: theme.spacing.md
+  memberNameDone: {
+    color: colors.textMuted,
+    textDecorationLine: "line-through"
   },
-  templateList: {
-    gap: theme.spacing.md
+  excludedList: {
+    gap: theme.spacing.md,
+    marginLeft: 32,
+    paddingLeft: theme.spacing.sm,
+    borderLeftWidth: 1.5,
+    borderLeftColor: colors.border
   },
-  templateBlock: {
+  excludedBlock: {
     gap: theme.spacing.xs
   },
-  personBlock: {
-    gap: theme.spacing.xs
-  },
-  personTapArea: {
+  excludedActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: theme.spacing.sm,
-    minHeight: 44
+    gap: theme.spacing.md
   },
   checkbox: {
     width: 22,
@@ -952,22 +1036,6 @@ function createStyles(colors: ThemeColors) {
   },
   checkboxChecked: {
     backgroundColor: colors.primary
-  },
-  personName: {
-    color: colors.text,
-    fontSize: 16
-  },
-  personNameDone: {
-    color: colors.textMuted,
-    textDecorationLine: "line-through"
-  },
-  personNameSelected: {
-    color: colors.primary,
-    fontWeight: "600"
-  },
-  circleTag: {
-    color: colors.textMuted,
-    fontSize: 12
   },
   createCirclePrompt: {
     gap: theme.spacing.sm,
@@ -985,8 +1053,7 @@ function createStyles(colors: ThemeColors) {
     gap: theme.spacing.sm
   },
   personaliseBlock: {
-    gap: theme.spacing.sm,
-    paddingLeft: 32
+    gap: theme.spacing.sm
   },
   accordionPanel: {
     gap: theme.spacing.xs
