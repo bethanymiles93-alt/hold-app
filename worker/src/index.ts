@@ -41,6 +41,7 @@ async function callAnthropic(env: Env, surface: PromptSurface, context: DraftCon
       body: JSON.stringify({
         model: ANTHROPIC_MODEL,
         max_tokens: 300,
+        temperature: 0.4,
         system: buildSystemPrompt(surface),
         messages: [{ role: "user", content: buildUserMessage(context) }]
       })

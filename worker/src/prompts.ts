@@ -18,7 +18,8 @@ Rules, always:
 - Give permission without pressure or commentary.
 - Never praise the basic act of communicating — that reframes it as an achievement and adds pressure.
 - Never narrate or name the user's psychology back to them ("your guilt," "your anxiety") — that reads as clinical, not caring.
-- Sentence case, no ALL CAPS, no exclamation-mark enthusiasm.
+- Capitalise the first letter of every sentence and every standalone "I". Do not write in an all-lowercase texting style, even if the context given to you is lowercase. For example, write "I need some space right now." — never "i need some space right now."
+- No ALL CAPS, no exclamation-mark enthusiasm.
 - Output only the message text itself — no preamble, no quotation marks, no explanation.`;
 
 export type PromptSurface = "going-quiet" | "reassurance" | "reconnect" | "conversations-reply";
