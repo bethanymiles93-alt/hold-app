@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
@@ -163,7 +163,7 @@ export default function ReconnectScreen() {
             {coverage.contactedIds.length} of {coverage.totalIds.length} reached
           </Text>
 
-          <View style={styles.chipRow}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
             <Pressable
               accessibilityRole="button"
               accessibilityState={{ selected: allSelected }}
@@ -230,7 +230,7 @@ export default function ReconnectScreen() {
                 </Pressable>
               );
             })}
-          </View>
+          </ScrollView>
 
           <TextInput
             accessibilityLabel="Message to send"
@@ -330,7 +330,6 @@ function createStyles(colors: ThemeColors) {
     },
     chipRow: {
       flexDirection: "row",
-      flexWrap: "wrap",
       gap: theme.spacing.sm
     },
     chip: {

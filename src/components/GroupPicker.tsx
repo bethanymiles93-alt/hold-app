@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { Link, useFocusEffect } from "expo-router";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { addContactToGroup, createGroup, getGroups } from "@/services/circleService";
@@ -70,7 +70,11 @@ export function GroupPicker({ selectedGroupIds, onToggle }: GroupPickerProps) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.pillWrap}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.pillWrap}
+      >
         {groups.length > 0 ? (
           <Pressable
             accessibilityRole="checkbox"
@@ -106,7 +110,7 @@ export function GroupPicker({ selectedGroupIds, onToggle }: GroupPickerProps) {
             </Pressable>
           );
         })}
-      </View>
+      </ScrollView>
 
       {emptySelectedGroups.length > 0 ? (
         <Text style={styles.prompt}>
@@ -185,7 +189,6 @@ function createStyles(colors: ThemeColors) {
     },
     pillWrap: {
       flexDirection: "row",
-      flexWrap: "wrap",
       gap: theme.spacing.sm
     },
     pill: {
