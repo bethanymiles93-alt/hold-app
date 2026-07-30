@@ -14,6 +14,10 @@ export interface AiDraftContext {
   returnStyle?: string;
   recipientLabel?: string;
   friendMessage?: string;
+  /** Present only for "Amend with AI" requests — the box's current content, to blend rather than replace. */
+  existingMessage?: string;
+  /** Present only for "Amend with AI" requests — what the user typed into the amend prompt. */
+  additionalContext?: string;
 }
 
 const PROXY_URL = process.env.EXPO_PUBLIC_AI_PROXY_URL;

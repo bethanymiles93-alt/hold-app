@@ -8,6 +8,7 @@ import { ChoiceCard } from "@/components/ChoiceCard";
 import { RecipientPersonalisation } from "@/components/RecipientPersonalisation";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { SecondaryButton } from "@/components/SecondaryButton";
+import { AmendWithAI } from "@/components/AmendWithAI";
 import { EmailOutOfOffice } from "@/components/EmailOutOfOffice";
 import { WiderWorldStatus } from "@/components/WiderWorldStatus";
 import { HOLD_INTENTS } from "@/constants/copy";
@@ -255,6 +256,13 @@ export default function HoldPeopleScreen() {
                     </Pressable>
                   )}
                 </View>
+
+                <AmendWithAI
+                  surface="going-quiet"
+                  currentMessage={draft.message}
+                  onApply={(text) => setCircleDraftMessage(draft.circleId, text)}
+                  context={{ intent: draft.intent ?? undefined, recipientLabel: draft.circleName }}
+                />
               </View>
             )}
           </View>

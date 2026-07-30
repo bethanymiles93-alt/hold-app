@@ -5,6 +5,7 @@ import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { SecondaryButton } from "@/components/SecondaryButton";
+import { AmendWithAI } from "@/components/AmendWithAI";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { QUICK_RECONNECT_MESSAGES } from "@/constants/copy";
@@ -234,6 +235,8 @@ export default function ReconnectScreen() {
             textAlignVertical="top"
             value={message}
           />
+
+          <AmendWithAI surface="reconnect" currentMessage={message} onApply={changeMessage} />
         </View>
 
         <PrimaryButton

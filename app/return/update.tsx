@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
 import { PrimaryButton } from "@/components/PrimaryButton";
+import { AmendWithAI } from "@/components/AmendWithAI";
 import { DEFAULT_TAKING_TIME_UPDATE } from "@/constants/copy";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
@@ -144,6 +145,8 @@ export default function TakingTimeUpdateScreen() {
           textAlignVertical="top"
           value={message}
         />
+
+        <AmendWithAI surface="reassurance" currentMessage={message} onApply={setMessage} />
       </View>
 
       <PrimaryButton

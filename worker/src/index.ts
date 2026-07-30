@@ -42,7 +42,7 @@ async function callAnthropic(env: Env, surface: PromptSurface, context: DraftCon
         model: ANTHROPIC_MODEL,
         max_tokens: 300,
         temperature: 0.4,
-        system: buildSystemPrompt(surface),
+        system: buildSystemPrompt(surface, Boolean(context.existingMessage)),
         messages: [{ role: "user", content: buildUserMessage(context) }]
       })
     });
