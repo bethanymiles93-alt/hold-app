@@ -28,6 +28,7 @@ Phone numbers were originally on this list, but are no longer accurate as a blan
 Where available, draft suggestions come from a Claude model (Anthropic) called via a server Hold controls (`worker/` — never a direct client-to-Anthropic call, so the real API key is never in the app). This is optional and never required — every screen with an AI-assisted draft still lets the user write from scratch, and if the server is unreachable, unconfigured, over the monthly fair-use limit, or errors in any way, the app silently falls back to its existing local templates (`src/services/draftService.ts`) rather than showing an error or blocking the user.
 
 - **What's sent to the server, and on to Anthropic:** the selected intent or return/reply style, and — where relevant to that specific draft — a first name or Circle name and, for a Conversations reply, the pasted-in message being replied to. Never a phone number, never Circle membership, never anything from "Your Circle" below.
+- **"Amend with AI" (Hold+):** additionally sends the message box's current content and whatever the user typed into the amend prompt, so the model can lightly edit rather than regenerate from scratch. When AI memory's Layer 1 is on (see below), the same request also asks the model to extract a short, storable note if the typed context contains one — covered fully in "AI memory" below, not repeated here.
 - **What's sent to enforce the free-tier limit:** a random per-install id (`expo-secure-store`, generated once, never a name or device identifier) and a count. The server has no way to connect that id to a person.
 - **Retention:** the proxy itself does not log or persist draft content — each request is stateless beyond the momentary count check. Anthropic's own API data-handling terms apply to the request while it's processed on their side; this app does not control or extend that.
 - **User control:** every draft is shown before sending and is always editable; nothing is ever sent on the user's behalf without them seeing it first.
@@ -79,6 +80,20 @@ Reconnect's completion gate requires every Circle and ungrouped individual in th
 
 This exception does not loosen the "Before adding persistence" checklist below for any *other* feature. It already satisfies retention schedule and deletion design (the two clearing points above) and plain-language notice (this section); a lawful-basis, data-map and DPIA pass specific to this feature is still worth doing before wider release, same as the others above.
 
+## AI memory: a two-layer, both-must-consent exception
+
+A Hold+ feature. Layer 1 is a standing, off-by-default toggle ("Remember helpful details for drafting and notifications") set ahead of time in the Hold+ area — never an in-the-moment prompt during Going Quiet or Reconnect. Layer 2 — actually noting a detail and later suggesting it back — never activates unless Layer 1 is explicitly on, and turning Layer 1 off deletes everything captured under it immediately, not just at the next expiry.
+
+- **What's stored:** short, AI-extracted details (under roughly 15 words) judged relevant while using "Amend with AI" — e.g. a specific person's visit, a recurring situation — never the surrounding message text, and never anything about the user's psychological state (the AI is explicitly instructed not to extract that). Each note also records which drafting surface it came from and when it was created.
+- **Why:** so a detail mentioned once while drafting can be gently offered back later — during Taking Time or Reconnect — instead of being lost or needing retyping. Always a dismissible suggestion at a calmer moment ("Use it" / "Don't remember"), never inserted into a message automatically.
+- **Where:** the same device-level encrypted storage as the exceptions above (`expo-secure-store`), never transmitted off-device except as part of the single Amend-with-AI request that generated it — the same boundary as ordinary AI drafting, see "AI-assisted drafting" above.
+- **How long:** 90 days from creation. A note that's surfaced and "Used" is kept but not suggested again; "Don't remember" deletes it immediately rather than just marking it resolved. Turning Layer 1 off deletes every stored note immediately, regardless of age.
+- **Consent:** nothing is captured, stored, or surfaced unless Layer 1 is explicitly on.
+- **Known gap, flagged rather than silently resolved:** this was specified to match "the existing Hold+ trial expiry window," but no such trial mechanism exists anywhere in the app yet — Hold+ isn't open for purchase, so there is no trial to align with (see `app/settings/hold-plus.tsx`). 90 days is used as a flat, standalone figure instead; worth revisiting once a real Hold+ trial exists.
+- **Not included in this pass:** this data is never used for Patterns/analytics, only for drafting suggestions. Using it for Patterns would need its own separate disclosure and decision.
+
+This exception does not meet the "Before adding persistence" checklist below on its own — no lawful-basis, data-map, threat-model or DPIA work has been done for it. Being built per explicit product direction, not because the checklist has been satisfied.
+
 ## Your Circle: real contact details, and why this one is different
 
 Everything documented above is either transient or a planning aid — a name typed by the user is not linked to any real person's record. Your Circle breaks that pattern: it stores **real names and real phone numbers**, taken from the user's actual address book, so a saved Circle can be texted directly. That makes this **meaningfully more sensitive than anything else Hold currently stores**, and it is called out on its own rather than folded into the exceptions above.
@@ -105,4 +120,4 @@ Complete:
 - DPIA screening
 - plain-language user notice
 
-The three exceptions above (Thoughtful reply, Quiet History, Your Circle) were each shipped ahead of this checklist being fully satisfied, at explicit product direction — see each section for exactly what is and isn't covered. Your Circle in particular should be treated as blocked on a dedicated review, not just noted, before any public release.
+The exceptions above (Thoughtful reply, Quiet History, Reconnect coverage tracking, AI memory, Your Circle) were each shipped ahead of this checklist being fully satisfied, at explicit product direction — see each section for exactly what is and isn't covered. Your Circle in particular should be treated as blocked on a dedicated review, not just noted, before any public release.
