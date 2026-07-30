@@ -197,7 +197,7 @@ export function SettingsDrawer() {
           ]}
         >
           <View style={styles.group}>
-            <NavRow label="Manage Circles" onPress={() => goTo("/settings/circle")} />
+            <NavRow label="Your Circles" onPress={() => goTo("/settings/circle")} />
             <ComingLaterRow label="Notifications" />
             <ComingLaterRow label="Language" />
             <ComingLaterRow label="Connected Accounts" />

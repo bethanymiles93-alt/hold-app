@@ -48,7 +48,6 @@ export default function RootLayout() {
             <Stack.Screen name="settings/research" options={{ title: "Research" }} />
             <Stack.Screen name="settings/hold-plus" options={{ title: "Hold+" }} />
             <Stack.Screen name="settings/circle/index" options={{ title: "Your Circles" }} />
-            <Stack.Screen name="settings/circle/detail" options={{ title: "Circle" }} />
           </Stack>
           <SettingsDrawer />
         </SettingsDrawerProvider>
