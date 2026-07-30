@@ -23,6 +23,15 @@ These values are held in application memory for the current flow. Circle members
 
 Phone numbers were originally on this list, but are no longer accurate as a blanket claim: see "Your Circle" below for the one narrow, explicit-selection exception, and how it differs from bulk collection.
 
+## AI-assisted drafting: what leaves the device, when it's used
+
+Where available, draft suggestions come from a Claude model (Anthropic) called via a server Hold controls (`worker/` — never a direct client-to-Anthropic call, so the real API key is never in the app). This is optional and never required — every screen with an AI-assisted draft still lets the user write from scratch, and if the server is unreachable, unconfigured, over the monthly fair-use limit, or errors in any way, the app silently falls back to its existing local templates (`src/services/draftService.ts`) rather than showing an error or blocking the user.
+
+- **What's sent to the server, and on to Anthropic:** the selected intent or return/reply style, and — where relevant to that specific draft — a first name or Circle name and, for a Conversations reply, the pasted-in message being replied to. Never a phone number, never Circle membership, never anything from "Your Circle" below.
+- **What's sent to enforce the free-tier limit:** a random per-install id (`expo-secure-store`, generated once, never a name or device identifier) and a count. The server has no way to connect that id to a person.
+- **Retention:** the proxy itself does not log or persist draft content — each request is stateless beyond the momentary count check. Anthropic's own API data-handling terms apply to the request while it's processed on their side; this app does not control or extend that.
+- **User control:** every draft is shown before sending and is always editable; nothing is ever sent on the user's behalf without them seeing it first.
+
 ## Sharing
 
 The app passes the reviewed text to the operating system's share sheet. The user then chooses the destination.
