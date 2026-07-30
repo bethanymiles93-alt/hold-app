@@ -2,8 +2,6 @@ import type { PropsWithChildren } from "react";
 import { useMemo } from "react";
 import {
   Keyboard,
-  KeyboardAvoidingView,
-  Platform,
   ScrollView,
   type StyleProp,
   StyleSheet,
@@ -31,18 +29,24 @@ export function Screen({ children, contentContainerStyle }: ScreenProps) {
           children still get their own tap first, so this only fires on
           genuinely empty space. */}
       <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-        <KeyboardAvoidingView
+        {/* ScrollView's own keyboard-inset handling, not KeyboardAvoidingView —
+            KeyboardAvoidingView's height is only established via onLayout,
+            which reliably settles when a keyboard actually shows; on
+            screens with no (or minimal) text input, that layout pass never
+            gets a reason to fire, and the ScrollView beneath it can lock in
+            an incorrect initial bound and never scroll. Confirmed on-device:
+            input-heavy screens (Going Quiet, Reconnect) scrolled fine,
+            input-light ones (Hold+, Research) didn't — this removes the
+            shared cause instead of patching each screen individually. */}
+        <ScrollView
           style={styles.flex}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
+          contentInsetAdjustmentBehavior="automatic"
+          contentContainerStyle={[styles.content, contentContainerStyle]}
         >
-          <ScrollView
-            style={styles.flex}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={[styles.content, contentContainerStyle]}
-          >
-            {children}
-          </ScrollView>
-        </KeyboardAvoidingView>
+          {children}
+        </ScrollView>
       </TouchableWithoutFeedback>
     </SafeAreaView>
   );
