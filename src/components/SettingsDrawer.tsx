@@ -25,6 +25,7 @@ import { deleteAllHoldHistory } from "@/services/holdHistoryService";
 import { deleteAllReplies } from "@/services/replyStorageService";
 import { deleteAllTemplates } from "@/services/templateService";
 import { deleteAllDrafts } from "@/services/messageDraftService";
+import { deleteAllMemoryNotes } from "@/services/aiMemoryService";
 
 const FEEDBACK_EMAIL = "bethany.miles.93@gmail.com";
 const PANEL_WIDTH = Math.min(320, Dimensions.get("window").width * 0.86);
@@ -138,7 +139,7 @@ export function SettingsDrawer() {
     close();
     Alert.alert(
       "Delete everything on this device?",
-      "This removes every saved Circle, Hold history entry, in-progress reply, Conversations list, and saved template. This can't be undone.",
+      "This removes every saved Circle, Hold history entry, in-progress reply, Conversations list, saved template, and remembered AI-drafting detail. This can't be undone.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -153,6 +154,7 @@ export function SettingsDrawer() {
                 deleteAllConversations(),
                 deleteAllTemplates(),
                 deleteAllDrafts(),
+                deleteAllMemoryNotes(),
                 AsyncStorage.removeItem(HAS_SEEN_WELCOME_KEY)
               ]);
               resetFlow("hold");

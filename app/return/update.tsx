@@ -5,6 +5,7 @@ import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { AmendWithAI } from "@/components/AmendWithAI";
+import { MemoryNoteSuggestion } from "@/components/MemoryNoteSuggestion";
 import { DEFAULT_TAKING_TIME_UPDATE } from "@/constants/copy";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
@@ -23,6 +24,7 @@ export default function TakingTimeUpdateScreen() {
   );
   const [message, setMessage] = useState(DEFAULT_TAKING_TIME_UPDATE);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [suggestedPrompt, setSuggestedPrompt] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     if (!showConfirmation) return;
@@ -94,6 +96,8 @@ export default function TakingTimeUpdateScreen() {
           body="A short reassurance, without ending Taking Time. Send it as many times as you like."
         />
 
+        <MemoryNoteSuggestion onUseIt={setSuggestedPrompt} />
+
         <View style={styles.chipRow}>
           <Pressable
             accessibilityRole="button"
@@ -146,7 +150,12 @@ export default function TakingTimeUpdateScreen() {
           value={message}
         />
 
-        <AmendWithAI surface="reassurance" currentMessage={message} onApply={setMessage} />
+        <AmendWithAI
+          surface="reassurance"
+          currentMessage={message}
+          onApply={setMessage}
+          initialPrompt={suggestedPrompt}
+        />
       </View>
 
       <PrimaryButton

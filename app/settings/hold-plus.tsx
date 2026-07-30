@@ -5,6 +5,7 @@ import { Screen } from "@/components/Screen";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { isHoldPlusActive, setHoldPlusActive } from "@/services/holdPlusService";
+import { isMemoryEnabled, setMemoryEnabled } from "@/services/aiMemoryService";
 
 const HOLD_PLUS_SECTIONS = [
   {
@@ -34,12 +35,19 @@ export default function HoldPlusScreen() {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [devHoldPlus, setDevHoldPlus] = useState(false);
+  const [memoryEnabled, setMemoryEnabledState] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
       void isHoldPlusActive().then(setDevHoldPlus);
+      void isMemoryEnabled().then(setMemoryEnabledState);
     }, [])
   );
+
+  const toggleMemoryEnabled = (enabled: boolean) => {
+    setMemoryEnabledState(enabled);
+    void setMemoryEnabled(enabled);
+  };
 
   const toggleDevHoldPlus = (active: boolean) => {
     setDevHoldPlus(active);
@@ -85,6 +93,27 @@ export default function HoldPlusScreen() {
             ) : null}
           </View>
         ))}
+
+        <View style={styles.section}>
+          <View style={styles.memoryRow}>
+            <View style={styles.memoryRowText}>
+              <Text style={styles.title}>Remember helpful details</Text>
+              <Text style={styles.body}>
+                Off by default. When on, Amend with AI may quietly note a relevant detail you
+                mention while drafting — never your message itself, never anything about how
+                you're feeling — and gently offer it back later during Taking Time or Reconnect,
+                with "Use it" or "Don't remember" at that calmer moment. Turning this off deletes
+                anything already noted.
+              </Text>
+            </View>
+            <Switch
+              accessibilityLabel="Remember helpful details for drafting and notifications"
+              value={memoryEnabled}
+              onValueChange={toggleMemoryEnabled}
+              trackColor={{ true: colors.primary, false: colors.border }}
+            />
+          </View>
+        </View>
 
         <View style={styles.section}>
           <Text style={styles.title}>Founding Member pricing</Text>
@@ -172,6 +201,15 @@ function createStyles(colors: ThemeColors) {
       color: colors.text,
       fontSize: 15,
       lineHeight: 22
+    },
+    memoryRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.md
+    },
+    memoryRowText: {
+      flex: 1,
+      gap: theme.spacing.sm
     },
     title: {
       color: colors.text,

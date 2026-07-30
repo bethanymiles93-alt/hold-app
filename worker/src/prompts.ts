@@ -32,6 +32,18 @@ context as what should change, not a request to start over: keep wording, tone a
 that still fits, and edit only what the new context makes necessary. Never discard the \
 existing message and write an unrelated one — this is a light edit, not a rewrite.`;
 
+// Appended only when the user has explicitly opted into AI memory's Layer 1
+// (see docs/03-privacy-model.md, "AI memory"). Asks for an optional, tightly
+// bounded note on a clearly delimited final line, parsed by the worker and
+// never treated as part of the message itself.
+const MEMORY_CAPTURE_RULES = `
+
+After writing the message, on a new final line, write "NOTE:" followed by a short (under 15 \
+words) durable, factual detail worth remembering for future drafts, if and only if the new \
+context genuinely contains one — e.g. a specific person, an ongoing situation, a recurring \
+commitment. Never a guess, never anything about the user's psychological or emotional state. If \
+there is nothing worth remembering, write exactly "NOTE: none".`;
+
 export type PromptSurface = "going-quiet" | "reassurance" | "reconnect" | "conversations-reply";
 
 export interface DraftContext {
@@ -45,8 +57,12 @@ export interface DraftContext {
   additionalContext?: string;
 }
 
-export function buildSystemPrompt(surface: PromptSurface, isAmend = false): string {
-  const suffix = isAmend ? AMEND_RULES : "";
+export function buildSystemPrompt(
+  surface: PromptSurface,
+  isAmend = false,
+  memoryCaptureEnabled = false
+): string {
+  const suffix = (isAmend ? AMEND_RULES : "") + (memoryCaptureEnabled ? MEMORY_CAPTURE_RULES : "");
 
   switch (surface) {
     case "going-quiet":
@@ -75,6 +91,25 @@ Reply to the substance of their message, briefly and warmly.${suffix}`;
       throw new Error(`Unknown prompt surface: ${exhaustiveCheck}`);
     }
   }
+}
+
+export interface ParsedDraft {
+  draft: string;
+  memoryNote: string | null;
+}
+
+const NOTE_MARKER = "\nNOTE:";
+
+/** Splits the model's raw text into the message draft and an optional memory note, per MEMORY_CAPTURE_RULES. */
+export function parseDraftResponse(raw: string): ParsedDraft {
+  const index = raw.lastIndexOf(NOTE_MARKER);
+  if (index === -1) return { draft: raw.trim(), memoryNote: null };
+
+  const draft = raw.slice(0, index).trim();
+  const noteText = raw.slice(index + NOTE_MARKER.length).trim();
+  const memoryNote = noteText && noteText.toLowerCase() !== "none" ? noteText : null;
+
+  return { draft, memoryNote };
 }
 
 export function buildUserMessage(context: DraftContext): string {

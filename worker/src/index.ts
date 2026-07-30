@@ -1,4 +1,11 @@
-import { buildSystemPrompt, buildUserMessage, type DraftContext, type PromptSurface } from "./prompts";
+import {
+  buildSystemPrompt,
+  buildUserMessage,
+  parseDraftResponse,
+  type DraftContext,
+  type ParsedDraft,
+  type PromptSurface
+} from "./prompts";
 import { checkAndIncrement } from "./rateLimit";
 
 export interface Env {
@@ -12,6 +19,8 @@ interface DraftRequestBody {
   installId?: string;
   surface?: PromptSurface;
   context?: DraftContext;
+  /** Only sent when the user has explicitly opted into AI memory's Layer 1 — see docs/03-privacy-model.md. */
+  memoryCaptureEnabled?: boolean;
 }
 
 const ANTHROPIC_MODEL = "claude-sonnet-5";
@@ -25,7 +34,12 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
-async function callAnthropic(env: Env, surface: PromptSurface, context: DraftContext): Promise<string> {
+async function callAnthropic(
+  env: Env,
+  surface: PromptSurface,
+  context: DraftContext,
+  memoryCaptureEnabled: boolean
+): Promise<ParsedDraft> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), ANTHROPIC_TIMEOUT_MS);
 
@@ -42,7 +56,7 @@ async function callAnthropic(env: Env, surface: PromptSurface, context: DraftCon
         model: ANTHROPIC_MODEL,
         max_tokens: 300,
         temperature: 0.4,
-        system: buildSystemPrompt(surface, Boolean(context.existingMessage)),
+        system: buildSystemPrompt(surface, Boolean(context.existingMessage), memoryCaptureEnabled),
         messages: [{ role: "user", content: buildUserMessage(context) }]
       })
     });
@@ -57,7 +71,7 @@ async function callAnthropic(env: Env, surface: PromptSurface, context: DraftCon
       throw new Error("provider_error:empty_response");
     }
 
-    return text.trim();
+    return parseDraftResponse(text);
   } finally {
     clearTimeout(timeout);
   }
@@ -84,7 +98,7 @@ export default {
       return json({ error: "bad_request" }, 400);
     }
 
-    const { installId, surface, context } = body;
+    const { installId, surface, context, memoryCaptureEnabled } = body;
 
     if (!installId || !surface || !VALID_SURFACES.includes(surface)) {
       return json({ error: "bad_request" }, 400);
@@ -98,8 +112,13 @@ export default {
     }
 
     try {
-      const draft = await callAnthropic(env, surface, context ?? {});
-      return json({ draft, used: rateLimit.used, limit: rateLimit.limit });
+      const { draft, memoryNote } = await callAnthropic(
+        env,
+        surface,
+        context ?? {},
+        Boolean(memoryCaptureEnabled)
+      );
+      return json({ draft, memoryNote, used: rateLimit.used, limit: rateLimit.limit });
     } catch (error) {
       const message = error instanceof Error ? error.message : "unknown";
 

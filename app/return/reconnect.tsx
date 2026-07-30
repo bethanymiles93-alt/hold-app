@@ -6,6 +6,7 @@ import { StepHeader } from "@/components/StepHeader";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { SecondaryButton } from "@/components/SecondaryButton";
 import { AmendWithAI } from "@/components/AmendWithAI";
+import { MemoryNoteSuggestion } from "@/components/MemoryNoteSuggestion";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { QUICK_RECONNECT_MESSAGES } from "@/constants/copy";
@@ -32,6 +33,7 @@ export default function ReconnectScreen() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [emailOff, setEmailOff] = useState(false);
   const [statusCleared, setStatusCleared] = useState(false);
+  const [suggestedPrompt, setSuggestedPrompt] = useState<string | undefined>(undefined);
 
   const refresh = useCallback(async () => {
     const current = await getReconnectingPeriod();
@@ -154,6 +156,8 @@ export default function ReconnectScreen() {
         <View style={styles.top}>
           <StepHeader title="Reconnect" body="Reach everyone at your own pace, a few at a time." />
 
+          <MemoryNoteSuggestion onUseIt={setSuggestedPrompt} />
+
           <Text style={styles.progressText}>
             {coverage.contactedIds.length} of {coverage.totalIds.length} reached
           </Text>
@@ -236,7 +240,12 @@ export default function ReconnectScreen() {
             value={message}
           />
 
-          <AmendWithAI surface="reconnect" currentMessage={message} onApply={changeMessage} />
+          <AmendWithAI
+            surface="reconnect"
+            currentMessage={message}
+            onApply={changeMessage}
+            initialPrompt={suggestedPrompt}
+          />
         </View>
 
         <PrimaryButton

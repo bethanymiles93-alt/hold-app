@@ -39,9 +39,9 @@ export function createLocalDraft(request: DraftRequest): string {
 export async function createDraft(request: DraftRequest): Promise<string> {
   try {
     if (request.mode === "hold") {
-      return await requestAiDraft("going-quiet", { intent: request.intent ?? undefined });
+      return (await requestAiDraft("going-quiet", { intent: request.intent ?? undefined })).draft;
     }
-    return await requestAiDraft("reconnect", { returnStyle: request.returnStyle ?? undefined });
+    return (await requestAiDraft("reconnect", { returnStyle: request.returnStyle ?? undefined })).draft;
   } catch {
     return createLocalDraft(request);
   }
@@ -64,7 +64,7 @@ export function createLocalReplyDraft(style: ReturnStyle): string {
 /** Matches createDraft above — AI proxy first, local template fallback always available. */
 export async function createReplyDraft(style: ReturnStyle): Promise<string> {
   try {
-    return await requestAiDraft("conversations-reply", { returnStyle: style });
+    return (await requestAiDraft("conversations-reply", { returnStyle: style })).draft;
   } catch {
     return createLocalReplyDraft(style);
   }

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { theme, type ThemeColors } from "@/constants/theme";
@@ -6,12 +6,15 @@ import { useAppTheme } from "@/hooks/useAppTheme";
 import { SecondaryButton } from "@/components/SecondaryButton";
 import { isHoldPlusActive } from "@/services/holdPlusService";
 import { requestAiDraft, type AiDraftContext, type AiSurface } from "@/services/aiProxyClient";
+import { captureMemoryNote, isMemoryEnabled } from "@/services/aiMemoryService";
 
 interface AmendWithAIProps {
   surface: AiSurface;
   currentMessage: string;
   onApply: (text: string) => void;
   context?: AiDraftContext;
+  /** A suggested note the user chose "Use it" on — opens the panel pre-filled with it. */
+  initialPrompt?: string;
 }
 
 type Status = "idle" | "loading" | "error";
@@ -21,8 +24,12 @@ type Status = "idle" | "loading" | "error";
  * context the user types in, rather than regenerating from scratch. Same
  * position everywhere it appears — directly below the message box, above
  * Send. Absent entirely for free users, not greyed out or locked.
+ *
+ * Also the AI memory Layer 2 capture point: when Layer 1 is on, the same
+ * generate request asks the model for an optional note, stored quietly here
+ * with no interruption — see docs/03-privacy-model.md, "AI memory."
  */
-export function AmendWithAI({ surface, currentMessage, onApply, context }: AmendWithAIProps) {
+export function AmendWithAI({ surface, currentMessage, onApply, context, initialPrompt }: AmendWithAIProps) {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [available, setAvailable] = useState(false);
@@ -37,6 +44,12 @@ export function AmendWithAI({ surface, currentMessage, onApply, context }: Amend
     }, [])
   );
 
+  useEffect(() => {
+    if (!initialPrompt) return;
+    setPrompt(initialPrompt);
+    setOpen(true);
+  }, [initialPrompt]);
+
   const reset = () => {
     setOpen(false);
     setPrompt("");
@@ -47,13 +60,21 @@ export function AmendWithAI({ surface, currentMessage, onApply, context }: Amend
   const generate = async () => {
     setStatus("loading");
     try {
-      const result = await requestAiDraft(surface, {
-        ...context,
-        existingMessage: currentMessage,
-        additionalContext: prompt.trim() || undefined
-      });
-      setDraft(result);
+      const memoryCaptureEnabled = await isMemoryEnabled();
+      const result = await requestAiDraft(
+        surface,
+        {
+          ...context,
+          existingMessage: currentMessage,
+          additionalContext: prompt.trim() || undefined
+        },
+        memoryCaptureEnabled
+      );
+      setDraft(result.draft);
       setStatus("idle");
+      if (result.memoryNote) {
+        void captureMemoryNote(surface, result.memoryNote);
+      }
     } catch {
       setDraft(null);
       setStatus("error");

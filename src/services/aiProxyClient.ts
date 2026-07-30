@@ -41,8 +41,18 @@ export function isAiProxyConfigured(): boolean {
   return Boolean(PROXY_URL && CLIENT_KEY);
 }
 
+export interface AiDraftResult {
+  draft: string;
+  /** Present only when memoryCaptureEnabled was set and the model found something worth noting. */
+  memoryNote: string | null;
+}
+
 /** Throws on any failure — callers fall back to the local template draft, always. */
-export async function requestAiDraft(surface: AiSurface, context: AiDraftContext): Promise<string> {
+export async function requestAiDraft(
+  surface: AiSurface,
+  context: AiDraftContext,
+  memoryCaptureEnabled = false
+): Promise<AiDraftResult> {
   if (!PROXY_URL || !CLIENT_KEY) {
     throw new Error("ai_proxy_not_configured");
   }
@@ -55,14 +65,14 @@ export async function requestAiDraft(surface: AiSurface, context: AiDraftContext
       "content-type": "application/json",
       "x-hold-client-key": CLIENT_KEY
     },
-    body: JSON.stringify({ installId, surface, context })
+    body: JSON.stringify({ installId, surface, context, memoryCaptureEnabled })
   });
 
-  const data = (await response.json()) as { draft?: string; error?: string };
+  const data = (await response.json()) as { draft?: string; memoryNote?: string | null; error?: string };
 
   if (!response.ok || !data.draft) {
     throw new Error(data.error ?? "ai_proxy_error");
   }
 
-  return data.draft;
+  return { draft: data.draft, memoryNote: data.memoryNote ?? null };
 }
