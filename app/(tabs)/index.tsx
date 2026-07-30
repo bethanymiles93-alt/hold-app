@@ -14,8 +14,6 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { HoldMark } from "@/components/HoldMark";
-import { HeldMark } from "@/components/HeldMark";
-import { NavPill } from "@/components/NavPill";
 import { SecondaryButton } from "@/components/SecondaryButton";
 import { HeaderSettingsButton } from "@/components/HeaderSettingsButton";
 import { theme } from "@/constants/theme";
@@ -48,7 +46,9 @@ export const QUIET_CIRCLE_SCALE = 0.75;
 
 // Tap transitions are quick and purely physical (scale only) — the emotional
 // colour shift lives on the resting screen instead, see the palette fade below.
-const TAP_DURATION = 280;
+// Deliberately snappy — an instant, responsive press (Instagram Stories
+// opening on tap), not a slow fade the user has to wait through.
+const TAP_DURATION = 120;
 const NAVIGATE_TRIGGER_MS = Math.round(TAP_DURATION * 0.8);
 
 // Reconnect is the one moment that should feel actively alive: the circle grows
@@ -329,10 +329,7 @@ export default function HomeScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.brand}>
           <HoldMark size={72} />
-          <View style={styles.wordmarkRow}>
-            <Text style={[styles.wordmark, { color: currentTheme.colors.text }]}>Hold</Text>
-            <HeldMark size={20} />
-          </View>
+          <Text style={[styles.wordmark, { color: currentTheme.colors.text }]}>Hold</Text>
         </View>
 
         <View style={styles.hero}>
@@ -352,11 +349,7 @@ export default function HomeScreen() {
           {homeState === "loading" ? (
             <View style={styles.circleBox}>
               <View
-                style={[
-                  styles.circleVisual,
-                  styles.circlePlaceholder,
-                  { backgroundColor: currentTheme.colors.surfaceStrong }
-                ]}
+                style={[styles.circleVisual, { backgroundColor: currentTheme.colors.surfaceStrong }]}
               />
             </View>
           ) : homeState === "taking-time" ? (
@@ -387,7 +380,7 @@ export default function HomeScreen() {
                   <Animated.View
                     style={[
                       styles.circleVisual,
-                      { backgroundColor: animatedPrimary, shadowColor: animatedPrimary }
+                      { backgroundColor: animatedPrimary }
                     ]}
                   >
                     <Text style={[styles.circleLabel, { color: currentTheme.colors.onPrimary }]}>
@@ -411,7 +404,7 @@ export default function HomeScreen() {
                 <Animated.View
                   style={[
                     styles.circleVisual,
-                    { backgroundColor: animatedPrimary, shadowColor: animatedPrimary }
+                    { backgroundColor: animatedPrimary }
                   ]}
                 >
                   <Text style={[styles.circleLabel, { color: currentTheme.colors.onPrimary }]}>
@@ -436,7 +429,7 @@ export default function HomeScreen() {
                 <Animated.View
                   style={[
                     styles.circleVisual,
-                    { backgroundColor: animatedPrimary, shadowColor: animatedPrimary }
+                    { backgroundColor: animatedPrimary }
                   ]}
                 >
                   <Text style={[styles.circleLabel, { color: currentTheme.colors.onPrimary }]}>
@@ -459,7 +452,7 @@ export default function HomeScreen() {
                 <Animated.View
                   style={[
                     styles.circleVisual,
-                    { backgroundColor: animatedPrimary, shadowColor: animatedPrimary }
+                    { backgroundColor: animatedPrimary }
                   ]}
                 >
                   <Text style={[styles.circleLabel, { color: currentTheme.colors.onPrimary }]}>
@@ -513,14 +506,6 @@ export default function HomeScreen() {
             </View>
           ) : null}
         </View>
-
-        <View style={styles.navRow}>
-          <NavPill
-            label="Circles"
-            icon={<HeldMark size={20} />}
-            onPress={() => router.push("/settings/circle")}
-          />
-        </View>
       </ScrollView>
     </AnimatedSafeAreaView>
   );
@@ -545,11 +530,6 @@ const styles = StyleSheet.create({
   brand: {
     alignItems: "center",
     gap: theme.spacing.sm
-  },
-  wordmarkRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.xs
   },
   wordmark: {
     fontSize: 25,
@@ -600,14 +580,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: theme.spacing.xl,
-    gap: theme.spacing.xs,
-    shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.35,
-    shadowRadius: 30,
-    elevation: 10
-  },
-  circlePlaceholder: {
-    shadowOpacity: 0
+    gap: theme.spacing.xs
   },
   circleLabel: {
     fontSize: 30,
@@ -634,9 +607,5 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     textAlign: "center",
     maxWidth: 260
-  },
-  navRow: {
-    flexDirection: "row",
-    gap: theme.spacing.sm
   }
 });
