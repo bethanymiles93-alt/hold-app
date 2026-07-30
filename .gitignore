@@ -16,3 +16,4 @@ expo-env.d.ts
 # @end expo-cli
 *.log
 /.expo/dev/logs
+.expo/dev/logs/start.log
