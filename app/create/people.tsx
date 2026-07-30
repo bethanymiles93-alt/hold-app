@@ -183,11 +183,7 @@ export default function HoldPeopleScreen() {
 
   return (
     <Screen contentContainerStyle={styles.content}>
-      <StepHeader
-        eyebrow="Going Quiet"
-        title="Who needs to know?"
-        body="Choose one or more Circles, then let them know."
-      />
+      <StepHeader title="Who needs to know?" />
       <GroupPicker
         selectedGroupIds={selectedGroups.map((group) => group.id)}
         onToggle={toggleGroup}

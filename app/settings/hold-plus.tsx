@@ -56,7 +56,6 @@ export default function HoldPlusScreen() {
 
   return (
     <Screen>
-      <Text style={styles.heading}>Hold+.</Text>
       <Text style={styles.intro}>
         A future option to support Hold's ongoing development and unlock some deeper tools —
         never anything essential to the core journey.
@@ -164,12 +163,6 @@ export default function HoldPlusScreen() {
 
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
-    heading: {
-      color: colors.text,
-      fontSize: 22,
-      fontWeight: "600",
-      marginBottom: theme.spacing.md
-    },
     intro: {
       color: colors.textMuted,
       fontSize: 17,

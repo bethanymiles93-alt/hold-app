@@ -91,10 +91,7 @@ export default function TakingTimeUpdateScreen() {
   return (
     <Screen contentContainerStyle={styles.content}>
       <View style={styles.top}>
-        <StepHeader
-          title="Send an update"
-          body="A short reassurance, without ending Taking Time. Send it as many times as you like."
-        />
+        <StepHeader body="A short reassurance, without ending Taking Time. Send it as many times as you like." />
 
         <MemoryNoteSuggestion onUseIt={setSuggestedPrompt} />
 

@@ -154,7 +154,7 @@ export default function ReconnectScreen() {
     return (
       <Screen contentContainerStyle={styles.content}>
         <View style={styles.top}>
-          <StepHeader title="Reconnect" body="Reach everyone at your own pace, a few at a time." />
+          <StepHeader body="Reach everyone at your own pace, a few at a time." />
 
           <MemoryNoteSuggestion onUseIt={setSuggestedPrompt} />
 
@@ -260,7 +260,7 @@ export default function ReconnectScreen() {
   return (
     <Screen contentContainerStyle={styles.content}>
       <View style={styles.top}>
-        <StepHeader title="Reconnect" body="Everyone's been reached." />
+        <StepHeader body="Everyone's been reached." />
 
         <Text style={styles.gatePrompt}>Want to reply to anyone properly?</Text>
 

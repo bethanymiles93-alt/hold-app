@@ -37,7 +37,6 @@ export default function ResearchScreen() {
 
   return (
     <Screen>
-      <Text style={styles.heading}>Research.</Text>
       <Text style={styles.intro}>
         The evidence base behind how Hold is designed and how it speaks, surfaced honestly rather
         than left as internal documentation only.
@@ -57,12 +56,6 @@ export default function ResearchScreen() {
 
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
-    heading: {
-      color: colors.text,
-      fontSize: 22,
-      fontWeight: "600",
-      marginBottom: theme.spacing.md
-    },
     intro: {
       color: colors.textMuted,
       fontSize: 17,

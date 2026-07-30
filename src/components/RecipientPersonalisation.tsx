@@ -19,6 +19,12 @@ interface RecipientPersonalisationProps {
  * second-level toggle (individually-removed vs still getting their own
  * instant message), an editable message, and a Personalise link that routes
  * them to Conversations instead (seeded at Send time, not on tap).
+ *
+ * A Circle with only one contact never shows any exclusion control at all —
+ * excluding your only recipient already has the same effect as not
+ * selecting the Circle in the first place (that's the GroupPicker pill),
+ * so offering a second way to reach the same outcome here would just be a
+ * confusing, easy-to-get-stuck-in dead end.
  */
 export function RecipientPersonalisation({
   recipients,
@@ -30,31 +36,34 @@ export function RecipientPersonalisation({
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  const excluded = recipients.filter((recipient) => !recipient.included);
-  // Excluding the only person in a Circle already has the same effect as not
-  // selecting the Circle at all — the second-level "remove" toggle would just
-  // offer a redundant way to reach the same outcome, so it's skipped here.
   const isSoleContact = recipients.length === 1;
+  const excluded = isSoleContact ? [] : recipients.filter((recipient) => !recipient.included);
 
   return (
     <View style={styles.container}>
       <View style={styles.mainList}>
-        {recipients.map((recipient) => (
-          <View key={recipient.contactId} style={styles.mainRow}>
-            <SelectionCircle
-              selected={recipient.included}
-              onPress={() => onToggleIncluded(recipient.contactId)}
-              accessibilityLabel={`${recipient.included ? "Included" : "Excluded"}: ${recipient.name}`}
-            />
-            <Text style={styles.name}>{recipient.name}</Text>
-          </View>
-        ))}
+        {recipients.map((recipient) =>
+          isSoleContact ? (
+            <View key={recipient.contactId} style={styles.mainRow}>
+              <Text style={styles.name}>{recipient.name}</Text>
+            </View>
+          ) : (
+            <View key={recipient.contactId} style={styles.mainRow}>
+              <SelectionCircle
+                selected={recipient.included}
+                onPress={() => onToggleIncluded(recipient.contactId)}
+                accessibilityLabel={`${recipient.included ? "Included" : "Excluded"}: ${recipient.name}`}
+              />
+              <Text style={styles.name}>{recipient.name}</Text>
+            </View>
+          )
+        )}
       </View>
 
       {excluded.length > 0 ? (
         <View style={styles.excludedList}>
           {excluded.map((recipient) => {
-            if (!isSoleContact && recipient.individuallyRemoved) {
+            if (recipient.individuallyRemoved) {
               return (
                 <View key={recipient.contactId} style={styles.excludedRow}>
                   <SelectionCircle
@@ -69,18 +78,14 @@ export function RecipientPersonalisation({
 
             return (
               <View key={recipient.contactId} style={styles.excludedBlock}>
-                {isSoleContact ? (
+                <View style={styles.excludedRow}>
+                  <SelectionCircle
+                    selected={true}
+                    onPress={() => onSetIndividuallyRemoved(recipient.contactId, true)}
+                    accessibilityLabel={`Remove ${recipient.name}`}
+                  />
                   <Text style={styles.name}>{recipient.name}</Text>
-                ) : (
-                  <View style={styles.excludedRow}>
-                    <SelectionCircle
-                      selected={true}
-                      onPress={() => onSetIndividuallyRemoved(recipient.contactId, true)}
-                      accessibilityLabel={`Remove ${recipient.name}`}
-                    />
-                    <Text style={styles.name}>{recipient.name}</Text>
-                  </View>
-                )}
+                </View>
 
                 {recipient.routeToPersonalise ? (
                   <Pressable

@@ -52,11 +52,7 @@ export default function CircleIndexScreen() {
 
   return (
     <Screen contentContainerStyle={styles.content}>
-      <StepHeader
-        eyebrow="Circles"
-        title="Your Circles"
-        body="Saved Circles you can text directly, without retyping names each time."
-      />
+      <StepHeader body="Saved Circles you can text directly, without retyping names each time." />
 
       <View style={styles.list}>
         {groups.map((group) => (

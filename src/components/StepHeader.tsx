@@ -5,7 +5,8 @@ import { useAppTheme } from "@/hooks/useAppTheme";
 
 interface StepHeaderProps {
   eyebrow?: string;
-  title: string;
+  /** Omit when the screen's native header already shows this exact title — avoids a literal duplicate on screen. */
+  title?: string;
   body?: string;
 }
 
@@ -16,7 +17,7 @@ export function StepHeader({ eyebrow, title, body }: StepHeaderProps) {
   return (
     <View style={styles.container}>
       {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
-      <Text style={styles.title}>{title}</Text>
+      {title ? <Text style={styles.title}>{title}</Text> : null}
       {body ? <Text style={styles.body}>{body}</Text> : null}
     </View>
   );
