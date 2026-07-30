@@ -36,6 +36,7 @@ export function Screen({ children, contentContainerStyle }: ScreenProps) {
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
           <ScrollView
+            style={styles.flex}
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={[styles.content, contentContainerStyle]}
           >
