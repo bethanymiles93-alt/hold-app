@@ -548,3 +548,17 @@
 {"_e":"metro:bundling:done","_t":1785439607790,"id":"5","total":1,"ms":138.126083}
 {"_e":"metro:bundling:started","_t":1785439902333,"id":"6","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
 {"_e":"metro:bundling:done","_t":1785439902954,"id":"6","total":1,"ms":619.759583}
+{"_e":"metro:bundling:started","_t":1785441794592,"id":"7","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1785441795212,"id":"7","total":1,"ms":619.135584}
+{"_e":"root:init","_t":1785442901539,"format":"v0-jsonl","version":"57.0.9"}
+{"_e":"env:mode","_t":1785442901540,"nodeEnv":"development","babelEnv":"development","mode":"development"}
+{"_e":"env:load","_t":1785442901542,"mode":"development","files":["../../../.env"],"env":{"EXPO_PUBLIC_AI_CLIENT_KEY":"b86740a4c22d0fdfe61aaf7b419435e924e28c97f01432689493498cb2d9238f","EXPO_PUBLIC_AI_PROXY_URL":"https://hold-ai-proxy.bethany-miles-93.workers.dev"}}
+{"_e":"devserver:start","_t":1785442901817,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../../../app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1785442902116,"serverRoot":"../../..","projectRoot":"../../..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"expo:dev-tools-plugin:load","_t":1785442902314,"plugins":[]}
+{"_e":"metro:instantiate","_t":1785442902796,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:server_log","_t":1785442911970,"level":"error","data":["An unknown error occurred while installing React Native DevTools. Details:\n\ndotslash error: problem with `/Users/bethanymiles/Documents/GitHub/hold-app/node_modules/@react-native/debugger-shell/bin/react-native-devtools`\ncaused by: failed to execute `/Users/bethanymiles/Library/Caches/dotslash/bd/ca7d7f918f0cb1fcc2496e8f07601f4394bcfc/React Native DevTools.app/Contents/MacOS/React Native DevTools` because it was not found\ncaused by: No such file or directory (os error 2)\n"]}
+{"_e":"metro:bundling:started","_t":1785442927711,"id":"1","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1785442932713,"id":"1","total":1337,"ms":5001.435625}
+{"_e":"metro:bundling:started","_t":1785444495481,"id":"2","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1785444495644,"id":"2","total":1,"ms":159.699209}
