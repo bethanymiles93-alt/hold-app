@@ -562,3 +562,10 @@
 {"_e":"metro:bundling:done","_t":1785442932713,"id":"1","total":1337,"ms":5001.435625}
 {"_e":"metro:bundling:started","_t":1785444495481,"id":"2","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
 {"_e":"metro:bundling:done","_t":1785444495644,"id":"2","total":1,"ms":159.699209}
+{"_e":"metro:server_log","_t":1785445453238,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","com.holdapp.mobile","iPhone","60"]}
+{"_e":"metro:server_log","_t":1785445754774,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","com.holdapp.mobile","iPhone","60"]}
+{"_e":"metro:bundling:started","_t":1785446315303,"id":"3","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1785446315732,"id":"3","total":1,"ms":426.918417}
+{"_e":"metro:server_log","_t":1785446489246,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","com.holdapp.mobile","iPhone","60"]}
+{"_e":"metro:bundling:started","_t":1785446728226,"id":"4","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1785446728277,"id":"4","total":1,"ms":50.900833}
