@@ -1,8 +1,10 @@
-import { useMemo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { useCallback, useMemo, useState } from "react";
+import { StyleSheet, Switch, Text, View } from "react-native";
+import { useFocusEffect } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
+import { isHoldPlusActive, setHoldPlusActive } from "@/services/holdPlusService";
 
 const HOLD_PLUS_SECTIONS = [
   {
@@ -23,6 +25,18 @@ const PRICING_ROWS = [
 export default function HoldPlusScreen() {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const [devHoldPlus, setDevHoldPlus] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      void isHoldPlusActive().then(setDevHoldPlus);
+    }, [])
+  );
+
+  const toggleDevHoldPlus = (active: boolean) => {
+    setDevHoldPlus(active);
+    void setHoldPlusActive(active);
+  };
 
   return (
     <Screen>
@@ -64,6 +78,25 @@ export default function HoldPlusScreen() {
       </View>
 
       <Text style={styles.closingNote}>Hold+ isn't open for purchase yet — this page describes what's planned.</Text>
+
+      <View style={styles.devSection}>
+        <Text style={styles.devLabel}>Dev/test only</Text>
+        <View style={styles.devRow}>
+          <View style={styles.devRowText}>
+            <Text style={styles.devTitle}>Simulate Hold+ active</Text>
+            <Text style={styles.devBody}>
+              Lets you preview gated features on-device before real purchases exist. Not real
+              purchase verification.
+            </Text>
+          </View>
+          <Switch
+            accessibilityLabel="Simulate Hold+ active"
+            value={devHoldPlus}
+            onValueChange={toggleDevHoldPlus}
+            trackColor={{ true: colors.primary, false: colors.border }}
+          />
+        </View>
+      </View>
     </Screen>
   );
 }
@@ -137,6 +170,40 @@ function createStyles(colors: ThemeColors) {
       color: colors.textMuted,
       fontSize: 14,
       lineHeight: 20
+    },
+    devSection: {
+      marginTop: theme.spacing.xl,
+      padding: theme.spacing.md,
+      borderRadius: theme.radius.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderStyle: "dashed",
+      gap: theme.spacing.sm
+    },
+    devLabel: {
+      color: colors.textMuted,
+      fontSize: 12,
+      fontWeight: "700",
+      letterSpacing: 0.5
+    },
+    devRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.md
+    },
+    devRowText: {
+      flex: 1,
+      gap: 2
+    },
+    devTitle: {
+      color: colors.text,
+      fontSize: 15,
+      fontWeight: "600"
+    },
+    devBody: {
+      color: colors.textMuted,
+      fontSize: 13,
+      lineHeight: 18
     }
   });
 }
