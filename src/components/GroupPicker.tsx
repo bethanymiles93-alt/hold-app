@@ -3,6 +3,7 @@ import { Link, useFocusEffect } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
+import { CirclePill } from "@/components/CirclePill";
 import { addContactToGroup, createGroup, getGroups } from "@/services/circleService";
 import { pickContact } from "@/services/contactPickerService";
 import type { CircleGroup } from "@/types/hold";
@@ -76,40 +77,17 @@ export function GroupPicker({ selectedGroupIds, onToggle }: GroupPickerProps) {
         contentContainerStyle={styles.pillWrap}
       >
         {groups.length > 0 ? (
-          <Pressable
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: allSelected }}
-            onPress={() => void toggleAll()}
-            style={[styles.pill, styles.pillSecondary, allSelected && styles.pillSelected]}
-          >
-            <Text style={[styles.pillText, styles.pillTextSecondary]}>All</Text>
-          </Pressable>
+          <CirclePill label="All" selected={allSelected} onPress={() => void toggleAll()} />
         ) : null}
-        {groups.map((group) => {
-          const selected = selectedGroupIds.includes(group.id);
-          return (
-            <Pressable
-              key={group.id}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: selected }}
-              onPress={() => void onToggle(group)}
-              style={[
-                styles.pill,
-                group.isCloseCircle ? styles.pillPrimary : styles.pillSecondary,
-                selected && styles.pillSelected
-              ]}
-            >
-              <Text
-                style={[
-                  styles.pillText,
-                  group.isCloseCircle ? styles.pillTextPrimary : styles.pillTextSecondary
-                ]}
-              >
-                {group.name}
-              </Text>
-            </Pressable>
-          );
-        })}
+        {groups.map((group) => (
+          <CirclePill
+            key={group.id}
+            label={group.name}
+            selected={selectedGroupIds.includes(group.id)}
+            isPrimary={group.isCloseCircle}
+            onPress={() => void onToggle(group)}
+          />
+        ))}
       </ScrollView>
 
       {emptySelectedGroups.length > 0 ? (
@@ -189,34 +167,8 @@ function createStyles(colors: ThemeColors) {
     },
     pillWrap: {
       flexDirection: "row",
-      gap: theme.spacing.sm
-    },
-    pill: {
-      minHeight: 38,
-      borderRadius: theme.radius.pill,
       alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: theme.spacing.md
-    },
-    pillPrimary: {
-      backgroundColor: colors.primary
-    },
-    pillSecondary: {
-      backgroundColor: colors.surfaceStrong
-    },
-    pillSelected: {
-      borderWidth: 2,
-      borderColor: colors.text
-    },
-    pillText: {
-      fontSize: 14,
-      fontWeight: "600"
-    },
-    pillTextPrimary: {
-      color: colors.onPrimary
-    },
-    pillTextSecondary: {
-      color: colors.primary
+      gap: theme.spacing.sm
     },
     prompt: {
       color: colors.textMuted,

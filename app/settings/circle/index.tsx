@@ -5,6 +5,7 @@ import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { SelectionCircle } from "@/components/SelectionCircle";
+import { CirclePill } from "@/components/CirclePill";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { pickContact, type PickedContact } from "@/services/contactPickerService";
@@ -159,17 +160,14 @@ export default function CircleIndexScreen() {
         {groups.map((group) => {
           const selected = expandedId === group.id;
           return (
-            <Pressable
+            <CirclePill
               key={group.id}
-              accessibilityRole="button"
-              accessibilityState={{ selected }}
+              label={`${group.name} ${selected ? "▲" : "▼"}`}
+              selected={selected}
+              isPrimary={group.isCloseCircle}
               onPress={() => toggleExpanded(group)}
-              style={[styles.pill, selected && styles.pillSelected]}
-            >
-              <Text style={[styles.pillText, selected && styles.pillTextSelected]}>
-                {group.name} {selected ? "▲" : "▼"}
-              </Text>
-            </Pressable>
+              accessibilityRole="button"
+            />
           );
         })}
       </ScrollView>
@@ -296,28 +294,8 @@ function createStyles(colors: ThemeColors) {
   },
   pillRow: {
     flexDirection: "row",
-    gap: theme.spacing.sm
-  },
-  pill: {
-    minHeight: 38,
-    borderRadius: theme.radius.pill,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    paddingHorizontal: theme.spacing.md,
     alignItems: "center",
-    justifyContent: "center"
-  },
-  pillSelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary
-  },
-  pillText: {
-    color: colors.text,
-    fontSize: 14,
-    fontWeight: "600"
-  },
-  pillTextSelected: {
-    color: colors.onPrimary
+    gap: theme.spacing.sm
   },
   card: {
     gap: theme.spacing.md,

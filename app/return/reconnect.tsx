@@ -330,6 +330,7 @@ function createStyles(colors: ThemeColors) {
     },
     chipRow: {
       flexDirection: "row",
+      alignItems: "center",
       gap: theme.spacing.sm
     },
     chip: {
