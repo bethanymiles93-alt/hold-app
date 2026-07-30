@@ -11,11 +11,12 @@ import { QUICK_RECONNECT_MESSAGES } from "@/constants/copy";
 import {
   getReconnectCoverage,
   getReconnectingPeriod,
-  markReconnectContacted
+  markReconnectContacted,
+  recordSendChannel
 } from "@/services/holdHistoryService";
 import { getAll as getAllConversationPeople, markQuickSent } from "@/services/conversationService";
 import { deactivateOutOfOffice } from "@/services/emailAccountService";
-import { sendOrShare } from "@/services/smsService";
+import { channelKey, sendOrShare } from "@/services/smsService";
 import { clearDraft, getDraft, saveDraft } from "@/services/messageDraftService";
 import type { HoldPeriod } from "@/types/hold";
 
@@ -95,7 +96,10 @@ export default function ReconnectScreen() {
     if (numbers.length === 0 || !text) return;
 
     try {
-      await sendOrShare(numbers, text);
+      const channel = await sendOrShare(numbers, text);
+      for (const id of selectedIds) {
+        await recordSendChannel(period.id, id, channelKey(channel));
+      }
     } catch {
       // The compose sheet closing is the only signal available either way.
     }

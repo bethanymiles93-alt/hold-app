@@ -2,6 +2,8 @@ import { Share } from "react-native";
 
 export interface ShareResult {
   completed: boolean;
+  /** Which share-sheet target was used, e.g. a bundle id — iOS only, never present on Android. */
+  activityType?: string | null;
 }
 
 /**
@@ -14,6 +16,7 @@ export async function shareMessage(message: string): Promise<ShareResult> {
   const result = await Share.share({ message });
 
   return {
-    completed: result.action === Share.sharedAction
+    completed: result.action === Share.sharedAction,
+    activityType: result.action === Share.sharedAction ? (result.activityType ?? null) : null
   };
 }

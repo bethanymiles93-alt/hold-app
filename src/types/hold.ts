@@ -95,6 +95,13 @@ export interface HoldPeriod {
   widerWorldStatusEnabled?: boolean;
   /** Circle ids and ungrouped phone numbers already sent an instant message this Reconnect session — see docs/03-privacy-model.md. */
   reconnectContactedIds?: string[];
+  /**
+   * How each Circle's/ungrouped contact's message actually went out — process
+   * metadata only, never message content. Key: Circle id or phone number,
+   * value from smsService's channelKey (e.g. "sms", "shared", or
+   * "shared:<iOS activityType>" when the OS reports one).
+   */
+  sendChannels?: Record<string, string>;
 }
 
 export interface CircleContact {

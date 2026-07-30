@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   buildMonthGrid,
+  formatChannelLabel,
   formatDuration,
-  getDayBands
+  getDayBands,
+  summariseSendChannels
 } from "../src/services/holdHistoryFormat";
 import type { HoldPeriod } from "../src/types/hold";
 
@@ -106,5 +108,37 @@ describe("getDayBands", () => {
     const start = new Date(2026, 6, 21).getTime();
 
     expect(getDayBands([period(start, null)], grid).size).toBe(0);
+  });
+});
+
+describe("formatChannelLabel", () => {
+  it("labels a plain SMS send", () => {
+    expect(formatChannelLabel("sms")).toBe("Text message");
+  });
+
+  it("labels a generic share with no known activity type", () => {
+    expect(formatChannelLabel("shared")).toBe("Shared");
+    expect(formatChannelLabel("shared:com.example.unknown")).toBe("Shared");
+  });
+
+  it("labels a known iOS share activity type", () => {
+    expect(formatChannelLabel("shared:net.whatsapp.WhatsApp.ShareExtension")).toBe("WhatsApp");
+    expect(formatChannelLabel("shared:com.apple.UIKit.activity.CopyToPasteboard")).toBe("Copied");
+  });
+});
+
+describe("summariseSendChannels", () => {
+  it("returns an empty list when nothing is recorded", () => {
+    expect(summariseSendChannels(undefined)).toEqual([]);
+  });
+
+  it("dedupes to distinct labels in first-seen order", () => {
+    const channels = {
+      circleA: "sms",
+      circleB: "shared:net.whatsapp.WhatsApp.ShareExtension",
+      "+1555": "sms"
+    };
+
+    expect(summariseSendChannels(channels)).toEqual(["Text message", "WhatsApp"]);
   });
 });

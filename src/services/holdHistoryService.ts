@@ -42,8 +42,8 @@ export interface StartHoldPeriodInput {
   audienceCircles: AudienceCircle[];
 }
 
-/** Opens a new Hold period. Called the moment a Hold is actually shared. */
-export async function startHoldPeriod(input: StartHoldPeriodInput): Promise<void> {
+/** Opens a new Hold period. Called the moment a Hold is actually shared. Returns its id. */
+export async function startHoldPeriod(input: StartHoldPeriodInput): Promise<string> {
   const period: HoldPeriod = {
     id: createHoldPeriodId(),
     startedAt: Date.now(),
@@ -56,6 +56,24 @@ export async function startHoldPeriod(input: StartHoldPeriodInput): Promise<void
   await SecureStore.setItemAsync(OPEN_KEY, period.id);
   // A fresh Hold period makes any previous, unfinished Reconnect moot.
   await endReconnecting();
+
+  return period.id;
+}
+
+/**
+ * Records how a Circle's/ungrouped contact's message actually went out —
+ * process metadata only, never message content. Keyed by Circle id or phone
+ * number; safe to call repeatedly (e.g. once per send within Reconnect's
+ * multi-session flow) as it simply overwrites that id's latest channel.
+ */
+export async function recordSendChannel(periodId: string, id: string, channel: string): Promise<void> {
+  const period = await readRecord(periodId);
+  if (!period) return;
+
+  await writeRecord({
+    ...period,
+    sendChannels: { ...(period.sendChannels ?? {}), [id]: channel }
+  });
 }
 
 /**

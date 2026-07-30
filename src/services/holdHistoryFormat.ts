@@ -1,5 +1,43 @@
 import type { HoldPeriod } from "@/types/hold";
 
+// Well-known iOS share-sheet activity types worth a friendly label. Anything
+// else (including every case on Android, which never reports one) falls back
+// to the generic "Shared" — best-effort, not an exhaustive directory.
+const KNOWN_ACTIVITY_TYPES: Record<string, string> = {
+  "com.apple.UIKit.activity.Message": "Messages",
+  "com.apple.UIKit.activity.Mail": "Mail",
+  "com.apple.UIKit.activity.CopyToPasteboard": "Copied",
+  "net.whatsapp.WhatsApp.ShareExtension": "WhatsApp"
+};
+
+/** Turns a stored smsService.channelKey value into a short, honest label. */
+export function formatChannelLabel(channel: string): string {
+  if (channel === "sms") return "Text message";
+  if (channel === "shared") return "Shared";
+
+  const activityType = channel.startsWith("shared:") ? channel.slice("shared:".length) : null;
+  if (activityType) return KNOWN_ACTIVITY_TYPES[activityType] ?? "Shared";
+
+  return "Shared";
+}
+
+/** Distinct, friendly channel labels used across a period's sends, in first-seen order. */
+export function summariseSendChannels(sendChannels: Record<string, string> | undefined): string[] {
+  if (!sendChannels) return [];
+
+  const seen = new Set<string>();
+  const labels: string[] = [];
+  for (const channel of Object.values(sendChannels)) {
+    const label = formatChannelLabel(channel);
+    if (!seen.has(label)) {
+      seen.add(label);
+      labels.push(label);
+    }
+  }
+
+  return labels;
+}
+
 export function formatDuration(ms: number): string {
   const totalMinutes = Math.max(0, Math.round(ms / 60000));
   const days = Math.floor(totalMinutes / (60 * 24));

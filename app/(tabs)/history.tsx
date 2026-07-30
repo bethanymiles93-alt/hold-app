@@ -9,7 +9,8 @@ import {
   buildMonthGrid,
   formatDateTime,
   formatDuration,
-  getDayBands
+  getDayBands,
+  summariseSendChannels
 } from "@/services/holdHistoryFormat";
 import { deleteHoldPeriod, getHistory } from "@/services/holdHistoryService";
 import type { HoldPeriod } from "@/types/hold";
@@ -38,6 +39,7 @@ interface PeriodCardProps {
 function PeriodCard({ period, onDelete }: PeriodCardProps) {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const channelLabels = summariseSendChannels(period.sendChannels);
 
   return (
     <View style={styles.item}>
@@ -46,6 +48,9 @@ function PeriodCard({ period, onDelete }: PeriodCardProps) {
       <Text style={styles.itemMeta}>
         Ended {period.endedAt ? formatDateTime(period.endedAt) : ""}
       </Text>
+      {channelLabels.length > 0 ? (
+        <Text style={styles.itemMeta}>Sent via {channelLabels.join(", ")}</Text>
+      ) : null}
       <Text style={styles.itemDuration}>
         {period.endedAt ? formatDuration(period.endedAt - period.startedAt) : ""}
       </Text>

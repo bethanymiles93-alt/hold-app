@@ -15,11 +15,11 @@ import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { buildAudienceCircles, useHoldFlow } from "@/context/HoldFlowContext";
 import { createDraft } from "@/services/draftService";
-import { recordPostSendChoices, startHoldPeriod } from "@/services/holdHistoryService";
+import { recordPostSendChoices, recordSendChannel, startHoldPeriod } from "@/services/holdHistoryService";
 import { seedPersonaliseRecipient } from "@/services/conversationService";
 import { activateOutOfOffice } from "@/services/emailAccountService";
 import { copyToClipboard } from "@/services/clipboardService";
-import { sendOrShare } from "@/services/smsService";
+import { channelKey, sendOrShare } from "@/services/smsService";
 import type { EmailAccount, GoingQuietRecipient, HoldIntent } from "@/types/hold";
 
 const DEFAULT_OOO_MESSAGE =
@@ -91,6 +91,11 @@ export default function HoldPeopleScreen() {
     (useSameEmailMessage ? sharedEmailMessage : account.message).trim();
 
   const send = async () => {
+    const periodId = await startHoldPeriod({
+      recipients,
+      audienceCircles: buildAudienceCircles(selectedGroups)
+    });
+
     const recipientsByCircle = new Map<string, GoingQuietRecipient[]>();
     for (const recipient of goingQuietRecipients) {
       const list = recipientsByCircle.get(recipient.circleId) ?? [];
@@ -105,7 +110,8 @@ export default function HoldPeopleScreen() {
 
       if (groupRecipients.length > 0 && text) {
         try {
-          await sendOrShare(groupRecipients.map((recipient) => recipient.phoneNumber), text);
+          const channel = await sendOrShare(groupRecipients.map((recipient) => recipient.phoneNumber), text);
+          await recordSendChannel(periodId, draft.circleId, channelKey(channel));
         } catch {
           // Move on even if this compose sheet was dismissed.
         }
@@ -119,7 +125,8 @@ export default function HoldPeopleScreen() {
         if (!individualText) continue;
 
         try {
-          await sendOrShare([recipient.phoneNumber], individualText);
+          const channel = await sendOrShare([recipient.phoneNumber], individualText);
+          await recordSendChannel(periodId, recipient.phoneNumber, channelKey(channel));
         } catch {
           // Move on to the next person even if this compose sheet was dismissed.
         }
@@ -138,7 +145,6 @@ export default function HoldPeopleScreen() {
       }
     }
 
-    await startHoldPeriod({ recipients, audienceCircles: buildAudienceCircles(selectedGroups) });
     setSentAt(Date.now());
   };
 
