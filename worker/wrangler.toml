@@ -1,0 +1,24 @@
+name = "hold-ai-proxy"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+# Free-tier monthly AI-assisted draft allowance per anonymous install.
+# 20 is the upper end of hold-book's "10-20/month, working assumption" —
+# see 08-decisions/04-open-questions.md. Adjust here without a code change.
+[vars]
+FREE_MONTHLY_DRAFT_LIMIT = "20"
+
+# Created via `npm run kv:create` (needs wrangler login first) — paste the
+# resulting id below before deploying. Stores per-install monthly draft
+# counts only (an anonymous UUID + a number), nothing identifying.
+[[kv_namespaces]]
+binding = "AI_USAGE"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+# Secrets (never in this file, set via `wrangler secret put <NAME>`):
+#   ANTHROPIC_API_KEY  — the real Claude API key.
+#   APP_CLIENT_KEY     — shared secret checked against the app's request
+#                        header, filtering casual abuse. Not a strong
+#                        secret on its own (extractable from the app
+#                        binary) — the rate limit + monthly cap above are
+#                        the actual protection, this just adds a floor.

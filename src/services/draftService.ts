@@ -1,3 +1,4 @@
+import { requestAiDraft } from "@/services/aiProxyClient";
 import type { DraftRequest, ReturnStyle } from "@/types/hold";
 
 const HOLD_DRAFTS = {
@@ -29,18 +30,21 @@ export function createLocalDraft(request: DraftRequest): string {
 }
 
 /**
- * Product boundary for future AI support.
- *
- * Replace this implementation with a call to a server-side endpoint only after:
- * - privacy review;
- * - data-retention rules;
- * - content minimisation;
- * - user disclosure;
- * - safe failure behaviour; and
- * - a non-AI route remaining available.
+ * Tries the AI proxy (worker/) first; falls back to the local template on
+ * any failure — unconfigured proxy, network error, rate limit, timeout, or
+ * provider error. The local route is never removed, per the privacy-review
+ * boundary this replaces: see docs/03-privacy-model.md and
+ * hold-book/06-privacy-security/02-ai-boundaries.md.
  */
 export async function createDraft(request: DraftRequest): Promise<string> {
-  return createLocalDraft(request);
+  try {
+    if (request.mode === "hold") {
+      return await requestAiDraft("going-quiet", { intent: request.intent ?? undefined });
+    }
+    return await requestAiDraft("reconnect", { returnStyle: request.returnStyle ?? undefined });
+  } catch {
+    return createLocalDraft(request);
+  }
 }
 
 const REPLY_DRAFTS = {
@@ -57,17 +61,11 @@ export function createLocalReplyDraft(style: ReturnStyle): string {
   return REPLY_DRAFTS[style];
 }
 
-/**
- * Product boundary for future AI support, matching createDraft above.
- *
- * Replace this implementation with a call to a server-side endpoint only after:
- * - privacy review;
- * - data-retention rules;
- * - content minimisation;
- * - user disclosure;
- * - safe failure behaviour; and
- * - a non-AI route remaining available.
- */
+/** Matches createDraft above — AI proxy first, local template fallback always available. */
 export async function createReplyDraft(style: ReturnStyle): Promise<string> {
-  return createLocalReplyDraft(style);
+  try {
+    return await requestAiDraft("conversations-reply", { returnStyle: style });
+  } catch {
+    return createLocalReplyDraft(style);
+  }
 }

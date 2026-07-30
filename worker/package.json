@@ -1,0 +1,17 @@
+{
+  "name": "hold-ai-proxy",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Server-side proxy for Hold's AI-assisted drafting — holds the Anthropic API key, applies per-surface system prompts, and enforces the free-tier monthly allowance. Never bundled into the mobile app.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "kv:create": "wrangler kv namespace create AI_USAGE"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250101.0",
+    "typescript": "^5.6.0",
+    "wrangler": "^3.90.0"
+  }
+}
