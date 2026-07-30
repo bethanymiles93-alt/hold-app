@@ -31,6 +31,10 @@ export function RecipientPersonalisation({
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const excluded = recipients.filter((recipient) => !recipient.included);
+  // Excluding the only person in a Circle already has the same effect as not
+  // selecting the Circle at all — the second-level "remove" toggle would just
+  // offer a redundant way to reach the same outcome, so it's skipped here.
+  const isSoleContact = recipients.length === 1;
 
   return (
     <View style={styles.container}>
@@ -50,7 +54,7 @@ export function RecipientPersonalisation({
       {excluded.length > 0 ? (
         <View style={styles.excludedList}>
           {excluded.map((recipient) => {
-            if (recipient.individuallyRemoved) {
+            if (!isSoleContact && recipient.individuallyRemoved) {
               return (
                 <View key={recipient.contactId} style={styles.excludedRow}>
                   <SelectionCircle
@@ -65,14 +69,18 @@ export function RecipientPersonalisation({
 
             return (
               <View key={recipient.contactId} style={styles.excludedBlock}>
-                <View style={styles.excludedRow}>
-                  <SelectionCircle
-                    selected={true}
-                    onPress={() => onSetIndividuallyRemoved(recipient.contactId, true)}
-                    accessibilityLabel={`Remove ${recipient.name}`}
-                  />
+                {isSoleContact ? (
                   <Text style={styles.name}>{recipient.name}</Text>
-                </View>
+                ) : (
+                  <View style={styles.excludedRow}>
+                    <SelectionCircle
+                      selected={true}
+                      onPress={() => onSetIndividuallyRemoved(recipient.contactId, true)}
+                      accessibilityLabel={`Remove ${recipient.name}`}
+                    />
+                    <Text style={styles.name}>{recipient.name}</Text>
+                  </View>
+                )}
 
                 {recipient.routeToPersonalise ? (
                   <Pressable
