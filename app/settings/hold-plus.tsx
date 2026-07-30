@@ -17,6 +17,14 @@ const HOLD_PLUS_SECTIONS = [
   }
 ];
 
+// Fixed, illustrative copy — not a live/interactive preview.
+const AMEND_EXAMPLE = {
+  before: "I need some quiet time at the moment. This isn't about you, and you don't need to fix anything.",
+  context: "My sister's visiting this weekend, so I might reply to her but not much else.",
+  after:
+    "I need some quiet time at the moment. This isn't about you, and you don't need to fix anything. My sister's visiting this weekend, so I might reply to her, but not much else right now."
+};
+
 const PRICING_ROWS = [
   { label: "Annual", founding: "£17.99/year (≈ £1.50/month)", standard: "£29.99/year (≈ £2.50/month)" },
   { label: "Monthly", founding: "£1.99/month", standard: "£2.99/month" }
@@ -47,10 +55,34 @@ export default function HoldPlusScreen() {
       </Text>
 
       <View style={styles.sections}>
-        {HOLD_PLUS_SECTIONS.map((section) => (
-          <View key={section.title} style={styles.section}>
-            <Text style={styles.title}>{section.title}</Text>
-            <Text style={styles.body}>{section.body}</Text>
+        {HOLD_PLUS_SECTIONS.map((section, index) => (
+          <View key={section.title} style={styles.sectionGroup}>
+            <View style={styles.section}>
+              <Text style={styles.title}>{section.title}</Text>
+              <Text style={styles.body}>{section.body}</Text>
+            </View>
+
+            {index === 0 ? (
+              <View style={styles.section}>
+                <Text style={styles.title}>Amend with AI, for example</Text>
+                <Text style={styles.body}>
+                  A fixed example, not a live preview — Amend with AI lightly edits what's already
+                  in the box rather than rewriting it from scratch.
+                </Text>
+                <View style={styles.exampleRow}>
+                  <Text style={styles.exampleLabel}>Before</Text>
+                  <Text style={styles.exampleText}>{AMEND_EXAMPLE.before}</Text>
+                </View>
+                <View style={styles.exampleRow}>
+                  <Text style={styles.exampleLabel}>New context typed in</Text>
+                  <Text style={styles.exampleText}>{AMEND_EXAMPLE.context}</Text>
+                </View>
+                <View style={styles.exampleRow}>
+                  <Text style={styles.exampleLabel}>After</Text>
+                  <Text style={styles.exampleText}>{AMEND_EXAMPLE.after}</Text>
+                </View>
+              </View>
+            ) : null}
           </View>
         ))}
 
@@ -118,11 +150,28 @@ function createStyles(colors: ThemeColors) {
       marginTop: theme.spacing.xl,
       gap: theme.spacing.md
     },
+    sectionGroup: {
+      gap: theme.spacing.md
+    },
     section: {
       padding: theme.spacing.md,
       borderRadius: theme.radius.md,
       backgroundColor: colors.surface,
       gap: theme.spacing.sm
+    },
+    exampleRow: {
+      gap: 2
+    },
+    exampleLabel: {
+      color: colors.textMuted,
+      fontSize: 12,
+      fontWeight: "700",
+      letterSpacing: 0.3
+    },
+    exampleText: {
+      color: colors.text,
+      fontSize: 15,
+      lineHeight: 22
     },
     title: {
       color: colors.text,
