@@ -17,3 +17,6 @@ expo-env.d.ts
 *.log
 /.expo/dev/logs
 .expo/dev/logs/start.log
+*.log
+/.expo/dev/logs
+/.expo/dev/logs
