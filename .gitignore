@@ -15,3 +15,4 @@ worker/.dev.vars
 expo-env.d.ts
 # @end expo-cli
 *.log
+/.expo/dev/logs
