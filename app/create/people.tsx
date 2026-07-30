@@ -3,7 +3,7 @@ import { router } from "expo-router";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
-import { GroupPicker } from "@/components/GroupPicker";
+import { GroupPicker, type PendingCircleContact } from "@/components/GroupPicker";
 import { ChoiceCard } from "@/components/ChoiceCard";
 import { RecipientPersonalisation } from "@/components/RecipientPersonalisation";
 import { PrimaryButton } from "@/components/PrimaryButton";
@@ -19,6 +19,7 @@ import { createDraft } from "@/services/draftService";
 import { recordPostSendChoices, recordSendChannel, startHoldPeriod } from "@/services/holdHistoryService";
 import { seedPersonaliseRecipient } from "@/services/conversationService";
 import { activateOutOfOffice } from "@/services/emailAccountService";
+import { addContactToGroup } from "@/services/circleService";
 import { copyToClipboard } from "@/services/clipboardService";
 import { channelKey, sendOrShare } from "@/services/smsService";
 import type { EmailAccount, GoingQuietRecipient, HoldIntent } from "@/types/hold";
@@ -54,6 +55,8 @@ export default function HoldPeopleScreen() {
   const [personalNoteDrafts, setPersonalNoteDrafts] = useState<Record<string, string>>({});
   const [personalNoteSentAt, setPersonalNoteSentAt] = useState<Record<string, number>>({});
   const [oooExpanded, setOooExpanded] = useState(false);
+  const [pendingCircleContacts, setPendingCircleContacts] = useState<PendingCircleContact[]>([]);
+  const [resolvedPendingContacts, setResolvedPendingContacts] = useState<Set<string>>(new Set());
 
   const [emailEnabled, setEmailEnabled] = useState(false);
   const [emailAccounts, setEmailAccounts] = useState<EmailAccount[]>([]);
@@ -185,12 +188,24 @@ export default function HoldPeopleScreen() {
     router.replace("/create/done");
   };
 
+  const addPendingContactToCircle = async (pending: PendingCircleContact) => {
+    await addContactToGroup(pending.circleId, pending.contact);
+    setResolvedPendingContacts((current) => new Set(current).add(pending.contact.phoneNumber));
+  };
+
+  const discardPendingContact = (pending: PendingCircleContact) => {
+    setResolvedPendingContacts((current) => new Set(current).add(pending.contact.phoneNumber));
+  };
+
   return (
     <Screen contentContainerStyle={styles.content}>
       <StepHeader title="Who needs to know?" />
       <GroupPicker
         selectedGroupIds={selectedGroups.map((group) => group.id)}
         onToggle={toggleGroup}
+        onPendingContact={(pending) =>
+          setPendingCircleContacts((current) => [...current, pending])
+        }
       />
 
       {circleDrafts.map((draft) => {
@@ -280,6 +295,32 @@ export default function HoldPeopleScreen() {
           <Text style={styles.confirmation}>
             Sent. You've communicated to everyone who needs to know.
           </Text>
+
+          {pendingCircleContacts
+            .filter((pending) => !resolvedPendingContacts.has(pending.contact.phoneNumber))
+            .map((pending) => (
+              <View key={pending.contact.phoneNumber} style={styles.personalPromptRow}>
+                <Text style={styles.personalPromptText}>
+                  Add {pending.contact.name} to {pending.circleName} permanently?
+                </Text>
+                <View style={styles.personalPromptActions}>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => discardPendingContact(pending)}
+                    style={styles.smallPill}
+                  >
+                    <Text style={styles.smallPillText}>Not now</Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => void addPendingContactToCircle(pending)}
+                    style={styles.smallPill}
+                  >
+                    <Text style={styles.smallPillText}>Yes</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ))}
 
           {!personalPromptResolved ? (
             <View style={styles.personalPromptRow}>
