@@ -175,13 +175,20 @@ export default function CircleIndexScreen() {
   // hamburger — Going Quiet's own GroupPicker keeps its pinned pill as-is;
   // this is specific to Your Circles' header/title structure.
   useLayoutEffect(() => {
+    const headerRightElement = () => (
+      <View style={styles.headerActions}>
+        <HeaderAddButton accessibilityLabel="New Circle" onPress={() => void startCreating()} />
+        <HeaderSettingsButton />
+      </View>
+    );
     navigation.setOptions({
-      headerRight: () => (
-        <View style={styles.headerActions}>
-          <HeaderAddButton accessibilityLabel="New Circle" onPress={() => void startCreating()} />
-          <HeaderSettingsButton />
-        </View>
-      )
+      headerRight: headerRightElement,
+      // See app/_layout.tsx: iOS 26 gives custom headerRight views a native
+      // "Liquid Glass" shared pill background unless opted out via the
+      // items API, which overrides headerRight on iOS.
+      unstable_headerRightItems: () => [
+        { type: "custom", element: headerRightElement(), hidesSharedBackground: true }
+      ]
     });
   }, [navigation, styles]);
 

@@ -30,7 +30,21 @@ export default function RootLayout() {
               contentStyle: { backgroundColor: colors.background },
               animation: "fade",
               headerLeft: ({ canGoBack }) => (canGoBack ? <SettingsBackButton /> : null),
-              headerRight: () => <HeaderSettingsButton />
+              headerRight: () => <HeaderSettingsButton />,
+              // iOS 26 wraps custom headerLeft/headerRight views in a UIBarButtonItem
+              // that gets the system "Liquid Glass" shared pill background by default,
+              // regardless of the component's own (fully transparent) styles. The
+              // unstable_headerLeftItems/RightItems API is the only way to opt a
+              // custom element out of that shared background on iOS; headerLeft/
+              // headerRight above remain as the Android fallback, since these
+              // "items" props are iOS-only and override them there.
+              unstable_headerLeftItems: ({ canGoBack }) =>
+                canGoBack
+                  ? [{ type: "custom", element: <SettingsBackButton />, hidesSharedBackground: true }]
+                  : [],
+              unstable_headerRightItems: () => [
+                { type: "custom", element: <HeaderSettingsButton />, hidesSharedBackground: true }
+              ]
             }}
           >
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
