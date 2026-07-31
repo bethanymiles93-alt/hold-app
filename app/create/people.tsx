@@ -3,7 +3,7 @@ import { router } from "expo-router";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
-import { GroupPicker, type PendingCircleContact } from "@/components/GroupPicker";
+import { GroupPicker, type PendingNewCircle } from "@/components/GroupPicker";
 import { ChoiceCard } from "@/components/ChoiceCard";
 import { RecipientPersonalisation } from "@/components/RecipientPersonalisation";
 import { PrimaryButton } from "@/components/PrimaryButton";
@@ -19,7 +19,7 @@ import { createDraft } from "@/services/draftService";
 import { recordPostSendChoices, recordSendChannel, startHoldPeriod } from "@/services/holdHistoryService";
 import { seedPersonaliseRecipient } from "@/services/conversationService";
 import { activateOutOfOffice } from "@/services/emailAccountService";
-import { addContactToGroup } from "@/services/circleService";
+import { addContactToGroup, createGroup } from "@/services/circleService";
 import { copyToClipboard } from "@/services/clipboardService";
 import { channelKey, sendOrShare } from "@/services/smsService";
 import type { EmailAccount, GoingQuietRecipient, HoldIntent } from "@/types/hold";
@@ -55,8 +55,8 @@ export default function HoldPeopleScreen() {
   const [personalNoteDrafts, setPersonalNoteDrafts] = useState<Record<string, string>>({});
   const [personalNoteSentAt, setPersonalNoteSentAt] = useState<Record<string, number>>({});
   const [oooExpanded, setOooExpanded] = useState(false);
-  const [pendingCircleContacts, setPendingCircleContacts] = useState<PendingCircleContact[]>([]);
-  const [resolvedPendingContacts, setResolvedPendingContacts] = useState<Set<string>>(new Set());
+  const [pendingNewCircles, setPendingNewCircles] = useState<PendingNewCircle[]>([]);
+  const [resolvedPendingCircles, setResolvedPendingCircles] = useState<Set<string>>(new Set());
 
   const [emailEnabled, setEmailEnabled] = useState(false);
   const [emailAccounts, setEmailAccounts] = useState<EmailAccount[]>([]);
@@ -188,13 +188,16 @@ export default function HoldPeopleScreen() {
     router.replace("/create/done");
   };
 
-  const addPendingContactToCircle = async (pending: PendingCircleContact) => {
-    await addContactToGroup(pending.circleId, pending.contact);
-    setResolvedPendingContacts((current) => new Set(current).add(pending.contact.phoneNumber));
+  const confirmPendingCircle = async (pending: PendingNewCircle) => {
+    // Real Circle creation and the contact add happen together, only now —
+    // nothing exists in storage before this point.
+    const group = await createGroup(pending.circleName);
+    await addContactToGroup(group.id, pending.contact);
+    setResolvedPendingCircles((current) => new Set(current).add(pending.tempId));
   };
 
-  const discardPendingContact = (pending: PendingCircleContact) => {
-    setResolvedPendingContacts((current) => new Set(current).add(pending.contact.phoneNumber));
+  const discardPendingCircle = (pending: PendingNewCircle) => {
+    setResolvedPendingCircles((current) => new Set(current).add(pending.tempId));
   };
 
   return (
@@ -203,9 +206,7 @@ export default function HoldPeopleScreen() {
       <GroupPicker
         selectedGroupIds={selectedGroups.map((group) => group.id)}
         onToggle={toggleGroup}
-        onPendingContact={(pending) =>
-          setPendingCircleContacts((current) => [...current, pending])
-        }
+        onPendingContact={(pending) => setPendingNewCircles((current) => [...current, pending])}
       />
 
       {circleDrafts.map((draft) => {
@@ -296,24 +297,24 @@ export default function HoldPeopleScreen() {
             Sent. You've communicated to everyone who needs to know.
           </Text>
 
-          {pendingCircleContacts
-            .filter((pending) => !resolvedPendingContacts.has(pending.contact.phoneNumber))
+          {pendingNewCircles
+            .filter((pending) => !resolvedPendingCircles.has(pending.tempId))
             .map((pending) => (
-              <View key={pending.contact.phoneNumber} style={styles.personalPromptRow}>
+              <View key={pending.tempId} style={styles.personalPromptRow}>
                 <Text style={styles.personalPromptText}>
                   Add {pending.contact.name} to {pending.circleName} permanently?
                 </Text>
                 <View style={styles.personalPromptActions}>
                   <Pressable
                     accessibilityRole="button"
-                    onPress={() => discardPendingContact(pending)}
+                    onPress={() => discardPendingCircle(pending)}
                     style={styles.smallPill}
                   >
                     <Text style={styles.smallPillText}>Not now</Text>
                   </Pressable>
                   <Pressable
                     accessibilityRole="button"
-                    onPress={() => void addPendingContactToCircle(pending)}
+                    onPress={() => void confirmPendingCircle(pending)}
                     style={styles.smallPill}
                   >
                     <Text style={styles.smallPillText}>Yes</Text>

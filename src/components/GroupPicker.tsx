@@ -4,14 +4,15 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { CirclePill } from "@/components/CirclePill";
-import { createGroup, getGroups } from "@/services/circleService";
+import { getGroups } from "@/services/circleService";
 import { pickContact, type PickedContact } from "@/services/contactPickerService";
 import type { CircleGroup } from "@/types/hold";
 
 const SUGGESTED_CIRCLES = ["Work", "Book Club"];
 
-export interface PendingCircleContact {
-  circleId: string;
+export interface PendingNewCircle {
+  /** Local-only id, used to key this session's flow state — never a real circleService id. */
+  tempId: string;
   circleName: string;
   contact: PickedContact;
 }
@@ -20,12 +21,16 @@ interface GroupPickerProps {
   selectedGroupIds: string[];
   onToggle: (group: CircleGroup) => Promise<void>;
   /**
-   * Fired when a contact is picked while creating a new Circle mid-flow —
-   * they're included for this session's send only, never written to the
-   * Circle's real, persisted membership here. The screen using GroupPicker
-   * is responsible for offering to make it permanent afterward.
+   * Fired when a Circle is "created" mid-flow via a picked contact — nothing
+   * is written to real, persisted storage here at all (a Circle can't be
+   * saved with zero contacts, so creating the empty container first isn't
+   * an option either). The whole thing — name and first contact — stays a
+   * local, in-memory object included in this session's send only. The
+   * screen using GroupPicker is responsible for offering to make it
+   * permanent afterward, creating the real Circle and adding the contact
+   * as one atomic action.
    */
-  onPendingContact?: (pending: PendingCircleContact) => void;
+  onPendingContact?: (pending: PendingNewCircle) => void;
 }
 
 /**
@@ -40,10 +45,6 @@ export function GroupPicker({ selectedGroupIds, onToggle, onPendingContact }: Gr
   const [groups, setGroups] = useState<CircleGroup[]>([]);
   const [creating, setCreating] = useState(false);
   const [newCircleName, setNewCircleName] = useState("");
-  // Circles whose "empty" state is only true in storage — a picked contact
-  // is included this session but deliberately not persisted yet, so the
-  // "doesn't have anyone in it" prompt below would otherwise be misleading.
-  const [pendingContactCircleIds, setPendingContactCircleIds] = useState<Set<string>>(new Set());
 
   const refresh = useCallback(async () => {
     setGroups(await getGroups());
@@ -55,11 +56,10 @@ export function GroupPicker({ selectedGroupIds, onToggle, onPendingContact }: Gr
     }, [refresh])
   );
 
+  // A pending new Circle is never in `groups` (nothing's been persisted yet),
+  // so it can't accidentally trip this storage-backed "empty" check.
   const emptySelectedGroups = groups.filter(
-    (group) =>
-      selectedGroupIds.includes(group.id) &&
-      group.contacts.length === 0 &&
-      !pendingContactCircleIds.has(group.id)
+    (group) => selectedGroupIds.includes(group.id) && group.contacts.length === 0
   );
 
   const allSelected = groups.length > 0 && groups.every((group) => selectedGroupIds.includes(group.id));
@@ -76,25 +76,25 @@ export function GroupPicker({ selectedGroupIds, onToggle, onPendingContact }: Gr
     const trimmed = name.trim();
     if (!trimmed) return;
 
-    const circle = await createGroup(trimmed);
-    let effectiveCircle = circle;
-
     const picked = await pickContact();
-    if (picked) {
-      // Included for this session's send only — never written to the
-      // Circle's real membership here. See onPendingContact's doc comment.
-      effectiveCircle = {
-        ...circle,
-        contacts: [{ id: `pending-${Date.now()}`, name: picked.name, phoneNumber: picked.phoneNumber }]
-      };
-      setPendingContactCircleIds((current) => new Set(current).add(circle.id));
-      onPendingContact?.({ circleId: circle.id, circleName: circle.name, contact: picked });
+    if (!picked) {
+      // A Circle can't be created or saved with zero contacts — without a
+      // contact there's nothing valid to create, staged or otherwise.
+      return;
     }
+
+    const tempId = `pending-${Date.now()}`;
+    const pendingCircle: CircleGroup = {
+      id: tempId,
+      name: trimmed,
+      isCloseCircle: false,
+      contacts: [{ id: `${tempId}-contact`, name: picked.name, phoneNumber: picked.phoneNumber }]
+    };
 
     setNewCircleName("");
     setCreating(false);
-    await refresh();
-    await onToggle(effectiveCircle);
+    onPendingContact?.({ tempId, circleName: trimmed, contact: picked });
+    await onToggle(pendingCircle);
   };
 
   return (
