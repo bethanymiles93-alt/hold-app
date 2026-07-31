@@ -107,24 +107,35 @@ export function GroupPicker({ selectedGroupIds, onToggle, onPendingContact }: Gr
 
   return (
     <View style={styles.container}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.pillWrap}
-      >
+      <View style={styles.pinnedRow}>
         {groups.length > 0 ? (
           <CirclePill label="All" selected={allSelected} onPress={() => void toggleAll()} />
         ) : null}
-        {groups.map((group) => (
-          <CirclePill
-            key={group.id}
-            label={group.name}
-            selected={selectedGroupIds.includes(group.id)}
-            isPrimary={group.isCloseCircle}
-            onPress={() => void onToggle(group)}
-          />
-        ))}
-      </ScrollView>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: creating }}
+          onPress={() => setCreating((current) => !current)}
+          style={({ pressed }) => [styles.newCirclePill, pressed && styles.newCirclePillPressed]}
+        >
+          <Text style={styles.newCirclePillText}>+ New Circle</Text>
+        </Pressable>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.pillWrap}
+          style={styles.pillScroll}
+        >
+          {groups.map((group) => (
+            <CirclePill
+              key={group.id}
+              label={group.name}
+              selected={selectedGroupIds.includes(group.id)}
+              isPrimary={group.isCloseCircle}
+              onPress={() => void onToggle(group)}
+            />
+          ))}
+        </ScrollView>
+      </View>
 
       {emptySelectedGroups.length > 0 ? (
         <Text style={styles.prompt}>
@@ -177,15 +188,7 @@ export function GroupPicker({ selectedGroupIds, onToggle, onPendingContact }: Gr
             </Pressable>
           </View>
         </View>
-      ) : (
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => setCreating(true)}
-          style={({ pressed }) => [styles.newCirclePill, pressed && styles.newCirclePillPressed]}
-        >
-          <Text style={styles.newCirclePillText}>+ New Circle</Text>
-        </Pressable>
-      )}
+      ) : null}
 
       <Link href="/settings/circle" asChild>
         <Pressable accessibilityRole="link" style={styles.manageLink}>
@@ -201,6 +204,17 @@ function createStyles(colors: ThemeColors) {
     container: {
       gap: theme.spacing.md
     },
+    // "All" and "+ New Circle" are fixed, non-scrolling members of this row;
+    // only the named-Circle pills inside the nested ScrollView scroll, so the
+    // whole thing still reads as one continuous line.
+    pinnedRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm
+    },
+    pillScroll: {
+      flex: 1
+    },
     pillWrap: {
       flexDirection: "row",
       alignItems: "center",
@@ -212,7 +226,6 @@ function createStyles(colors: ThemeColors) {
       lineHeight: 21
     },
     newCirclePill: {
-      alignSelf: "flex-start",
       minHeight: 38,
       borderRadius: theme.radius.pill,
       borderWidth: 1.5,
