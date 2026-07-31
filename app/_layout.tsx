@@ -3,6 +3,7 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { HeaderSettingsButton } from "@/components/HeaderSettingsButton";
+import { SettingsBackButton } from "@/components/SettingsBackButton";
 import { SettingsDrawer } from "@/components/SettingsDrawer";
 import { HoldFlowProvider } from "@/context/HoldFlowContext";
 import { SettingsDrawerProvider } from "@/context/SettingsDrawerContext";
@@ -27,8 +28,8 @@ export default function RootLayout() {
               headerTintColor: colors.text,
               headerStyle: { backgroundColor: colors.background },
               contentStyle: { backgroundColor: colors.background },
-              headerBackTitle: "Back",
               animation: "fade",
+              headerLeft: ({ canGoBack }) => (canGoBack ? <SettingsBackButton /> : null),
               headerRight: () => <HeaderSettingsButton />
             }}
           >
