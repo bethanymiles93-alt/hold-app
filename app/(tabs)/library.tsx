@@ -16,7 +16,6 @@ import {
   REPLY_STYLES
 } from "@/constants/copy";
 import { HAS_SEEN_RETENTION_NOTE_KEY } from "@/constants/storageKeys";
-import { useHoldFlow } from "@/context/HoldFlowContext";
 import {
   addPerson,
   getAll as getAllConversationPeople,
@@ -28,6 +27,7 @@ import { addContactToGroup, createGroup, getGroups } from "@/services/circleServ
 import { pickContact } from "@/services/contactPickerService";
 import { sendOrShare } from "@/services/smsService";
 import { createReplyDraft } from "@/services/draftService";
+import { getReconnectingPeriod } from "@/services/holdHistoryService";
 import { getReply, saveReply } from "@/services/replyStorageService";
 import { formatSentLabel } from "@/services/holdHistoryFormat";
 import { getAllTemplates, saveCircleTemplate } from "@/services/templateService";
@@ -268,7 +268,6 @@ function PersonaliseAccordion({ person, isOpen, onToggle, onSent }: PersonaliseA
 }
 
 export default function LibraryScreen() {
-  const { mode } = useHoldFlow();
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [people, setPeople] = useState<ConversationPerson[]>([]);
@@ -293,10 +292,17 @@ export default function LibraryScreen() {
     const all = await getAllConversationPeople();
     setPeople(all);
 
-    // Only a real Reconnect journey earns the "You're reconnected" screen — Library is also
-    // reachable standalone, where reaching zero-incomplete has no such journey to close out.
-    if (all.length > 0 && all.every((person) => person.completed) && mode === "return") {
-      router.replace("/return/done");
+    // Only a real, still-open Reconnect journey earns the "You're reconnected" screen —
+    // Library is also reachable standalone, where reaching zero-incomplete has no such
+    // journey to close out. Checked against the same durable RECONNECTING_KEY marker
+    // Home's own resume logic uses, not in-memory flow-context mode — mode resets to
+    // its default on force-quit, which would otherwise silently swallow this redirect
+    // for anyone who closes the app mid-Reconnect and finishes addressing everyone later.
+    if (all.length > 0 && all.every((person) => person.completed)) {
+      const reconnectingPeriod = await getReconnectingPeriod();
+      if (reconnectingPeriod) {
+        router.replace("/return/done");
+      }
     }
 
     const [savedTemplates, groups] = await Promise.all([getAllTemplates(), getGroups()]);
@@ -321,7 +327,7 @@ export default function LibraryScreen() {
       }
       return next;
     });
-  }, [mode]);
+  }, []);
 
   const changeTemplateDraft = (circleId: string, text: string) => {
     setTemplateDrafts((current) => ({ ...current, [circleId]: text }));

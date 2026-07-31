@@ -23,6 +23,7 @@ import {
   addToAudience,
   beginReconnecting,
   endOpenHoldPeriod,
+  endReconnecting,
   getOpenHoldPeriod,
   getReconnectCoverage,
   getReconnectingPeriod
@@ -231,8 +232,10 @@ export default function HomeScreen() {
   const doClearPostReconnect = async () => {
     await completeAll();
     // This dismisses the journey without ever visiting the Reconnected screen,
-    // so mode needs resetting here too — otherwise it stays stuck on "return"
-    // and a later standalone Library visit would wrongly redirect to Reconnected.
+    // so the durable reconnecting marker needs clearing here too — otherwise
+    // it stays set and a later standalone Library visit, seeing everyone
+    // already complete, would wrongly redirect to Reconnected.
+    await endReconnecting();
     resetFlow("hold");
     setHomeState("normal");
     setPostReconnectProgress(null);
