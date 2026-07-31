@@ -328,7 +328,7 @@ export default function HomeScreen() {
 
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.brand}>
-          <HoldMark size={72} />
+          <HoldMark size={36} />
           <Text style={[styles.wordmark, { color: currentTheme.colors.text }]}>Hold</Text>
         </View>
 
@@ -528,8 +528,10 @@ const styles = StyleSheet.create({
     paddingBottom: theme.spacing.lg
   },
   brand: {
+    flexDirection: "row",
     alignItems: "center",
-    gap: theme.spacing.sm
+    justifyContent: "center",
+    gap: theme.spacing.xs
   },
   wordmark: {
     fontSize: 25,
@@ -579,11 +581,12 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.pill,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: theme.spacing.xl,
+    paddingHorizontal: theme.spacing.lg,
     gap: theme.spacing.xs
   },
   circleLabel: {
-    fontSize: 30,
+    fontSize: 22,
+    lineHeight: 27,
     fontWeight: "700",
     textAlign: "center"
   },
