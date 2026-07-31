@@ -62,10 +62,18 @@ export function GroupPicker({ selectedGroupIds, onToggle, onPendingContact }: Gr
     (group) => selectedGroupIds.includes(group.id) && group.contacts.length === 0
   );
 
-  const allSelected = groups.length > 0 && groups.every((group) => selectedGroupIds.includes(group.id));
+  // An empty Circle can never actually be sent to, so "All" only ever
+  // gathers/releases the Circles that genuinely have someone in them —
+  // otherwise a stray empty Circle (e.g. an unused Close Circle) would get
+  // swept in and permanently block Send, which defeats the point of "All"
+  // as a shortcut. Individually tapping an empty Circle's own pill still
+  // works as before, surfacing the "doesn't have anyone in it yet" prompt.
+  const nonEmptyGroups = groups.filter((group) => group.contacts.length > 0);
+  const allSelected =
+    nonEmptyGroups.length > 0 && nonEmptyGroups.every((group) => selectedGroupIds.includes(group.id));
 
   const toggleAll = async () => {
-    for (const group of groups) {
+    for (const group of nonEmptyGroups) {
       if (allSelected === selectedGroupIds.includes(group.id)) {
         await onToggle(group);
       }

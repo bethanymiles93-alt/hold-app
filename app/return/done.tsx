@@ -26,7 +26,7 @@ export default function ReturnDoneScreen() {
   return (
     <Screen contentContainerStyle={styles.content}>
       <View style={styles.message}>
-        <HoldMark size={92} />
+        <HoldMark size={64} />
         <Text style={styles.title}>You’re reconnected.</Text>
         <Text style={styles.subtitle}>
           You’ve let the people who matter know you’re here again. That’s enough for today.
@@ -42,7 +42,7 @@ function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     content: {
       justifyContent: "space-between",
-      paddingTop: 88
+      paddingTop: theme.spacing.xxl
     },
     message: {
       alignItems: "center",

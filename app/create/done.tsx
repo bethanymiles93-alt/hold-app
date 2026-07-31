@@ -21,7 +21,7 @@ export default function HoldDoneScreen() {
   return (
     <Screen contentContainerStyle={styles.content}>
       <View style={styles.message}>
-        <HoldMark size={92} />
+        <HoldMark size={64} />
         <Text style={styles.title}>You’ve taken the first step.</Text>
         <Text style={styles.subtitle}>
           You’ve let the people who matter know you need some time. Taking time to recover
@@ -38,7 +38,7 @@ function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     content: {
       justifyContent: "space-between",
-      paddingTop: 88
+      paddingTop: theme.spacing.xxl
     },
     message: {
       alignItems: "center",

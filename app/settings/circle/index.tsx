@@ -1,11 +1,13 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useNavigation } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { SelectionCircle } from "@/components/SelectionCircle";
 import { CirclePill } from "@/components/CirclePill";
+import { HeaderAddButton } from "@/components/HeaderAddButton";
+import { HeaderSettingsButton } from "@/components/HeaderSettingsButton";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { pickContact, type PickedContact } from "@/services/contactPickerService";
@@ -19,6 +21,7 @@ import {
 import type { CircleGroup } from "@/types/hold";
 
 export default function CircleIndexScreen() {
+  const navigation = useNavigation();
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [groups, setGroups] = useState<CircleGroup[]>([]);
@@ -168,6 +171,20 @@ export default function CircleIndexScreen() {
     setCreatingStage("naming");
   };
 
+  // "+ New Circle" moves into the header bar itself, alongside the
+  // hamburger — Going Quiet's own GroupPicker keeps its pinned pill as-is;
+  // this is specific to Your Circles' header/title structure.
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <View style={styles.headerActions}>
+          <HeaderAddButton accessibilityLabel="New Circle" onPress={() => void startCreating()} />
+          <HeaderSettingsButton />
+        </View>
+      )
+    });
+  }, [navigation, styles]);
+
   const addAnotherNewCircleContact = async () => {
     const picked = await pickContact();
     if (!picked) return;
@@ -200,20 +217,10 @@ export default function CircleIndexScreen() {
     <Screen contentContainerStyle={styles.content}>
       <StepHeader body="Create and amend your circles." />
 
-      <View style={styles.pinnedRow}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillRow}>
         {groups.length > 0 ? (
           <CirclePill label="All" selected={allExpanded} onPress={toggleAllExpanded} accessibilityRole="button" />
         ) : null}
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => void startCreating()}
-          style={({ pressed }) => [styles.newCirclePill, pressed && styles.newCirclePillPressed]}
-        >
-          <Text style={styles.newCirclePillText}>+ New Circle</Text>
-        </Pressable>
-      </View>
-
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillRow}>
         {groups.map((group) => {
           const selected = expandedIds.has(group.id);
           return (
@@ -351,27 +358,9 @@ function createStyles(colors: ThemeColors) {
   content: {
     gap: theme.spacing.lg
   },
-  pinnedRow: {
+  headerActions: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.sm
-  },
-  newCirclePill: {
-    minHeight: 38,
-    borderRadius: theme.radius.pill,
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: theme.spacing.md
-  },
-  newCirclePillPressed: {
-    backgroundColor: colors.surface
-  },
-  newCirclePillText: {
-    color: colors.primary,
-    fontSize: 14,
-    fontWeight: "600"
+    alignItems: "center"
   },
   pillRow: {
     flexDirection: "row",

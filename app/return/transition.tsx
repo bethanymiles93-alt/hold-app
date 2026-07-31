@@ -18,7 +18,7 @@ export default function ReconnectTransitionScreen() {
   return (
     <Screen contentContainerStyle={styles.content}>
       <View style={styles.message}>
-        <HoldMark size={92} />
+        <HoldMark size={64} />
         <Text style={styles.title}>Welcome back.</Text>
         <Text style={styles.subtitle}>
           Here’s who’s waiting to hear from you. Reply however feels right today.
@@ -34,7 +34,7 @@ function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     content: {
       justifyContent: "space-between",
-      paddingTop: 88
+      paddingTop: theme.spacing.xxl
     },
     message: {
       alignItems: "center",
