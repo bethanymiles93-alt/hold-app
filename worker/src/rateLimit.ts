@@ -1,7 +1,9 @@
 /**
- * Per-install monthly draft allowance, backed by Workers KV. Keyed by an
- * anonymous UUID the app generates once and stores in SecureStore — no
- * name, phone number, or other identifying data ever reaches this layer.
+ * Per-install monthly draft safety cap, backed by Workers KV — not a
+ * free-tier allowance (AI drafting is Hold+-only, gated in draftService.ts).
+ * Keyed by an anonymous UUID the app generates once and stores in
+ * SecureStore — no name, phone number, or other identifying data ever
+ * reaches this layer.
  */
 
 const KV_TTL_SECONDS = 60 * 60 * 24 * 40; // ~40 days — outlives the month it counts, then falls away on its own.

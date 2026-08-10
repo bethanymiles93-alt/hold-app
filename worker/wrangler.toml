@@ -2,11 +2,15 @@ name = "hold-ai-proxy"
 main = "src/index.ts"
 compatibility_date = "2025-01-01"
 
-# Free-tier monthly AI-assisted draft allowance per anonymous install.
-# 20 is the upper end of hold-book's "10-20/month, working assumption" —
-# see 08-decisions/04-open-questions.md. Adjust here without a code change.
+# NOT a free-tier allowance — AI-assisted drafting is Hold+-only, gated
+# client-side in draftService.ts. This is a blunt per-install monthly
+# safety cap against runaway cost from a leaked APP_CLIENT_KEY, a client
+# bug, or direct abuse of this endpoint, since it's reachable independent
+# of the app's own gating and Hold+ has no server-verifiable entitlement
+# to check against yet. 20 is a generous ceiling for genuine Hold+ usage,
+# not a target. Adjust here without a code change.
 [vars]
-FREE_MONTHLY_DRAFT_LIMIT = "20"
+MONTHLY_DRAFT_SAFETY_CAP = "20"
 
 # Created via `npm run kv:create` (needs wrangler login first) — paste the
 # resulting id below before deploying. Stores per-install monthly draft

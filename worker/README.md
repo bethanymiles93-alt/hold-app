@@ -1,10 +1,11 @@
 # hold-ai-proxy
 
-Server-side proxy for Hold's AI-assisted drafting. Holds the real Anthropic
-API key, applies the per-surface system prompts from
-`hold-book/06-privacy-security/02-ai-boundaries.md`, and enforces the
-free-tier monthly draft allowance — none of which can safely live in the
-mobile app itself.
+Server-side proxy for Hold's AI-assisted drafting (Hold+-only — gated
+client-side in `draftService.ts`, never a free allowance). Holds the real
+Anthropic API key, applies the per-surface system prompts from
+`hold-book/06-privacy-security/02-ai-boundaries.md`, and enforces a
+per-install monthly safety cap against runaway cost — none of which can
+safely live in the mobile app itself.
 
 Decision record: `hold-book/08-decisions/01-decision-log.md`.
 

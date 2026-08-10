@@ -1,4 +1,5 @@
 import { requestAiDraft } from "@/services/aiProxyClient";
+import { isHoldPlusActive } from "@/services/holdPlusService";
 import type { DraftRequest, ReturnStyle } from "@/types/hold";
 
 const HOLD_DRAFTS = {
@@ -30,13 +31,18 @@ export function createLocalDraft(request: DraftRequest): string {
 }
 
 /**
- * Tries the AI proxy (worker/) first; falls back to the local template on
- * any failure — unconfigured proxy, network error, rate limit, timeout, or
- * provider error. The local route is never removed, per the privacy-review
- * boundary this replaces: see docs/03-privacy-model.md and
+ * AI-assisted drafting is Hold+-only — no free allowance. Free users (and
+ * anyone whose Hold+ AI call fails: unconfigured proxy, network error, rate
+ * limit, timeout, or provider error) get the local template instead. The
+ * local route is never removed, per the privacy-review boundary this
+ * replaces: see docs/03-privacy-model.md and
  * hold-book/06-privacy-security/02-ai-boundaries.md.
  */
 export async function createDraft(request: DraftRequest): Promise<string> {
+  if (!(await isHoldPlusActive())) {
+    return createLocalDraft(request);
+  }
+
   try {
     if (request.mode === "hold") {
       return (await requestAiDraft("going-quiet", { intent: request.intent ?? undefined })).draft;
@@ -61,8 +67,12 @@ export function createLocalReplyDraft(style: ReturnStyle): string {
   return REPLY_DRAFTS[style];
 }
 
-/** Matches createDraft above — AI proxy first, local template fallback always available. */
+/** Matches createDraft above — Hold+-gated AI proxy, local template fallback always available. */
 export async function createReplyDraft(style: ReturnStyle): Promise<string> {
+  if (!(await isHoldPlusActive())) {
+    return createLocalReplyDraft(style);
+  }
+
   try {
     return (await requestAiDraft("conversations-reply", { returnStyle: style })).draft;
   } catch {

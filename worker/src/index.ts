@@ -12,7 +12,8 @@ export interface Env {
   AI_USAGE: KVNamespace;
   ANTHROPIC_API_KEY: string;
   APP_CLIENT_KEY: string;
-  FREE_MONTHLY_DRAFT_LIMIT: string;
+  /** Not a free-tier allowance — see wrangler.toml. A per-install monthly safety cap. */
+  MONTHLY_DRAFT_SAFETY_CAP: string;
 }
 
 interface DraftRequestBody {
@@ -104,7 +105,7 @@ export default {
       return json({ error: "bad_request" }, 400);
     }
 
-    const limit = Number.parseInt(env.FREE_MONTHLY_DRAFT_LIMIT, 10) || 20;
+    const limit = Number.parseInt(env.MONTHLY_DRAFT_SAFETY_CAP, 10) || 20;
     const rateLimit = await checkAndIncrement(env.AI_USAGE, installId, limit);
 
     if (!rateLimit.allowed) {
