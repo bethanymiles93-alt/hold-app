@@ -127,3 +127,17 @@ All five share the same 48pt height, confirming the redesign's actual goal (row 
 3. `library.tsx`'s Quick-message chip row selects Circles, but the user's clarification named "Conversations' per-person `StoredReply` records" for that scope — `StoredReply` is the separate, chip-less Personalise flow's per-person data, with no existing per-Circle "sent" concept to hang `hasSentThisSession` off. Left unmigrated pending clarification rather than inventing a mapping.
 
 **Still flagged, not resolved:** no on-device verification possible from this session, same limitation as every pass before it.
+
+## 2026-08-10 — Circle-chip migration completed: update.tsx made durable, Library derived from existing state
+
+Answers to the three questions above, and the resulting work:
+
+**1. `return/update.tsx` confirmed in scope** (the earlier omission was an oversight, not a deliberate exclusion). Added `HoldPeriod.updateSentCircleIds` and `holdHistoryService.markUpdateSent(circleId)`, which — like `recordPostSendChoices` — operates on whichever period is currently open rather than a captured id, since Taking Time's update happens while the period is still open (unlike Reconnect, which happens after close). `update.tsx` now reads the open period fresh via `useFocusEffect` instead of `HoldFlowContext`'s `updatedCircleIds`, which was in-memory-only and never survived a force-quit. `updatedCircleIds`/`markCircleUpdated` removed entirely from `HoldFlowContext`/`HoldFlowState` — confirmed unused anywhere else first.
+
+**2. `reconnectContactedIds` confirmed correct for Reconnect** — the instruction meant "the same kind of durable, crash-surviving persistence already used elsewhere," not literally `messageDraftService.ts` for every flow. Each flow uses whichever existing durable store is actually correct for it.
+
+**3. Investigated Library's Quick-message flow directly rather than guessing further.** Every selected Circle gets its own independent card — own message box, own Send button, sent independently and repeatably. That's the same "select some, send, come back for more" shape Reconnect and `update.tsx` already have, not a single shared-box bulk send, so it needed the same treatment. `hasSentThisSession` here is *derived*, not a new persisted field: a Circle chip reads as sent when every one of its people already has `ConversationPerson.completed = true` (set durably by the existing `markQuickSent`); an ungrouped person's chip reads directly off their own `.completed`. No new persistence needed — the durable signal already existed, just not surfaced at the chip level.
+
+**All Circle-chip sites now on `AdaptiveCircleChip`**, closing the full audit from two entries ago. Dead `chip`/`chipSelected`/`chipText`/`chipTextSelected`/`chipSent`/`chipSentText` styles removed from both `update.tsx` and `library.tsx`.
+
+**Still flagged, not resolved:** no simulator/screenshot capability in this session — everything above is verified by code inspection (`tsc`/`vitest` both pass) and reasoning about existing, already-durable data, not an on-screen render. Needs on-device confirmation across all three newly-migrated screens.
