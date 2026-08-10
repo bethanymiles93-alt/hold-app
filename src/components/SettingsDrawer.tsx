@@ -13,10 +13,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
-import { HAS_SEEN_WELCOME_KEY } from "@/constants/storageKeys";
 import { useHoldFlow } from "@/context/HoldFlowContext";
 import { useSettingsDrawer } from "@/context/SettingsDrawerContext";
 import { deleteAllCircles } from "@/services/circleService";
@@ -25,7 +23,9 @@ import { deleteAllHoldHistory } from "@/services/holdHistoryService";
 import { deleteAllReplies } from "@/services/replyStorageService";
 import { deleteAllTemplates } from "@/services/templateService";
 import { deleteAllDrafts } from "@/services/messageDraftService";
-import { deleteAllMemoryNotes } from "@/services/aiMemoryService";
+import { setMemoryEnabled } from "@/services/aiMemoryService";
+import { setHoldPlusActive } from "@/services/holdPlusService";
+import { deleteAiInstallId } from "@/services/aiProxyClient";
 
 const FEEDBACK_EMAIL = "bethany.miles.93@gmail.com";
 const PANEL_WIDTH = Math.min(320, Dimensions.get("window").width * 0.86);
@@ -154,8 +154,15 @@ export function SettingsDrawer() {
                 deleteAllConversations(),
                 deleteAllTemplates(),
                 deleteAllDrafts(),
-                deleteAllMemoryNotes(),
-                AsyncStorage.removeItem(HAS_SEEN_WELCOME_KEY)
+                // setMemoryEnabled(false), not deleteAllMemoryNotes() directly — also
+                // clears the Layer-1 "Remember helpful details" toggle itself, not
+                // just the notes it captured, so a wipe doesn't leave it reading "on"
+                // with nothing behind it.
+                setMemoryEnabled(false),
+                setHoldPlusActive(false),
+                deleteAiInstallId()
+                // Deliberately NOT cleared: hasSeenWelcome / hasSeenRetentionNote.
+                // "Delete my data" wipes content, not app state — see docs/09-decision-log.md.
               ]);
               resetFlow("hold");
               router.replace("/");

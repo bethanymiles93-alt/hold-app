@@ -41,6 +41,11 @@ export function isAiProxyConfigured(): boolean {
   return Boolean(PROXY_URL && CLIENT_KEY);
 }
 
+/** Part of "Delete my data" — a fresh id gets generated on next AI use, same as a genuine fresh install. */
+export async function deleteAiInstallId(): Promise<void> {
+  await SecureStore.deleteItemAsync(AI_INSTALL_ID_KEY);
+}
+
 export interface AiDraftResult {
   draft: string;
   /** Present only when memoryCaptureEnabled was set and the model found something worth noting. */
