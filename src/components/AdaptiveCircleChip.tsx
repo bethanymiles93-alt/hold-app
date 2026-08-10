@@ -16,116 +16,110 @@ interface AdaptiveCircleChipProps {
   onPress: () => void;
   /** Close's stronger/primary fill, per the app's Circle-picker convention. */
   isPrimary?: boolean;
+  /** Bordered/transparent treatment instead of a filled circle/pill — e.g. the "+" New Circle button. */
+  outline?: boolean;
   accessibilityRole?: "checkbox" | "button";
+  /** Defaults to `label` — set when the visible text ("+") isn't what a screen reader should announce. */
+  accessibilityLabel?: string;
+  /** When set, accessibilityState reports {expanded} instead of {checked: selected} — for a toggle-a-panel button like "+ New Circle" rather than a toggle-a-selection chip. */
+  expanded?: boolean;
 }
 
-// Hard minimum tap target for either shape — a FLOOR, not a fixed cap: the
-// container grows beyond this if the text's own measured line height needs
-// more room at a large accessibility font size, but never shrinks below it.
-// See hold-book 04-ux-content/04-navigation-architecture.md, "Circle shape."
-const MIN_DIAMETER = Platform.OS === "android" ? 48 : 44;
-// A circle is also allowed to grow beyond MIN_DIAMETER to fit short-word
-// labels ("Close," "Friends") as an actual circle, not just single
-// characters — capped here so it doesn't keep growing into an oversized
-// blob once a label is genuinely long enough to read better as a pill.
-const MAX_CIRCLE_DIAMETER = MIN_DIAMETER * 1.5;
+/**
+ * One fixed height for every chip in the row — a flat +4 above the 44pt
+ * (iOS) / 48dp (Android) accessibility tap-target floor, for deliberate
+ * visual breathing room rather than sitting at the bare minimum. This is
+ * NOT a floor with per-label growth (that was the prior, now-removed
+ * design) — every chip is exactly this size, full stop, so the row reads
+ * as one consistent set of shapes rather than a mix of heights.
+ */
+const STANDARD_CHIP_DIAMETER = Platform.OS === "android" ? 52 : 48;
 const HORIZONTAL_PADDING = theme.spacing.sm;
-const VERTICAL_PADDING = theme.spacing.xs;
 
 /**
  * The one Circle-chip treatment used everywhere a Circle can be picked.
- * Supersedes CirclePill's pill-only shape: renders as a TRUE CIRCLE, sized
- * to fit the label (never below MIN_DIAMETER, never above
- * MAX_CIRCLE_DIAMETER), when the label fits within that range; otherwise
- * falls back to the stadium-pill shape, sized to the text.
  *
- * Two bugs fixed here across two passes:
- * 1. The first version measured via an invisible position:'absolute' +
- *    opacity:0 Text read through onLayout, which doesn't reliably
- *    shrink-wrap to its own content inside a flex row — it picked up
- *    ambient sizing from the row instead, so every measured width came
- *    back far larger than the real glyph width. Fixed by measuring via
- *    onTextLayout on the real, always-rendered Text, which reports the
- *    line's own width/height directly off the glyph run.
- * 2. Even with accurate measurement, the circle was never allowed to grow
- *    past a fixed MIN_DIAMETER — so the available inner width (diameter
- *    minus padding) was only ~24pt, which no real word fits at normal text
- *    size ("Close" alone needs roughly 35-40pt). That made the circle
- *    branch effectively unreachable for anything but a single narrow
- *    character. Fixed by letting the circle's diameter grow to fit the
- *    label (still floored at MIN_DIAMETER, now also capped at
- *    MAX_CIRCLE_DIAMETER) — only labels that would need a genuinely
- *    oversized circle fall back to a pill.
+ * Fixed-height model, replacing an earlier grow-to-fit-per-label design
+ * (floor at the accessibility minimum, cap at 1.5x that, natural diameter
+ * in between) that produced an inconsistent row — "D" sat at the bare
+ * floor, "Close" sat noticeably taller, a pill sat taller still. Every
+ * chip is now STANDARD_CHIP_DIAMETER tall, with no exceptions:
+ * - If the label's measured text width fits inside STANDARD_CHIP_DIAMETER
+ *   (minus horizontal padding on both sides) as a circle, it renders as a
+ *   true circle at exactly that fixed size.
+ * - Otherwise it renders as a pill at the exact same fixed height —
+ *   literally the same circle, stretched wider — with its width growing
+ *   to fit the text plus padding, uncapped.
  *
- * onTextLayout also naturally re-fires on any relayout, including a live
- * Dynamic Type / accessibility text-size change, so no separate font-scale
- * listener is needed.
+ * Text is measured via onTextLayout on the real, always-rendered Text
+ * (reports the glyph run's own width directly, unaffected by container
+ * sizing — see docs/09-decision-log.md, 2026-08-10, for why an earlier
+ * invisible-measuring-Text approach measured wrong). It naturally re-fires
+ * on any relayout, including a live Dynamic Type / accessibility
+ * text-size change, so width — both the fits-as-circle decision and a
+ * pill's actual rendered width — stays correct at any font size with no
+ * separate font-scale listener needed.
+ *
+ * Height does NOT vary with font size, per direct instruction ("no
+ * exceptions, no per-label height variation"). At very large accessibility
+ * text sizes this means a label's rendered line height could exceed the
+ * fixed chip height — numberOfLines={1} means it would clip rather than
+ * wrap or grow the box. Flagged as an accepted trade-off of this
+ * simplification, not silently worked around.
  */
 export function AdaptiveCircleChip({
   label,
   selected,
   onPress,
   isPrimary = false,
-  accessibilityRole = "checkbox"
+  outline = false,
+  accessibilityRole = "checkbox",
+  accessibilityLabel,
+  expanded
 }: AdaptiveCircleChipProps) {
   const { colors } = useAppTheme("normal");
   const styles = createStyles(colors);
-  const [measured, setMeasured] = useState<{ width: number; height: number } | null>(null);
+  const [measuredWidth, setMeasuredWidth] = useState<number | null>(null);
 
   const onTextLayout = (event: NativeSyntheticEvent<TextLayoutEventData>) => {
     const line = event.nativeEvent.lines[0];
     if (!line) return;
-    if (measured && measured.width === line.width && measured.height === line.height) return;
-    setMeasured({ width: line.width, height: line.height });
+    if (measuredWidth === line.width) return;
+    setMeasuredWidth(line.width);
   };
 
-  // The circle a label would need, if it fit inside one at all — floored at
-  // the hard minimum, sized up from there to actually contain the text in
-  // both dimensions.
-  const naturalCircleDiameter =
-    measured === null
-      ? MIN_DIAMETER
-      : Math.max(
-          MIN_DIAMETER,
-          measured.width + HORIZONTAL_PADDING * 2,
-          measured.height + VERTICAL_PADDING * 2
-        );
-  const fitsAsCircle = measured !== null && naturalCircleDiameter <= MAX_CIRCLE_DIAMETER;
-
-  // Pill height is the same floor-not-cap logic, uncapped on the growth
-  // side — a pill's width isn't capped either, so there's no MAX to apply.
-  const pillHeight = Math.max(MIN_DIAMETER, (measured?.height ?? 0) + VERTICAL_PADDING * 2);
+  const availableCircleWidth = STANDARD_CHIP_DIAMETER - HORIZONTAL_PADDING * 2;
+  const fitsAsCircle = measuredWidth !== null && measuredWidth <= availableCircleWidth;
 
   const shapeStyle = fitsAsCircle
     ? {
-        width: naturalCircleDiameter,
-        height: naturalCircleDiameter,
-        borderRadius: naturalCircleDiameter / 2
+        width: STANDARD_CHIP_DIAMETER,
+        height: STANDARD_CHIP_DIAMETER,
+        borderRadius: STANDARD_CHIP_DIAMETER / 2
       }
     : {
-        minWidth: MIN_DIAMETER,
-        height: pillHeight,
-        borderRadius: pillHeight / 2,
+        minWidth: STANDARD_CHIP_DIAMETER,
+        height: STANDARD_CHIP_DIAMETER,
+        borderRadius: STANDARD_CHIP_DIAMETER / 2,
         paddingHorizontal: HORIZONTAL_PADDING
       };
+
+  const variantStyle = outline ? styles.chipOutline : isPrimary ? styles.chipPrimary : styles.chipSecondary;
+  const labelVariantStyle = outline
+    ? styles.labelTextOutline
+    : isPrimary
+      ? styles.labelTextPrimary
+      : styles.labelTextSecondary;
 
   return (
     <Pressable
       accessibilityRole={accessibilityRole}
-      accessibilityState={{ checked: selected }}
+      accessibilityLabel={accessibilityLabel ?? label}
+      accessibilityState={expanded !== undefined ? { expanded } : { checked: selected }}
       onPress={onPress}
-      style={[
-        styles.chip,
-        shapeStyle,
-        isPrimary ? styles.chipPrimary : styles.chipSecondary,
-        selected && styles.chipSelected
-      ]}
+      style={[styles.chip, shapeStyle, variantStyle, !outline && selected && styles.chipSelected]}
     >
-      <Text
-        numberOfLines={1}
-        onTextLayout={onTextLayout}
-        style={[styles.labelText, isPrimary ? styles.labelTextPrimary : styles.labelTextSecondary]}
-      >
+      <Text numberOfLines={1} onTextLayout={onTextLayout} style={[styles.labelText, labelVariantStyle]}>
         {label}
       </Text>
     </Pressable>
@@ -144,6 +138,13 @@ function createStyles(colors: ThemeColors) {
     chipSecondary: {
       backgroundColor: colors.surfaceStrong
     },
+    // Matches the prior hand-styled "+ New Circle" button's own treatment —
+    // transparent fill, bordered, primary-tinted text.
+    chipOutline: {
+      backgroundColor: "transparent",
+      borderWidth: 1.5,
+      borderColor: colors.primary
+    },
     chipSelected: {
       borderWidth: 2,
       borderColor: colors.text
@@ -156,6 +157,9 @@ function createStyles(colors: ThemeColors) {
       color: colors.onPrimary
     },
     labelTextSecondary: {
+      color: colors.primary
+    },
+    labelTextOutline: {
       color: colors.primary
     }
   });

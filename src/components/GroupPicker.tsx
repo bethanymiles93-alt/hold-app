@@ -111,15 +111,15 @@ export function GroupPicker({ selectedGroupIds, onToggle, onPendingContact }: Gr
         {groups.length > 0 ? (
           <AdaptiveCircleChip label="All" selected={allSelected} onPress={() => void toggleAll()} />
         ) : null}
-        <Pressable
-          accessibilityRole="button"
+        <AdaptiveCircleChip
+          label="+"
           accessibilityLabel="New Circle"
-          accessibilityState={{ expanded: creating }}
+          accessibilityRole="button"
+          expanded={creating}
+          outline
+          selected={false}
           onPress={() => setCreating((current) => !current)}
-          style={({ pressed }) => [styles.newCirclePill, pressed && styles.newCirclePillPressed]}
-        >
-          <Text style={styles.newCirclePillText}>+</Text>
-        </Pressable>
+        />
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -225,28 +225,6 @@ function createStyles(colors: ThemeColors) {
       color: colors.textMuted,
       fontSize: 14,
       lineHeight: 21
-    },
-    // "+" alone, no label text — minWidth/minHeight explicitly guarantee
-    // the 44x44pt tap target rather than relying on padding-plus-glyph
-    // math to happen to clear it (paddingHorizontal alone would land at
-    // ~41pt wide, just under the minimum).
-    newCirclePill: {
-      minHeight: 44,
-      minWidth: 44,
-      borderRadius: theme.radius.pill,
-      borderWidth: 1.5,
-      borderColor: colors.primary,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: theme.spacing.md
-    },
-    newCirclePillPressed: {
-      backgroundColor: colors.surface
-    },
-    newCirclePillText: {
-      color: colors.primary,
-      fontSize: 14,
-      fontWeight: "600"
     },
     newCircle: {
       gap: theme.spacing.sm
