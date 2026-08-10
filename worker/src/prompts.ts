@@ -44,7 +44,14 @@ context genuinely contains one — e.g. a specific person, an ongoing situation,
 commitment. Never a guess, never anything about the user's psychological or emotional state. If \
 there is nothing worth remembering, write exactly "NOTE: none".`;
 
-export type PromptSurface = "going-quiet" | "reassurance" | "reconnect" | "conversations-reply";
+export type PromptSurface =
+  | "going-quiet"
+  | "reassurance"
+  | "reconnect"
+  | "conversations-reply"
+  | "email-ooo"
+  | "wider-world-status"
+  | "template";
 
 export interface DraftContext {
   intent?: string;
@@ -86,6 +93,24 @@ a gentle re-opening, not an apology or an explanation owed. Keep it to 1-2 short
 Surface: Conversations reply — a personalised reply to a specific message someone sent while the \
 user was quiet. The user will supply what that person said and, optionally, a starting-point style. \
 Reply to the substance of their message, briefly and warmly.${suffix}`;
+    case "email-ooo":
+      return `${SHARED_RULES}
+
+Surface: Email out-of-office — a short automatic reply for anyone who emails the user while they're \
+quiet. Reads as a normal, professional-but-warm out-of-office note, not a personal message. Keep it \
+to 1-2 short sentences.${suffix}`;
+    case "wider-world-status":
+      return `${SHARED_RULES}
+
+Surface: Wider-world status line — a very short public-facing status line (e.g. for a messaging \
+app's status or bio) noting the user is taking some quiet time. A single short sentence, plain and \
+undramatic — this is seen by a broad audience, not a close Circle.${suffix}`;
+    case "template":
+      return `${SHARED_RULES}
+
+Surface: Library template — a Circle's saved default Going Quiet message, edited outside the moment \
+of actually going quiet. Same voice and length as the Going Quiet surface (2-3 short sentences), \
+since this is what gets reused there.${suffix}`;
     default: {
       const exhaustiveCheck: never = surface;
       throw new Error(`Unknown prompt surface: ${exhaustiveCheck}`);

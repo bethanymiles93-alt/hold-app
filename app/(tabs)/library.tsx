@@ -5,7 +5,8 @@ import { router, useFocusEffect } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { SecondaryButton } from "@/components/SecondaryButton";
 import { CompactSendButton } from "@/components/CompactSendButton";
-import { AmendWithAI } from "@/components/AmendWithAI";
+import { DockedInputBar } from "@/components/DockedInputBar";
+import { DockedFieldPreview } from "@/components/DockedFieldPreview";
 import { SelectionCircle } from "@/components/SelectionCircle";
 import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
 import { SafeguardingBanner } from "@/components/SafeguardingBanner";
@@ -75,19 +76,43 @@ interface PersonaliseAccordionProps {
   isOpen: boolean;
   onToggle: () => void;
   onSent: () => void;
+  /** "Your reply" is controlled by the parent screen — it owns the one shared DockedInputBar. See docs/09-decision-log.md, 2026-08-10. */
+  draft: string;
+  onChangeDraft: (text: string) => void;
+  style: ReturnStyle | null;
+  onChangeStyle: (style: ReturnStyle) => void;
+  isReplyActive: boolean;
+  /**
+   * Hands the parent this instance's own changeDraft (which also persists
+   * to storage, using friendMessage/sentAt only this instance has) — the
+   * parent's shared DockedInputBar calls it directly rather than a bare
+   * setter, so autosave-on-keystroke keeps working through the docked bar.
+   */
+  onActivateReply: (bundle: { onChangeText: (text: string) => void; friendMessage: string }) => void;
 }
 
-function PersonaliseAccordion({ person, isOpen, onToggle, onSent }: PersonaliseAccordionProps) {
+function PersonaliseAccordion({
+  person,
+  isOpen,
+  onToggle,
+  onSent,
+  draft,
+  onChangeDraft,
+  style,
+  onChangeStyle,
+  isReplyActive,
+  onActivateReply
+}: PersonaliseAccordionProps) {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [loaded, setLoaded] = useState(false);
   const [friendMessage, setFriendMessage] = useState("");
   // Settles into a muted, read-only-looking card once populated — pinned above
   // the reply box throughout drafting, never collapses. "Edit" is the only way
-  // back to an editable field, no implicit/hidden gesture.
+  // back to an editable field, no implicit/hidden gesture. Deliberately stays
+  // an in-page field, not the docked bar — reference content pasted once, not
+  // something actively composed. See docs/09-decision-log.md, 2026-08-10.
   const [friendMessageEditing, setFriendMessageEditing] = useState(true);
-  const [style, setStyle] = useState<ReturnStyle | null>(null);
-  const [draft, setDraft] = useState("");
   const [status, setStatus] = useState<"none" | "draft" | "sent">("none");
   const [sentAt, setSentAt] = useState<number | null>(null);
   const safeguardingTriggered = useSafeguardingCheck(draft);
@@ -100,16 +125,20 @@ function PersonaliseAccordion({ person, isOpen, onToggle, onSent }: PersonaliseA
       if (existing) {
         setFriendMessage(existing.friendMessage);
         setFriendMessageEditing(!existing.friendMessage.trim());
-        setDraft(existing.draftReply);
+        onChangeDraft(existing.draftReply);
         setStatus(existing.sentAt ? "sent" : "draft");
         setSentAt(existing.sentAt ?? null);
       }
       setLoaded(true);
     })();
+    // onChangeDraft is a fresh closure each render from the parent — only
+    // re-run this load-once effect on isOpen/loaded/person.id, matching its
+    // original dependency list.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, loaded, person.id]);
 
   const chooseStyle = (choice: ReturnStyle) => {
-    setStyle(choice);
+    onChangeStyle(choice);
     void createReplyDraft(choice).then(changeDraft);
   };
 
@@ -143,7 +172,7 @@ function PersonaliseAccordion({ person, isOpen, onToggle, onSent }: PersonaliseA
   };
 
   const changeDraft = (text: string) => {
-    setDraft(text);
+    onChangeDraft(text);
     void persist(sentAt, { draftReply: text });
   };
 
@@ -245,23 +274,15 @@ function PersonaliseAccordion({ person, isOpen, onToggle, onSent }: PersonaliseA
           </View>
 
           <Text style={styles.fieldLabel}>Your reply</Text>
-          <TextInput
-            accessibilityLabel="Your reply"
-            multiline
-            onChangeText={changeDraft}
-            style={styles.input}
-            textAlignVertical="top"
+          <DockedFieldPreview
             value={draft}
+            placeholder="Your reply"
+            isActive={isReplyActive}
+            onPress={() => onActivateReply({ onChangeText: changeDraft, friendMessage })}
+            accessibilityLabel="Your reply"
           />
 
           <SafeguardingBanner visible={safeguardingTriggered} />
-
-          <AmendWithAI
-            surface="conversations-reply"
-            currentMessage={draft}
-            onApply={changeDraft}
-            context={{ returnStyle: style ?? undefined, friendMessage }}
-          />
 
           <View style={styles.accordionActions}>
             <SecondaryButton label="Save for later" onPress={saveForLater} />
@@ -277,6 +298,15 @@ function PersonaliseAccordion({ person, isOpen, onToggle, onSent }: PersonaliseA
   );
 }
 
+/** Every screen-owned docked-bar field, keyed by tag — mirrors create/people.tsx's pattern. Personalise's "Your reply" is handled separately (personaliseReplyTarget below), since its persistence is owned by each PersonaliseAccordion instance, not by the screen. */
+type ActiveField = `circle-message:${string}` | `individual-message:${string}` | "new-circle" | `template:${string}`;
+
+interface PersonaliseReplyTarget {
+  personId: string;
+  onChangeText: (text: string) => void;
+  friendMessage: string;
+}
+
 export default function LibraryScreen() {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -290,10 +320,14 @@ export default function LibraryScreen() {
   const [individualMessages, setIndividualMessages] = useState<Record<string, string>>({});
   const [personaliseSwapIds, setPersonaliseSwapIds] = useState<Set<string>>(new Set());
   const [expandedPersonaliseId, setExpandedPersonaliseId] = useState<string | null>(null);
+  const [personaliseDrafts, setPersonaliseDrafts] = useState<Record<string, string>>({});
+  const [personaliseStyles, setPersonaliseStyles] = useState<Record<string, ReturnStyle>>({});
+  const [personaliseReplyTarget, setPersonaliseReplyTarget] = useState<PersonaliseReplyTarget | null>(null);
 
   const [selectedOtherIds, setSelectedOtherIds] = useState<Set<string>>(new Set());
   const [circlePromptStage, setCirclePromptStage] = useState<"none" | "confirm" | "naming">("none");
   const [newOtherCircleName, setNewOtherCircleName] = useState("");
+  const [activeField, setActiveField] = useState<ActiveField | null>(null);
 
   const [templates, setTemplates] = useState<TemplateRow[]>([]);
   const [templateDrafts, setTemplateDrafts] = useState<Record<string, string>>({});
@@ -393,6 +427,55 @@ export default function LibraryScreen() {
 
   const defaultMessageForCircle = (circleId: string) =>
     sharedMessages[circleId] ?? templateTextByCircleId[circleId] ?? DEFAULT_QUICK_MESSAGE;
+
+  const activeCircleMessageId = activeField?.startsWith("circle-message:")
+    ? activeField.slice("circle-message:".length)
+    : null;
+  const activeIndividualMessageId = activeField?.startsWith("individual-message:")
+    ? activeField.slice("individual-message:".length)
+    : null;
+  const activeTemplateId = activeField?.startsWith("template:") ? activeField.slice("template:".length) : null;
+  const activeIndividualPerson = activeIndividualMessageId
+    ? people.find((p) => p.id === activeIndividualMessageId)
+    : undefined;
+  const activeTemplate = activeTemplateId ? templates.find((t) => t.circleId === activeTemplateId) : undefined;
+
+  const activeFieldValue = (): string => {
+    if (activeCircleMessageId) return defaultMessageForCircle(activeCircleMessageId);
+    if (activeIndividualMessageId) {
+      // Ungrouped people default to the quick-message text; a circle's
+      // excluded member defaults to empty — matches each field's own prior
+      // fallback exactly.
+      const fallback = activeIndividualPerson?.circleId === null ? DEFAULT_QUICK_MESSAGE : "";
+      return individualMessages[activeIndividualMessageId] ?? fallback;
+    }
+    if (activeField === "new-circle") return newOtherCircleName;
+    if (activeTemplateId) return templateDrafts[activeTemplateId] ?? activeTemplate?.text ?? "";
+    return "";
+  };
+
+  const setActiveFieldValue = (text: string) => {
+    if (activeCircleMessageId) {
+      setSharedMessages((current) => ({ ...current, [activeCircleMessageId]: text }));
+    } else if (activeIndividualMessageId) {
+      setIndividualMessages((current) => ({ ...current, [activeIndividualMessageId]: text }));
+    } else if (activeField === "new-circle") {
+      setNewOtherCircleName(text);
+    } else if (activeTemplateId) {
+      changeTemplateDraft(activeTemplateId, text);
+    }
+  };
+
+  const activeFieldLabel = (): string => {
+    if (activeCircleMessageId) {
+      const section = circleSections.find((s) => s.circleId === activeCircleMessageId);
+      return `Message to ${section?.circleName ?? "Circle"}`;
+    }
+    if (activeIndividualPerson) return `Message for ${activeIndividualPerson.name}`;
+    if (activeField === "new-circle") return "New Circle name";
+    if (activeTemplate) return `Saved message for ${activeTemplate.circleName}`;
+    return "Message";
+  };
 
   const toggleExcludeMember = (section: CircleSection, person: ConversationPerson) => {
     // A single-contact Circle never offers this — excluding the only person
@@ -558,7 +641,53 @@ export default function LibraryScreen() {
   }
 
   return (
-    <Screen contentContainerStyle={styles.content}>
+    <Screen
+      contentContainerStyle={styles.content}
+      dockedInput={
+        personaliseReplyTarget ? (
+          <DockedInputBar
+            value={personaliseDrafts[personaliseReplyTarget.personId] ?? ""}
+            onChangeText={personaliseReplyTarget.onChangeText}
+            onDone={() => setPersonaliseReplyTarget(null)}
+            placeholder="Your reply"
+            accessibilityLabel="Your reply"
+            aiAmend={{
+              surface: "conversations-reply",
+              context: {
+                returnStyle: personaliseStyles[personaliseReplyTarget.personId] ?? undefined,
+                friendMessage: personaliseReplyTarget.friendMessage
+              }
+            }}
+          />
+        ) : activeField ? (
+          <DockedInputBar
+            value={activeFieldValue()}
+            onChangeText={setActiveFieldValue}
+            onDone={() => setActiveField(null)}
+            placeholder={activeFieldLabel()}
+            accessibilityLabel={activeFieldLabel()}
+            aiAmend={
+              activeCircleMessageId
+                ? {
+                    surface: "conversations-reply",
+                    context: {
+                      recipientLabel: circleSections.find((s) => s.circleId === activeCircleMessageId)
+                        ?.circleName
+                    }
+                  }
+                : activeIndividualPerson
+                  ? {
+                      surface: "conversations-reply",
+                      context: { recipientLabel: activeIndividualPerson.name }
+                    }
+                  : activeTemplateId
+                    ? { surface: "template" }
+                    : undefined
+            }
+          />
+        ) : null
+      }
+    >
       <Text style={styles.pageTitle}>Conversations</Text>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
@@ -659,23 +788,12 @@ export default function LibraryScreen() {
                   </View>
                 ) : null}
 
-                <TextInput
-                  accessibilityLabel={`Message to ${section.circleName}`}
-                  multiline
-                  onChangeText={(text) =>
-                    setSharedMessages((current) => ({ ...current, [section.circleId]: text }))
-                  }
-                  style={styles.input}
-                  textAlignVertical="top"
+                <DockedFieldPreview
                   value={defaultMessageForCircle(section.circleId)}
-                />
-                <AmendWithAI
-                  surface="conversations-reply"
-                  currentMessage={defaultMessageForCircle(section.circleId)}
-                  onApply={(text) =>
-                    setSharedMessages((current) => ({ ...current, [section.circleId]: text }))
-                  }
-                  context={{ recipientLabel: section.circleName }}
+                  placeholder={`Message to ${section.circleName}`}
+                  isActive={activeField === `circle-message:${section.circleId}`}
+                  onPress={() => setActiveField(`circle-message:${section.circleId}`)}
+                  accessibilityLabel={`Message to ${section.circleName}`}
                 />
 
                 {expanded && excludedMembers.length > 0 ? (
@@ -695,6 +813,18 @@ export default function LibraryScreen() {
                                 )
                               }
                               onSent={() => void refresh()}
+                              draft={personaliseDrafts[person.id] ?? ""}
+                              onChangeDraft={(text) =>
+                                setPersonaliseDrafts((current) => ({ ...current, [person.id]: text }))
+                              }
+                              style={personaliseStyles[person.id] ?? null}
+                              onChangeStyle={(style) =>
+                                setPersonaliseStyles((current) => ({ ...current, [person.id]: style }))
+                              }
+                              isReplyActive={personaliseReplyTarget?.personId === person.id}
+                              onActivateReply={(bundle) =>
+                                setPersonaliseReplyTarget({ personId: person.id, ...bundle })
+                              }
                             />
                             <Pressable
                               accessibilityRole="button"
@@ -705,23 +835,12 @@ export default function LibraryScreen() {
                           </>
                         ) : (
                           <>
-                            <TextInput
-                              accessibilityLabel={`Message for ${person.name}`}
-                              multiline
-                              onChangeText={(text) =>
-                                setIndividualMessages((current) => ({ ...current, [person.id]: text }))
-                              }
-                              style={styles.input}
-                              textAlignVertical="top"
+                            <DockedFieldPreview
                               value={individualMessages[person.id] ?? ""}
-                            />
-                            <AmendWithAI
-                              surface="conversations-reply"
-                              currentMessage={individualMessages[person.id] ?? ""}
-                              onApply={(text) =>
-                                setIndividualMessages((current) => ({ ...current, [person.id]: text }))
-                              }
-                              context={{ recipientLabel: person.name }}
+                              placeholder={`Message for ${person.name}`}
+                              isActive={activeField === `individual-message:${person.id}`}
+                              onPress={() => setActiveField(`individual-message:${person.id}`)}
+                              accessibilityLabel={`Message for ${person.name}`}
                             />
                             <View style={styles.excludedActions}>
                               <CompactSendButton
@@ -800,6 +919,18 @@ export default function LibraryScreen() {
                         setExpandedPersonaliseId((current) => (current === person.id ? null : person.id))
                       }
                       onSent={() => void refresh()}
+                      draft={personaliseDrafts[person.id] ?? ""}
+                      onChangeDraft={(text) =>
+                        setPersonaliseDrafts((current) => ({ ...current, [person.id]: text }))
+                      }
+                      style={personaliseStyles[person.id] ?? null}
+                      onChangeStyle={(style) =>
+                        setPersonaliseStyles((current) => ({ ...current, [person.id]: style }))
+                      }
+                      isReplyActive={personaliseReplyTarget?.personId === person.id}
+                      onActivateReply={(bundle) =>
+                        setPersonaliseReplyTarget({ personId: person.id, ...bundle })
+                      }
                     />
                     <Pressable accessibilityRole="button" onPress={() => togglePersonaliseSwap(person.id)}>
                       <Text style={styles.linkText}>Use a quick message instead</Text>
@@ -807,23 +938,12 @@ export default function LibraryScreen() {
                   </>
                 ) : (
                   <>
-                    <TextInput
-                      accessibilityLabel={`Message for ${person.name}`}
-                      multiline
-                      onChangeText={(text) =>
-                        setIndividualMessages((current) => ({ ...current, [person.id]: text }))
-                      }
-                      style={styles.input}
-                      textAlignVertical="top"
+                    <DockedFieldPreview
                       value={individualMessages[person.id] ?? DEFAULT_QUICK_MESSAGE}
-                    />
-                    <AmendWithAI
-                      surface="conversations-reply"
-                      currentMessage={individualMessages[person.id] ?? DEFAULT_QUICK_MESSAGE}
-                      onApply={(text) =>
-                        setIndividualMessages((current) => ({ ...current, [person.id]: text }))
-                      }
-                      context={{ recipientLabel: person.name }}
+                      placeholder={`Message for ${person.name}`}
+                      isActive={activeField === `individual-message:${person.id}`}
+                      onPress={() => setActiveField(`individual-message:${person.id}`)}
+                      accessibilityLabel={`Message for ${person.name}`}
                     />
                     <View style={styles.excludedActions}>
                       <CompactSendButton
@@ -852,14 +972,12 @@ export default function LibraryScreen() {
         </View>
       ) : circlePromptStage === "naming" ? (
         <View style={styles.createCirclePrompt}>
-          <TextInput
-            accessibilityLabel="New Circle name"
-            autoCapitalize="words"
-            onChangeText={setNewOtherCircleName}
-            placeholder="Circle name"
-            placeholderTextColor={colors.textMuted}
-            style={styles.input}
+          <DockedFieldPreview
             value={newOtherCircleName}
+            placeholder="Circle name"
+            isActive={activeField === "new-circle"}
+            onPress={() => setActiveField("new-circle")}
+            accessibilityLabel="New Circle name"
           />
           <SecondaryButton
             disabled={!newOtherCircleName.trim()}
@@ -885,13 +1003,12 @@ export default function LibraryScreen() {
               return (
                 <View key={row.circleId} style={styles.templateBlock}>
                   <Text style={styles.cardTitle}>{row.circleName}</Text>
-                  <TextInput
-                    accessibilityLabel={`Saved message for ${row.circleName}`}
-                    multiline
-                    onChangeText={(text) => changeTemplateDraft(row.circleId, text)}
-                    style={styles.input}
-                    textAlignVertical="top"
+                  <DockedFieldPreview
                     value={draft}
+                    placeholder={`Saved message for ${row.circleName}`}
+                    isActive={activeField === `template:${row.circleId}`}
+                    onPress={() => setActiveField(`template:${row.circleId}`)}
+                    accessibilityLabel={`Saved message for ${row.circleName}`}
                   />
                   <SecondaryButton
                     disabled={!draft.trim()}

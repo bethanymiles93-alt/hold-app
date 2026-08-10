@@ -1,6 +1,7 @@
 import { useMemo } from "react";
-import { Alert, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { Alert, StyleSheet, Switch, Text, View } from "react-native";
 import { SecondaryButton } from "@/components/SecondaryButton";
+import { DockedFieldPreview } from "@/components/DockedFieldPreview";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { copyToClipboard } from "@/services/clipboardService";
@@ -10,13 +11,17 @@ interface WiderWorldStatusProps {
   onToggleEnabled: (enabled: boolean) => void;
   text: string;
   onChangeText: (text: string) => void;
+  isActive: boolean;
+  onActivate: () => void;
 }
 
 export function WiderWorldStatus({
   enabled,
   onToggleEnabled,
   text,
-  onChangeText
+  onChangeText,
+  isActive,
+  onActivate
 }: WiderWorldStatusProps) {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -47,13 +52,12 @@ export function WiderWorldStatus({
 
       {enabled ? (
         <View style={styles.body}>
-          <TextInput
-            accessibilityLabel="Wider-world status line"
-            multiline
-            onChangeText={onChangeText}
-            style={styles.input}
-            textAlignVertical="top"
+          <DockedFieldPreview
             value={text}
+            placeholder="Wider-world status line"
+            isActive={isActive}
+            onPress={onActivate}
+            accessibilityLabel="Wider-world status line"
           />
           <SecondaryButton label="Copy" onPress={() => void copy()} />
         </View>
@@ -92,17 +96,6 @@ function createStyles(colors: ThemeColors) {
     },
     body: {
       gap: theme.spacing.md
-    },
-    input: {
-      minHeight: 70,
-      borderWidth: 1.5,
-      borderColor: colors.border,
-      borderRadius: theme.radius.md,
-      padding: theme.spacing.sm,
-      color: colors.text,
-      fontSize: 16,
-      lineHeight: 22,
-      backgroundColor: colors.surface
     }
   });
 }

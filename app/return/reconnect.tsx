@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
 import { CompactSendButton } from "@/components/CompactSendButton";
 import { SecondaryButton } from "@/components/SecondaryButton";
-import { AmendWithAI } from "@/components/AmendWithAI";
+import { DockedInputBar } from "@/components/DockedInputBar";
+import { DockedFieldPreview } from "@/components/DockedFieldPreview";
 import { MemoryNoteSuggestion } from "@/components/MemoryNoteSuggestion";
 import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
 import { PENDING_CIRCLE_ID_PREFIX } from "@/components/GroupPicker";
@@ -47,6 +48,7 @@ export default function ReconnectScreen() {
   const [statusCleared, setStatusCleared] = useState(false);
   const [suggestedPrompt, setSuggestedPrompt] = useState<string | undefined>(undefined);
   const [oooExpanded, setOooExpanded] = useState(false);
+  const [messageFieldActive, setMessageFieldActive] = useState(false);
 
   const refresh = useCallback(async () => {
     // Prefer the durable marker (force-quit-resume, or any visit after the first
@@ -201,11 +203,30 @@ export default function ReconnectScreen() {
     const ungroupedPills = period.audienceUngrouped ?? [];
 
     return (
-      <Screen contentContainerStyle={styles.content}>
+      <Screen
+        contentContainerStyle={styles.content}
+        dockedInput={
+          messageFieldActive ? (
+            <DockedInputBar
+              value={message}
+              onChangeText={changeMessage}
+              onDone={() => setMessageFieldActive(false)}
+              placeholder="Message to send"
+              accessibilityLabel="Message to send"
+              aiAmend={{ surface: "reconnect", initialPrompt: suggestedPrompt }}
+            />
+          ) : null
+        }
+      >
         <View style={styles.top}>
           <StepHeader body="Reach everyone at your own pace, a few at a time." />
 
-          <MemoryNoteSuggestion onUseIt={setSuggestedPrompt} />
+          <MemoryNoteSuggestion
+            onUseIt={(prompt) => {
+              setSuggestedPrompt(prompt);
+              setMessageFieldActive(true);
+            }}
+          />
 
           <Text style={styles.progressText}>
             {coverage.contactedIds.length} of {coverage.totalIds.length} reached
@@ -262,20 +283,12 @@ export default function ReconnectScreen() {
             })}
           </ScrollView>
 
-          <TextInput
-            accessibilityLabel="Message to send"
-            multiline
-            onChangeText={changeMessage}
-            style={styles.input}
-            textAlignVertical="top"
+          <DockedFieldPreview
             value={message}
-          />
-
-          <AmendWithAI
-            surface="reconnect"
-            currentMessage={message}
-            onApply={changeMessage}
-            initialPrompt={suggestedPrompt}
+            placeholder="Message to send"
+            isActive={messageFieldActive}
+            onPress={() => setMessageFieldActive(true)}
+            accessibilityLabel="Message to send"
           />
         </View>
 
@@ -402,17 +415,6 @@ function createStyles(colors: ThemeColors) {
     sendRow: {
       flexDirection: "row",
       justifyContent: "flex-end"
-    },
-    input: {
-      minHeight: 100,
-      borderWidth: 1.5,
-      borderColor: colors.border,
-      borderRadius: theme.radius.md,
-      padding: theme.spacing.md,
-      color: colors.text,
-      fontSize: 17,
-      lineHeight: 25,
-      backgroundColor: colors.surface
     },
     gatePrompt: {
       color: colors.textMuted,

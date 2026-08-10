@@ -1,9 +1,10 @@
 import { useCallback, useMemo, useState } from "react";
 import { Link, useFocusEffect } from "expo-router";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
+import { DockedFieldPreview } from "@/components/DockedFieldPreview";
 import { getGroups } from "@/services/circleService";
 import { pickContact, type PickedContact } from "@/services/contactPickerService";
 import type { CircleGroup } from "@/types/hold";
@@ -50,6 +51,15 @@ interface GroupPickerProps {
   /** Which sent Circles are currently reselected (card reopened) — meaningless for a Circle not yet sent. */
   reselectedCircleIds?: string[];
   onToggleReselected?: (circleId: string) => void;
+  /**
+   * The new-Circle name field is controlled by the parent screen, not owned
+   * here — every screen shares exactly one DockedInputBar, so "which field
+   * is currently active" has to live at the screen level. See
+   * docs/09-decision-log.md, 2026-08-10.
+   */
+  newCircleName: string;
+  isNamingActive: boolean;
+  onActivateNaming: () => void;
 }
 
 /**
@@ -64,13 +74,15 @@ export function GroupPicker({
   onPendingContact,
   sentCircleIds = [],
   reselectedCircleIds = [],
-  onToggleReselected
+  onToggleReselected,
+  newCircleName,
+  isNamingActive,
+  onActivateNaming
 }: GroupPickerProps) {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [groups, setGroups] = useState<CircleGroup[]>([]);
   const [creating, setCreating] = useState(false);
-  const [newCircleName, setNewCircleName] = useState("");
 
   const refresh = useCallback(async () => {
     setGroups(await getGroups());
@@ -130,7 +142,6 @@ export function GroupPicker({
       contacts: [{ id: `${tempId}-contact`, name: picked.name, phoneNumber: picked.phoneNumber }]
     };
 
-    setNewCircleName("");
     setCreating(false);
     onPendingContact?.({ tempId, circleName: trimmed, contact: picked });
     await onToggle(pendingCircle);
@@ -193,30 +204,29 @@ export function GroupPicker({
         <View style={styles.newCircle}>
           <Text style={styles.label}>New Circle</Text>
 
-          <View style={styles.suggestionRow}>
-            {SUGGESTED_CIRCLES.map((name) => (
-              <Pressable
-                key={name}
-                accessibilityRole="button"
-                onPress={() => void addCircle(name)}
-                style={({ pressed }) => [styles.suggestionChip, pressed && styles.suggestionPressed]}
-              >
-                <Text style={styles.suggestionText}>+ {name}</Text>
-              </Pressable>
-            ))}
-          </View>
+          {!newCircleName.trim() ? (
+            <View style={styles.suggestionRow}>
+              {SUGGESTED_CIRCLES.map((name) => (
+                <Pressable
+                  key={name}
+                  accessibilityRole="button"
+                  onPress={() => void addCircle(name)}
+                  style={({ pressed }) => [styles.suggestionChip, pressed && styles.suggestionPressed]}
+                >
+                  <Text style={styles.suggestionText}>{name}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
 
           <View style={styles.inputRow}>
-            <TextInput
-              accessibilityLabel="New Circle name"
-              autoCapitalize="words"
-              onChangeText={setNewCircleName}
-              onSubmitEditing={() => void addCircle(newCircleName)}
-              placeholder="Circle name, e.g. Book Club"
-              placeholderTextColor={colors.textMuted}
-              returnKeyType="done"
-              style={styles.input}
+            <DockedFieldPreview
               value={newCircleName}
+              placeholder="Circle name, e.g. Book Club"
+              isActive={isNamingActive}
+              onPress={onActivateNaming}
+              accessibilityLabel="New Circle name"
+              style={styles.flex1}
             />
             <Pressable
               accessibilityRole="button"
@@ -304,16 +314,8 @@ function createStyles(colors: ThemeColors) {
       flexDirection: "row",
       gap: theme.spacing.sm
     },
-    input: {
-      flex: 1,
-      minHeight: 54,
-      borderWidth: 1.5,
-      borderColor: colors.border,
-      borderRadius: theme.radius.md,
-      paddingHorizontal: theme.spacing.md,
-      color: colors.text,
-      fontSize: 17,
-      backgroundColor: colors.surface
+    flex1: {
+      flex: 1
     },
     addButton: {
       minWidth: 72,

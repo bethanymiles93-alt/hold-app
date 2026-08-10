@@ -1,11 +1,13 @@
 import { useCallback, useLayoutEffect, useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router, useFocusEffect, useNavigation } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { SelectionCircle } from "@/components/SelectionCircle";
 import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
+import { DockedInputBar } from "@/components/DockedInputBar";
+import { DockedFieldPreview } from "@/components/DockedFieldPreview";
 import { HeaderAddButton } from "@/components/HeaderAddButton";
 import { HeaderSettingsButton } from "@/components/HeaderSettingsButton";
 import { theme, type ThemeColors } from "@/constants/theme";
@@ -35,6 +37,7 @@ export default function CircleIndexScreen() {
   const [creatingStage, setCreatingStage] = useState<"none" | "naming">("none");
   const [newCircleContacts, setNewCircleContacts] = useState<PickedContact[]>([]);
   const [newCircleName, setNewCircleName] = useState("");
+  const [activeField, setActiveField] = useState<"new-circle-name" | null>(null);
 
   const refresh = useCallback(async () => {
     setGroups(await getGroups());
@@ -205,6 +208,7 @@ export default function CircleIndexScreen() {
     setCreatingStage("none");
     setNewCircleContacts([]);
     setNewCircleName("");
+    setActiveField(null);
   };
 
   const submitNewCircle = async () => {
@@ -242,7 +246,20 @@ export default function CircleIndexScreen() {
   };
 
   return (
-    <Screen contentContainerStyle={styles.content}>
+    <Screen
+      contentContainerStyle={styles.content}
+      dockedInput={
+        activeField === "new-circle-name" ? (
+          <DockedInputBar
+            value={newCircleName}
+            onChangeText={setNewCircleName}
+            onDone={() => setActiveField(null)}
+            placeholder="Circle name, e.g. School friends"
+            accessibilityLabel="New Circle name"
+          />
+        ) : null
+      }
+    >
       <StepHeader body="Create and amend your circles." />
 
       {coreGroups.length > 0 ? (
@@ -287,16 +304,13 @@ export default function CircleIndexScreen() {
           </Pressable>
 
           <View style={styles.inputRow}>
-            <TextInput
-              accessibilityLabel="New Circle name"
-              autoCapitalize="words"
-              onChangeText={setNewCircleName}
-              onSubmitEditing={() => void submitNewCircle()}
-              placeholder="Circle name, e.g. School friends"
-              placeholderTextColor={colors.textMuted}
-              returnKeyType="done"
-              style={styles.input}
+            <DockedFieldPreview
               value={newCircleName}
+              placeholder="Circle name, e.g. School friends"
+              isActive={activeField === "new-circle-name"}
+              onPress={() => setActiveField("new-circle-name")}
+              accessibilityLabel="New Circle name"
+              style={styles.flex1}
             />
             <Pressable
               accessibilityRole="button"
@@ -496,16 +510,8 @@ function createStyles(colors: ThemeColors) {
     alignItems: "center",
     gap: theme.spacing.sm
   },
-  input: {
-    flex: 1,
-    minHeight: 54,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: theme.radius.md,
-    paddingHorizontal: theme.spacing.md,
-    color: colors.text,
-    fontSize: 17,
-    backgroundColor: colors.surface
+  flex1: {
+    flex: 1
   },
   addButton: {
     minHeight: 40,

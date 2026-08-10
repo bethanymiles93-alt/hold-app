@@ -27,9 +27,18 @@ interface ScreenProps extends PropsWithChildren {
    * 2026-08-10, for why padding/size tuning alone kept failing here.
    */
   footer?: ReactNode;
+  /**
+   * A DockedInputBar instance, docked directly above the keyboard via
+   * KeyboardStickyView rather than fixed to the screen bottom like `footer`
+   * — renders only while a field on this screen is actively being edited.
+   * Mutually exclusive with `footer` in practice (a screen composing text
+   * doesn't also have a one-time completion action visible at the same
+   * moment), though nothing enforces that structurally.
+   */
+  dockedInput?: ReactNode;
 }
 
-export function Screen({ children, contentContainerStyle, footer }: ScreenProps) {
+export function Screen({ children, contentContainerStyle, footer, dockedInput }: ScreenProps) {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -64,6 +73,7 @@ export function Screen({ children, contentContainerStyle, footer }: ScreenProps)
           {footer ? <View style={styles.footer}>{footer}</View> : null}
         </View>
       </TouchableWithoutFeedback>
+      {dockedInput}
     </SafeAreaView>
   );
 }

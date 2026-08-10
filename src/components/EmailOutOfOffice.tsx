@@ -1,7 +1,8 @@
 import { useMemo } from "react";
-import { Alert, Pressable, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
+import { DockedFieldPreview } from "@/components/DockedFieldPreview";
 import { connectEmailAccount, createEmailAccountId } from "@/services/emailAccountService";
 import type { EmailAccount, EmailProvider } from "@/types/hold";
 
@@ -14,6 +15,9 @@ interface EmailOutOfOfficeProps {
   onToggleUseSameMessage: (value: boolean) => void;
   sharedMessage: string;
   onChangeSharedMessage: (message: string) => void;
+  /** Field-key namespace owned by the parent screen — see docs/09-decision-log.md, 2026-08-10. Keys used here: "ooo-shared", `ooo-account-message:${id}`, `ooo-account-label:${id}`. */
+  activeField: string | null;
+  onActivateField: (key: string) => void;
 }
 
 export function EmailOutOfOffice({
@@ -24,7 +28,9 @@ export function EmailOutOfOffice({
   useSameMessage,
   onToggleUseSameMessage,
   sharedMessage,
-  onChangeSharedMessage
+  onChangeSharedMessage,
+  activeField,
+  onActivateField
 }: EmailOutOfOfficeProps) {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -124,13 +130,12 @@ export function EmailOutOfOffice({
           </View>
 
           {useSameMessage ? (
-            <TextInput
-              accessibilityLabel="Out-of-office message"
-              multiline
-              onChangeText={onChangeSharedMessage}
-              style={styles.input}
-              textAlignVertical="top"
+            <DockedFieldPreview
               value={sharedMessage}
+              placeholder="Out-of-office message"
+              isActive={activeField === "ooo-shared"}
+              onPress={() => onActivateField("ooo-shared")}
+              accessibilityLabel="Out-of-office message"
             />
           ) : null}
 
@@ -141,11 +146,12 @@ export function EmailOutOfOffice({
               {accounts.map((account) => (
                 <View key={account.id} style={styles.accountRow}>
                   <View style={styles.accountTopRow}>
-                    <TextInput
-                      accessibilityLabel="Account label"
-                      onChangeText={(label) => updateAccount(account.id, { label })}
-                      style={styles.labelInput}
+                    <DockedFieldPreview
                       value={account.label}
+                      placeholder="Account label"
+                      isActive={activeField === `ooo-account-label:${account.id}`}
+                      onPress={() => onActivateField(`ooo-account-label:${account.id}`)}
+                      style={styles.flex1}
                     />
                     <Switch
                       accessibilityLabel={`Enable out-of-office for ${account.label}`}
@@ -156,13 +162,11 @@ export function EmailOutOfOffice({
                   </View>
 
                   {!useSameMessage ? (
-                    <TextInput
-                      accessibilityLabel={`Message for ${account.label}`}
-                      multiline
-                      onChangeText={(message) => updateAccount(account.id, { message })}
-                      style={styles.input}
-                      textAlignVertical="top"
+                    <DockedFieldPreview
                       value={account.message}
+                      placeholder={`Message for ${account.label}`}
+                      isActive={activeField === `ooo-account-message:${account.id}`}
+                      onPress={() => onActivateField(`ooo-account-message:${account.id}`)}
                     />
                   ) : null}
 
@@ -230,17 +234,6 @@ function createStyles(colors: ThemeColors) {
       fontSize: 15,
       fontWeight: "500"
     },
-    input: {
-      minHeight: 90,
-      borderWidth: 1.5,
-      borderColor: colors.border,
-      borderRadius: theme.radius.md,
-      padding: theme.spacing.sm,
-      color: colors.text,
-      fontSize: 16,
-      lineHeight: 22,
-      backgroundColor: colors.surface
-    },
     empty: {
       color: colors.textMuted,
       fontSize: 14,
@@ -260,17 +253,8 @@ function createStyles(colors: ThemeColors) {
       alignItems: "center",
       gap: theme.spacing.sm
     },
-    labelInput: {
-      flex: 1,
-      minHeight: 40,
-      borderWidth: 1.5,
-      borderColor: colors.border,
-      borderRadius: theme.radius.sm,
-      paddingHorizontal: theme.spacing.sm,
-      color: colors.text,
-      fontSize: 15,
-      fontWeight: "600",
-      backgroundColor: colors.surfaceStrong
+    flex1: {
+      flex: 1
     },
     remove: {
       color: colors.error,

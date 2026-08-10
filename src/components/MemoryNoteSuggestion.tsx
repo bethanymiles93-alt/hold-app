@@ -7,7 +7,7 @@ import { SecondaryButton } from "@/components/SecondaryButton";
 import { deleteMemoryNote, getSuggestedNote, markNoteUsed, type MemoryNote } from "@/services/aiMemoryService";
 
 interface MemoryNoteSuggestionProps {
-  /** Called with the note's text when the user taps "Use it" — feed straight into AmendWithAI's initialPrompt. */
+  /** Called with the note's text when the user taps "Use it" — feed straight into the docked bar's AI-amend initialPrompt (see DockedInputBar/useDockedAiAmend). */
   onUseIt: (text: string) => void;
 }
 

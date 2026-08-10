@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { router, useFocusEffect } from "expo-router";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
 import { GroupPicker } from "@/components/GroupPicker";
@@ -8,7 +8,8 @@ import { ChoiceCard } from "@/components/ChoiceCard";
 import { RecipientPersonalisation } from "@/components/RecipientPersonalisation";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { CompactSendButton } from "@/components/CompactSendButton";
-import { AmendWithAI } from "@/components/AmendWithAI";
+import { DockedInputBar } from "@/components/DockedInputBar";
+import { DockedFieldPreview } from "@/components/DockedFieldPreview";
 import { EmailOutOfOffice } from "@/components/EmailOutOfOffice";
 import { WiderWorldStatus } from "@/components/WiderWorldStatus";
 import { SafeguardingBanner } from "@/components/SafeguardingBanner";
@@ -35,6 +36,17 @@ import type {
   HoldIntent,
   HoldPeriod
 } from "@/types/hold";
+
+/** Every distinct docked-bar field on this screen, keyed by a string tag so exactly one DockedInputBar can serve all of them. */
+type ActiveField =
+  | "new-circle"
+  | `circle:${string}`
+  | `recipient:${string}`
+  | `personal-note:${string}`
+  | "ooo-shared"
+  | `ooo-account-message:${string}`
+  | `ooo-account-label:${string}`
+  | "wider-world-status";
 
 const DEFAULT_OOO_MESSAGE =
   "I’m currently away and will respond when I’m back. Thank you for understanding.";
@@ -77,6 +89,10 @@ export default function HoldPeopleScreen() {
   const [personalNoteDrafts, setPersonalNoteDrafts] = useState<Record<string, string>>({});
   const [personalNoteSentAt, setPersonalNoteSentAt] = useState<Record<string, number>>({});
   const [oooExpanded, setOooExpanded] = useState(false);
+  const [newCircleName, setNewCircleName] = useState("");
+  // Exactly one DockedInputBar serves every field on this screen — this is
+  // which one, if any, currently owns it. See docs/09-decision-log.md, 2026-08-10.
+  const [activeField, setActiveField] = useState<ActiveField | null>(null);
 
   const [emailEnabled, setEmailEnabled] = useState(false);
   const [emailAccounts, setEmailAccounts] = useState<EmailAccount[]>([]);
@@ -138,6 +154,80 @@ export default function HoldPeopleScreen() {
   // Strict one-at-a-time reveal: nothing to personalise means stage 2 has
   // nothing to answer, so it's treated as already resolved.
   const personalPromptResolved = excludedNotRemoved.length === 0 || personalPromptChoice !== "pending";
+
+  const activeCircleId = activeField?.startsWith("circle:") ? activeField.slice("circle:".length) : null;
+  const activeContactId = activeField?.startsWith("recipient:")
+    ? activeField.slice("recipient:".length)
+    : null;
+  const activeNoteContactId = activeField?.startsWith("personal-note:")
+    ? activeField.slice("personal-note:".length)
+    : null;
+  const activeOooAccountMessageId = activeField?.startsWith("ooo-account-message:")
+    ? activeField.slice("ooo-account-message:".length)
+    : null;
+  const activeOooAccountLabelId = activeField?.startsWith("ooo-account-label:")
+    ? activeField.slice("ooo-account-label:".length)
+    : null;
+  const activeDraft = activeCircleId ? circleDrafts.find((d) => d.circleId === activeCircleId) : undefined;
+  const activeRecipient = activeContactId
+    ? goingQuietRecipients.find((r) => r.contactId === activeContactId)
+    : undefined;
+  const activeNoteRecipient = activeNoteContactId
+    ? goingQuietRecipients.find((r) => r.contactId === activeNoteContactId)
+    : undefined;
+  const activeOooAccount = activeOooAccountMessageId
+    ? emailAccounts.find((a) => a.id === activeOooAccountMessageId)
+    : activeOooAccountLabelId
+      ? emailAccounts.find((a) => a.id === activeOooAccountLabelId)
+      : undefined;
+
+  const activeFieldValue = (): string => {
+    if (activeField === "new-circle") return newCircleName;
+    if (activeDraft) return activeDraft.message;
+    if (activeRecipient) return activeRecipient.instantMessage;
+    if (activeNoteContactId) return personalNoteDrafts[activeNoteContactId] ?? "";
+    if (activeField === "ooo-shared") return sharedEmailMessage;
+    if (activeOooAccountMessageId) return activeOooAccount?.message ?? "";
+    if (activeOooAccountLabelId) return activeOooAccount?.label ?? "";
+    if (activeField === "wider-world-status") return widerWorldText;
+    return "";
+  };
+
+  const setActiveFieldValue = (text: string) => {
+    if (activeField === "new-circle") {
+      setNewCircleName(text);
+    } else if (activeCircleId) {
+      setCircleDraftMessage(activeCircleId, text);
+    } else if (activeContactId) {
+      setRecipientInstantMessage(activeContactId, text);
+    } else if (activeNoteContactId) {
+      setPersonalNoteDrafts((current) => ({ ...current, [activeNoteContactId]: text }));
+    } else if (activeField === "ooo-shared") {
+      setSharedEmailMessage(text);
+    } else if (activeOooAccountMessageId) {
+      setEmailAccounts((current) =>
+        current.map((a) => (a.id === activeOooAccountMessageId ? { ...a, message: text } : a))
+      );
+    } else if (activeOooAccountLabelId) {
+      setEmailAccounts((current) =>
+        current.map((a) => (a.id === activeOooAccountLabelId ? { ...a, label: text } : a))
+      );
+    } else if (activeField === "wider-world-status") {
+      setWiderWorldText(text);
+    }
+  };
+
+  const activeFieldLabel = (): string => {
+    if (activeField === "new-circle") return "New Circle name";
+    if (activeDraft) return `Message for ${activeDraft.circleName}`;
+    if (activeRecipient) return `Message for ${activeRecipient.name}`;
+    if (activeNoteRecipient) return `Personal note for ${activeNoteRecipient.name}`;
+    if (activeField === "ooo-shared") return "Out-of-office message";
+    if (activeOooAccountMessageId) return `Message for ${activeOooAccount?.label ?? "account"}`;
+    if (activeOooAccountLabelId) return "Account label";
+    if (activeField === "wider-world-status") return "Wider-world status line";
+    return "Message";
+  };
 
   const chooseIntent = async (circleId: string, choice: HoldIntent) => {
     setCircleDraftIntent(circleId, choice);
@@ -265,7 +355,32 @@ export default function HoldPeopleScreen() {
   };
 
   return (
-    <Screen contentContainerStyle={styles.content}>
+    <Screen
+      contentContainerStyle={styles.content}
+      dockedInput={
+        activeField ? (
+          <DockedInputBar
+            value={activeFieldValue()}
+            onChangeText={setActiveFieldValue}
+            onDone={() => setActiveField(null)}
+            placeholder={activeFieldLabel()}
+            accessibilityLabel={activeFieldLabel()}
+            aiAmend={
+              activeDraft
+                ? {
+                    surface: "going-quiet",
+                    context: { intent: activeDraft.intent ?? undefined, recipientLabel: activeDraft.circleName }
+                  }
+                : activeField === "ooo-shared" || activeOooAccountMessageId
+                  ? { surface: "email-ooo" }
+                  : activeField === "wider-world-status"
+                    ? { surface: "wider-world-status" }
+                    : undefined
+            }
+          />
+        ) : null
+      }
+    >
       <StepHeader title="Who needs to know?" />
       <GroupPicker
         selectedGroupIds={selectedGroups.map((group) => group.id)}
@@ -273,53 +388,62 @@ export default function HoldPeopleScreen() {
         sentCircleIds={sentCircleIds}
         reselectedCircleIds={Array.from(reselectedCircleIds)}
         onToggleReselected={toggleReselected}
+        newCircleName={newCircleName}
+        isNamingActive={activeField === "new-circle"}
+        onActivateNaming={() => setActiveField("new-circle")}
+        onPendingContact={() => {
+          setNewCircleName("");
+          setActiveField(null);
+        }}
       />
 
       {visibleDrafts.map((draft) => {
         const showChips =
-            showingChipsFor.has(draft.circleId) || (draft.savedMessage === null && !draft.message.trim());
-          const isSaved = draft.savedMessage !== null && draft.message === draft.savedMessage;
-          const circleRecipients = goingQuietRecipients.filter(
-            (recipient) => recipient.circleId === draft.circleId
-          );
+          showingChipsFor.has(draft.circleId) || (draft.savedMessage === null && !draft.message.trim());
+        const isSaved = draft.savedMessage !== null && draft.message === draft.savedMessage;
+        const circleRecipients = goingQuietRecipients.filter(
+          (recipient) => recipient.circleId === draft.circleId
+        );
 
-          return (
-            <View key={draft.circleId} style={styles.circleSection}>
-              <Text style={styles.sectionLabel}>{draft.circleName}</Text>
+        return (
+          <View key={draft.circleId} style={styles.circleSection}>
+            <Text style={styles.sectionLabel}>{draft.circleName}</Text>
 
-              <RecipientPersonalisation
-                recipients={circleRecipients}
-                onToggleIncluded={toggleRecipientIncluded}
-                onSetIndividuallyRemoved={setRecipientIndividuallyRemoved}
-                onSetInstantMessage={setRecipientInstantMessage}
-                onSetRouteToPersonalise={setRecipientRouteToPersonalise}
+            <RecipientPersonalisation
+              recipients={circleRecipients}
+              onToggleIncluded={toggleRecipientIncluded}
+              onSetIndividuallyRemoved={setRecipientIndividuallyRemoved}
+              onSetRouteToPersonalise={setRecipientRouteToPersonalise}
+              isFieldActive={(contactId) => activeField === `recipient:${contactId}`}
+              onActivateField={(contactId) => setActiveField(`recipient:${contactId}`)}
+            />
+
+            {showChips ? (
+              <View accessibilityRole="radiogroup" style={styles.choices}>
+                {HOLD_INTENTS.map((choice) => (
+                  <ChoiceCard
+                    key={choice.id}
+                    title={choice.title}
+                    description={choice.description}
+                    selected={draft.intent === choice.id}
+                    onPress={() => void chooseIntent(draft.circleId, choice.id)}
+                  />
+                ))}
+              </View>
+            ) : (
+              <GoingQuietMessageBox
+                styles={styles}
+                draft={draft}
+                isSaved={isSaved}
+                isActive={activeField === `circle:${draft.circleId}`}
+                onActivate={() => setActiveField(`circle:${draft.circleId}`)}
+                onChangeTemplate={() => changeTemplate(draft.circleId)}
+                onSaveDefault={() => void saveCircleDraftAsDefault(draft.circleId)}
               />
-
-              {showChips ? (
-                <View accessibilityRole="radiogroup" style={styles.choices}>
-                  {HOLD_INTENTS.map((choice) => (
-                    <ChoiceCard
-                      key={choice.id}
-                      title={choice.title}
-                      description={choice.description}
-                      selected={draft.intent === choice.id}
-                      onPress={() => void chooseIntent(draft.circleId, choice.id)}
-                    />
-                  ))}
-                </View>
-              ) : (
-                <GoingQuietMessageBox
-                  styles={styles}
-                  draft={draft}
-                  isSaved={isSaved}
-                  onChangeText={(text) => setCircleDraftMessage(draft.circleId, text)}
-                  onChangeTemplate={() => changeTemplate(draft.circleId)}
-                  onSaveDefault={() => void saveCircleDraftAsDefault(draft.circleId)}
-                />
-              )}
-            </View>
-          );
-        })}
+            )}
+          </View>
+        );
+      })}
 
       <View style={styles.sendRow}>
         <CompactSendButton disabled={!canSend} onPress={() => void send()} />
@@ -364,18 +488,12 @@ export default function HoldPeopleScreen() {
                       </View>
                     ) : (
                       <>
-                        <TextInput
-                          accessibilityLabel={`Personal note for ${recipient.name}`}
-                          multiline
-                          onChangeText={(text) =>
-                            setPersonalNoteDrafts((current) => ({
-                              ...current,
-                              [recipient.contactId]: text
-                            }))
-                          }
-                          style={styles.messageInput}
-                          textAlignVertical="top"
+                        <DockedFieldPreview
                           value={personalNoteDrafts[recipient.contactId] ?? ""}
+                          placeholder={`Personal note for ${recipient.name}`}
+                          isActive={activeField === `personal-note:${recipient.contactId}`}
+                          onPress={() => setActiveField(`personal-note:${recipient.contactId}`)}
+                          accessibilityLabel={`Personal note for ${recipient.name}`}
                         />
                         <View style={styles.sendRow}>
                           <CompactSendButton
@@ -415,6 +533,8 @@ export default function HoldPeopleScreen() {
                     onToggleUseSameMessage={setUseSameEmailMessage}
                     sharedMessage={sharedEmailMessage}
                     onChangeSharedMessage={setSharedEmailMessage}
+                    activeField={activeField}
+                    onActivateField={(key) => setActiveField(key as ActiveField)}
                   />
 
                   <WiderWorldStatus
@@ -422,6 +542,8 @@ export default function HoldPeopleScreen() {
                     onToggleEnabled={setWiderWorldEnabled}
                     text={widerWorldText}
                     onChangeText={setWiderWorldText}
+                    isActive={activeField === "wider-world-status"}
+                    onActivate={() => setActiveField("wider-world-status")}
                   />
                 </View>
               ) : null}
@@ -439,7 +561,8 @@ interface GoingQuietMessageBoxProps {
   styles: ReturnType<typeof createStyles>;
   draft: GoingQuietCircleDraft;
   isSaved: boolean;
-  onChangeText: (text: string) => void;
+  isActive: boolean;
+  onActivate: () => void;
   onChangeTemplate: () => void;
   onSaveDefault: () => void;
 }
@@ -447,13 +570,16 @@ interface GoingQuietMessageBoxProps {
 /**
  * Extracted so useSafeguardingCheck (a hook) can run once per Circle draft
  * with a stable identity — circleDrafts.map(...) can't call hooks directly,
- * since the array's length changes as Circles are toggled on/off.
+ * since the array's length changes as Circles are toggled on/off. The
+ * actual typing now happens in the screen's shared DockedInputBar (AI-amend
+ * included) — this just displays the current text and activates it.
  */
 function GoingQuietMessageBox({
   styles,
   draft,
   isSaved,
-  onChangeText,
+  isActive,
+  onActivate,
   onChangeTemplate,
   onSaveDefault
 }: GoingQuietMessageBoxProps) {
@@ -461,13 +587,12 @@ function GoingQuietMessageBox({
 
   return (
     <View style={styles.messageBlock}>
-      <TextInput
-        accessibilityLabel={`Message for ${draft.circleName}`}
-        multiline
-        onChangeText={onChangeText}
-        style={styles.messageInput}
-        textAlignVertical="top"
+      <DockedFieldPreview
         value={draft.message}
+        placeholder={`Message for ${draft.circleName}`}
+        isActive={isActive}
+        onPress={onActivate}
+        accessibilityLabel={`Message for ${draft.circleName}`}
       />
       <View style={styles.messageControls}>
         <Pressable accessibilityRole="button" onPress={onChangeTemplate}>
@@ -485,13 +610,6 @@ function GoingQuietMessageBox({
       </View>
 
       <SafeguardingBanner visible={safeguardingTriggered} />
-
-      <AmendWithAI
-        surface="going-quiet"
-        currentMessage={draft.message}
-        onApply={onChangeText}
-        context={{ intent: draft.intent ?? undefined, recipientLabel: draft.circleName }}
-      />
     </View>
   );
 }
@@ -520,17 +638,6 @@ function createStyles(colors: ThemeColors) {
     },
     messageBlock: {
       gap: theme.spacing.xs
-    },
-    messageInput: {
-      minHeight: 100,
-      borderWidth: 1.5,
-      borderColor: colors.border,
-      borderRadius: theme.radius.md,
-      padding: theme.spacing.md,
-      color: colors.text,
-      fontSize: 17,
-      lineHeight: 25,
-      backgroundColor: colors.surface
     },
     messageControls: {
       flexDirection: "row",

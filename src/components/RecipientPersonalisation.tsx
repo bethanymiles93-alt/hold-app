@@ -1,16 +1,19 @@
 import { useMemo } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { SelectionCircle } from "@/components/SelectionCircle";
+import { DockedFieldPreview } from "@/components/DockedFieldPreview";
 import type { GoingQuietRecipient } from "@/types/hold";
 
 interface RecipientPersonalisationProps {
   recipients: GoingQuietRecipient[];
   onToggleIncluded: (contactId: string) => void;
   onSetIndividuallyRemoved: (contactId: string, removed: boolean) => void;
-  onSetInstantMessage: (contactId: string, message: string) => void;
   onSetRouteToPersonalise: (contactId: string, route: boolean) => void;
+  /** Whether this recipient's instant-message field currently lives in the parent screen's docked bar. */
+  isFieldActive: (contactId: string) => boolean;
+  onActivateField: (contactId: string) => void;
 }
 
 /**
@@ -30,8 +33,9 @@ export function RecipientPersonalisation({
   recipients,
   onToggleIncluded,
   onSetIndividuallyRemoved,
-  onSetInstantMessage,
-  onSetRouteToPersonalise
+  onSetRouteToPersonalise,
+  isFieldActive,
+  onActivateField
 }: RecipientPersonalisationProps) {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -99,13 +103,12 @@ export function RecipientPersonalisation({
                   </Pressable>
                 ) : (
                   <>
-                    <TextInput
-                      accessibilityLabel={`Message for ${recipient.name}`}
-                      multiline
-                      onChangeText={(text) => onSetInstantMessage(recipient.contactId, text)}
-                      style={styles.input}
-                      textAlignVertical="top"
+                    <DockedFieldPreview
                       value={recipient.instantMessage}
+                      placeholder={`Message for ${recipient.name}`}
+                      isActive={isFieldActive(recipient.contactId)}
+                      onPress={() => onActivateField(recipient.contactId)}
+                      accessibilityLabel={`Message for ${recipient.name}`}
                     />
                     <Pressable
                       accessibilityRole="button"
@@ -160,17 +163,6 @@ function createStyles(colors: ThemeColors) {
     },
     nameRemoved: {
       color: colors.textMuted
-    },
-    input: {
-      minHeight: 60,
-      borderWidth: 1.5,
-      borderColor: colors.border,
-      borderRadius: theme.radius.sm,
-      padding: theme.spacing.sm,
-      color: colors.text,
-      fontSize: 15,
-      lineHeight: 21,
-      backgroundColor: colors.surface
     },
     linkText: {
       color: colors.link,

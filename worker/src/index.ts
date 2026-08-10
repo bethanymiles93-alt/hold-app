@@ -34,7 +34,15 @@ interface SafeguardCheckRequestBody {
 
 const ANTHROPIC_MODEL = "claude-sonnet-5";
 const ANTHROPIC_TIMEOUT_MS = 20_000;
-const VALID_SURFACES: PromptSurface[] = ["going-quiet", "reassurance", "reconnect", "conversations-reply"];
+const VALID_SURFACES: PromptSurface[] = [
+  "going-quiet",
+  "reassurance",
+  "reconnect",
+  "conversations-reply",
+  "email-ooo",
+  "wider-world-status",
+  "template"
+];
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {

@@ -256,3 +256,31 @@ The main change from the previous (44pt/48pt) table: "Close" now fits as a circl
 **Legibility at the smallest supported text size, reasoned rather than rendered:** the label is `numberOfLines={1}` at 15pt/weight 600 inside a fixed-height pill that grows in width to fit; at iOS's smallest Dynamic Type step (~80% of default, so ~12pt effective), a short phrase like "Send (3 people)" stays well within normal legible range for a filled button — this is a reasoning-based check, not an on-device render, and is flagged as such rather than claimed as confirmed.
 
 `tsc --noEmit` and `vitest run` (27/27) both pass. **Still flagged, not resolved:** no on-device verification possible from this session — chip size, the new pill-shaped Send button, and text-scale legibility all need a look before being called done.
+
+## 2026-08-10 — Unified text entry app-wide onto one docked input bar; Amend with AI moved into it
+
+**New dependencies:** `react-native-keyboard-controller` (Expo's own documented recommendation for anything beyond basic `KeyboardAvoidingView`; `InputAccessoryView` — RN's native "dock above keyboard" API — is already confirmed broken here, per `Screen.tsx`'s existing comment about the New Architecture) and `expo-speech-recognition` (on-device dictation, wraps iOS's `SFSpeechRecognizer`/Android's `SpeechRecognizer`). `app/_layout.tsx` now wraps the tree in `KeyboardProvider`. `app.json` gained the speech-recognition plugin with Hold-toned permission copy.
+
+**New shared components:**
+- `src/components/DockedInputBar.tsx` — the one input surface, rendered via `KeyboardStickyView` so it docks directly above the keyboard. Optional `aiAmend` prop (`{surface, context, initialPrompt}`) shows a Hold+-gated AI-assist icon that expands into a compact inline prompt+Generate row, built into the bar itself. `DictationMicButton` sits inline too — on-device-only (`requiresOnDeviceRecognition: true`).
+- `src/components/DockedFieldPreview.tsx` — the on-page trigger every field renders when not active: empty shows a placeholder, non-empty shows the current value + "Edit." Tapping either activates that field in the screen's one `DockedInputBar`.
+- `src/hooks/useDockedAiAmend.ts` — the Hold+-gated generate/prompt/status state machine, extracted from the now-deleted `AmendWithAI.tsx` so `DockedInputBar` can own it directly. Preserves the original `initialPrompt` auto-open behavior (AI memory Layer 2's "Use it" suggestion).
+- `Screen.tsx` gained a `dockedInput?: ReactNode` prop, rendered as a sibling to the scrollable content (same tier as `footer`), so `KeyboardStickyView` isn't nested inside a `ScrollView`.
+
+**Architecture: one `DockedInputBar` per screen, not per field.** Each screen owns an `activeField` key (a string-literal union, e.g. `` `circle:${string}` | `recipient:${string}` | "new-circle" ``) and a resolver that maps the active key to that field's `value`/`setValue`/placeholder/`aiAmend` config — mirroring the pattern used for `AdaptiveCircleChip`'s multi-instance state earlier this session. Where a field's state lives inside a nested component instance rather than the screen itself (`(tabs)/library.tsx`'s `PersonaliseAccordion`, one per person), that component hands the parent its own bound `changeText` closure at activation time (so autosave-to-storage, which needs that instance's local `friendMessage`/`sentAt`, keeps firing on every keystroke typed through the shared bar) rather than the parent guessing at a raw setter.
+
+**Full audit, 19 sites, all migrated except one:**
+- Going Quiet (`create/people.tsx`): main per-Circle message, `RecipientPersonalisation`'s individual instant message, personal-note re-offer, `GroupPicker`'s new-Circle name.
+- Reconnect (`return/reconnect.tsx`), Taking Time's update (`return/update.tsx`): each screen's one message field.
+- Manage Circles (`settings/circle/index.tsx`): new-Circle name.
+- Conversations/Library (`(tabs)/library.tsx`): Quick message's per-Circle shared box, per-excluded-member and per-ungrouped-person individual message, new-Circle name, saved-template editing, Personalise's "Your reply" (`PersonaliseAccordion`, lifted `draft`/`style` to the screen so the shared bar stays correctly controlled).
+- `EmailOutOfOffice.tsx`: shared OOO message, per-account message, account label (confirmed in scope directly — "no field too small," reversing an earlier judgment call to leave it as a plain field).
+- `WiderWorldStatus.tsx`: status line.
+
+**One deliberate exception, per direct (and later reconfirmed) instruction:** `library.tsx`'s "Message they sent" (`PersonaliseAccordion`'s pasted-in friend-message field) stays an in-page `TextInput` — reference content pasted once, not actively composed, needs to stay visible for scroll-back reference while the reply is written separately. Its existing settle-on-blur/"Edit"-to-reopen behavior already matched the requested "read-only after confirmed" shape, so no logic change was needed there — only confirmed correct and left alone.
+
+**`GroupPicker.tsx`'s suggestion chips** ("Friends," "Work," "Book Club") lost their "+" prefix — name only, shown until typing starts (a non-empty name hides the row, matching "chips replaced by free typing").
+
+**Amend with AI (Hold+) supersession:** the standalone `AmendWithAI.tsx` panel (a link below the message box expanding into its own prompt/generate section) is deleted entirely, replaced by the trigger built into `DockedInputBar`. `AiSurface`/`PromptSurface` gained three new values — `email-ooo`, `wider-world-status`, `template` — so OOO/status/Library-template editing get AI-amend for the first time; the worker (`worker/src/prompts.ts`, `worker/src/index.ts`) was updated to match and **needs a redeploy** to take effect against the live proxy, same as every other worker-prompt change this session.
+
+`tsc --noEmit` and `vitest run` (27/27) both pass. **Still flagged, not resolved, more than most changes this session:** this touches the interaction shape of nearly every text-entry point in the app, with no on-device or simulator verification possible from here — keyboard docking behavior, the AI-amend inline prompt's layout, dictation permissions, and the read-only "message they sent" exception specifically all need a real device check before being treated as done.

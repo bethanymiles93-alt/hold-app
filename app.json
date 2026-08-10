@@ -28,6 +28,13 @@
         {
           "contactsPermission": "Hold only uses this to let you pick one person from Contacts at a time. It never requests access to your full address book."
         }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Hold uses your microphone only when you tap the dictation button, to turn your speech into text on this device.",
+          "speechRecognitionPermission": "Hold uses on-device speech recognition only when you tap the dictation button, to turn your speech into text."
+        }
       ]
     ],
     "experiments": {

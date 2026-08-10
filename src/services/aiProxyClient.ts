@@ -7,7 +7,14 @@ import { AI_INSTALL_ID_KEY } from "@/constants/storageKeys";
  * docs/03-privacy-model.md.
  */
 
-export type AiSurface = "going-quiet" | "reassurance" | "reconnect" | "conversations-reply";
+export type AiSurface =
+  | "going-quiet"
+  | "reassurance"
+  | "reconnect"
+  | "conversations-reply"
+  | "email-ooo"
+  | "wider-world-status"
+  | "template";
 
 export interface AiDraftContext {
   intent?: string;
