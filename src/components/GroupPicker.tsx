@@ -108,9 +108,6 @@ export function GroupPicker({ selectedGroupIds, onToggle, onPendingContact }: Gr
   return (
     <View style={styles.container}>
       <View style={styles.pinnedRow}>
-        {groups.length > 0 ? (
-          <AdaptiveCircleChip label="All" isSelected={allSelected} onPress={() => void toggleAll()} />
-        ) : null}
         <AdaptiveCircleChip
           label="+"
           accessibilityLabel="New Circle"
@@ -126,6 +123,9 @@ export function GroupPicker({ selectedGroupIds, onToggle, onPendingContact }: Gr
           contentContainerStyle={styles.pillWrap}
           style={styles.pillScroll}
         >
+          {groups.length > 0 ? (
+            <AdaptiveCircleChip label="All" isSelected={allSelected} onPress={() => void toggleAll()} />
+          ) : null}
           {groups.map((group) => (
             <AdaptiveCircleChip
               key={group.id}
@@ -205,9 +205,12 @@ function createStyles(colors: ThemeColors) {
     container: {
       gap: theme.spacing.md
     },
-    // "All" and the "+" (New Circle) button are fixed, non-scrolling members
-    // of this row; only the named-Circle pills inside the nested ScrollView
-    // scroll, so the whole thing still reads as one continuous line.
+    // Only the "+" (New Circle) button is fixed, outside the scroll — always
+    // visible regardless of scroll position. "All" is the first item inside
+    // the nested ScrollView now, alongside the named-Circle pills, since it's
+    // only relevant before scrolling and doesn't need to persist once
+    // someone's scrolled past it. The whole thing still reads as one
+    // continuous line.
     pinnedRow: {
       flexDirection: "row",
       alignItems: "center",
