@@ -98,6 +98,14 @@ export interface HoldPeriod {
   /** Circle ids already sent a Taking Time "update" this Hold period — durable equivalent of Reconnect's reconnectContactedIds, scoped to the still-open period rather than a separate marker. */
   updateSentCircleIds?: string[];
   /**
+   * Ids of pending (Going-Quiet-created, not-yet-real) Circles whose "add
+   * permanently?" prompt has already been answered at Reconnect — a pending
+   * Circle's own id already carries the "pending-" prefix GroupPicker gives
+   * it, so this only needs to record which ones have been resolved, not a
+   * separate pending-circle list of its own.
+   */
+  resolvedPendingCircleIds?: string[];
+  /**
    * How each Circle's/ungrouped contact's message actually went out — process
    * metadata only, never message content. Key: Circle id or phone number,
    * value from smsService's channelKey (e.g. "sms", "shared", or

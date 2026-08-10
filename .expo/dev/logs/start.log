@@ -607,3 +607,56 @@
 {"_e":"metro:bundling:started","_t":1785490098935,"id":"1","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
 {"_e":"metro:bundling:done","_t":1785490104729,"id":"1","total":1340,"ms":5794.286792}
 {"_e":"metro:client_log","_t":1785490216905,"level":"warn","data":["Cannot record touch move without a touch start.\nTouch Move: {\"identifier\":6,\"pageX\":71.33333333333333,\"pageY\":607,\"timestamp\":93055425.271291}\nTouch Bank: [{\"touchActive\":false,\"startPageX\":27.333333333333332,\"startPageY\":627.6666666666666,\"startTimeStamp\":93053234.810291,\"currentPageX\":39.33333333333333,\"currentPageY\":618.3333333333333,\"currentTimeStamp\":93053412.766291,\"previousPageX\":41.33333333333333,\"previousPageY\":616.3333333333333,\"previousTimeStamp\":93053408.644291},{\"touchActive\":false,\"startPageX\":128.33333333333331,\"startPageY\":346.66666666666663,\"startTimeStamp\":93053832.017291,\"currentPageX\":87.33333333333333,\"currentPageY\":351.66666666666663,\"currentTimeStamp\":93054442.470291,\"previousPageX\":89,\"previousPageY\":349.66666666666663,\"previousTimeStamp\":93054287.191291},{\"touchActive\":false,\"startPageX\":210.66666666666666,\"startPageY\":361.3333333333333,\"startTimeStamp\":93055081.895291,\"currentPageX\":166.66666666666666,\"currentPageY\":479.66666666666663,\"currentTimeStamp\":93055367.266291,\"previousPageX\":168.66666666666666,\"previousPageY\":481.3333333333333,\"previousTimeStamp\":93055363.142291},{\"touchActive\":false,\"startPageX\":197.33333333333331,\"startPageY\":493.66666666666663,\"startTimeStamp\":93055081.895291,\"currentPageX\":224.33333333333331,\"currentPageY\":425.3333333333333,\"currentTimeStamp\":93055218.385291,\"previousPageX\":222.33333333333331,\"previousPageY\":423.3333333333333,\"previousTimeStamp\":93055214.260291},{\"touchActive\":true,\"startPageX\":54,\"startPageY\":250.66666666666666,\"startTimeStamp\":93055081.895291,\"currentPageX\":68.33333333333333,\"currentPageY\":249.66666666666666,\"currentTimeStamp\":93055425.271291,\"previousPageX\":66.33333333333333,\"previousPageY\":247.33333333333331,\"previousTimeStamp\":93055392.037291},{\"touchActive\":true,\"startPageX\":235,\"startPageY\":607,\"startTimeStamp\":93055404.520291,\"currentPageX\":235,\"currentPageY\":607,\"currentTimeStamp\":93055404.520291,\"previousPageX\":235,\"previousPageY\":607,\"previousTimeStamp\":93055404.520291}]"]}
+{"_e":"root:init","_t":1785929484030,"format":"v0-jsonl","version":"57.0.9"}
+{"_e":"env:mode","_t":1785929484031,"nodeEnv":"development","babelEnv":"development","mode":"development"}
+{"_e":"env:load","_t":1785929484033,"mode":"development","files":["../../../.env"],"env":{"EXPO_PUBLIC_AI_CLIENT_KEY":"b86740a4c22d0fdfe61aaf7b419435e924e28c97f01432689493498cb2d9238f","EXPO_PUBLIC_AI_PROXY_URL":"https://hold-ai-proxy.bethany-miles-93.workers.dev"}}
+{"_e":"devserver:start","_t":1785929484293,"mode":"development","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../../../app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+{"_e":"metro:config","_t":1785929484569,"serverRoot":"../../..","projectRoot":"../../..","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"expo:dev-tools-plugin:load","_t":1785929484726,"plugins":[]}
+{"_e":"metro:instantiate","_t":1785929485114,"atlas":false,"workers":6,"host":"::","port":8081}
+{"_e":"metro:server_log","_t":1785929505577,"level":"error","data":["An unknown error occurred while installing React Native DevTools. Details:\n\ndotslash error: problem with `/Users/bethanymiles/Documents/GitHub/hold-app/node_modules/@react-native/debugger-shell/bin/react-native-devtools`\ncaused by: failed to execute `/Users/bethanymiles/Library/Caches/dotslash/bd/ca7d7f918f0cb1fcc2496e8f07601f4394bcfc/React Native DevTools.app/Contents/MacOS/React Native DevTools` because it was not found\ncaused by: No such file or directory (os error 2)\n"]}
+{"_e":"metro:bundling:started","_t":1785929517102,"id":"1","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1785929522206,"id":"1","total":1340,"ms":5104.022542}
+{"_e":"metro:server_log","_t":1785929684268,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","com.holdapp.mobile","iPhone","60"]}
+{"_e":"metro:server_log","_t":1785929797188,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","com.holdapp.mobile","iPhone","60"]}
+{"_e":"root:init","_t":1786356644297,"format":"v0-jsonl","version":"57.0.9"}
+{"_e":"env:mode","_t":1786356644297,"nodeEnv":"development","babelEnv":"development","mode":"development"}
+{"_e":"env:load","_t":1786356644300,"mode":"development","files":["../../../.env"],"env":{"EXPO_PUBLIC_AI_CLIENT_KEY":"b86740a4c22d0fdfe61aaf7b419435e924e28c97f01432689493498cb2d9238f","EXPO_PUBLIC_AI_PROXY_URL":"https://hold-ai-proxy.bethany-miles-93.workers.dev"}}
+{"_e":"metro:bundling:started","_t":1786356670064,"id":"2","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1786356670293,"id":"2","total":1,"ms":226.565}
+{"_e":"metro:server_log","_t":1786358596610,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","com.holdapp.mobile","iPhone","60"]}
+{"_e":"metro:bundling:started","_t":1786370286892,"id":"3","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1786370292596,"id":"3","total":1,"ms":5702.484334}
+{"_e":"metro:server_log","_t":1786370424014,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","com.holdapp.mobile","iPhone","60"]}
+{"_e":"metro:server_log","_t":1786371216990,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","com.holdapp.mobile","iPhone","60"]}
+{"_e":"metro:bundling:started","_t":1786373111254,"id":"4","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1786373111926,"id":"4","total":1,"ms":671.709792}
+{"_e":"metro:client_log","_t":1786373117935,"level":"warn","data":["Sending `onAnimatedValueUpdate` with no listeners registered."]}
+{"_e":"metro:client_log","_t":1786373117938,"level":"warn","data":["Sending `onAnimatedValueUpdate` with no listeners registered."]}
+{"_e":"metro:client_log","_t":1786373117938,"level":"warn","data":["Sending `onAnimatedValueUpdate` with no listeners registered."]}
+{"_e":"metro:server_log","_t":1786373212583,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","com.holdapp.mobile","iPhone","60"]}
+{"_e":"metro:bundling:started","_t":1786374868072,"id":"5","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1786374868276,"id":"5","total":1,"ms":202.252875}
+{"_e":"metro:bundling:started","_t":1786375351989,"id":"6","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1786375352260,"id":"6","total":1,"ms":269.511}
+{"_e":"metro:bundling:started","_t":1786376023938,"id":"7","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1786376024168,"id":"7","total":1,"ms":229.271}
+{"_e":"metro:bundling:started","_t":1786376042913,"id":"8","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1786376042977,"id":"8","total":1,"ms":63.281542}
+{"_e":"metro:bundling:started","_t":1786376285703,"id":"9","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1786376285791,"id":"9","total":1,"ms":87.458875}
+{"_e":"metro:bundling:started","_t":1786378775269,"id":"a","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1786378776046,"id":"a","total":1,"ms":774.44575}
+{"_e":"metro:bundling:started","_t":1786378893018,"id":"b","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1786378893078,"id":"b","total":1,"ms":57.830542}
+{"_e":"metro:bundling:started","_t":1786379131293,"id":"c","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1786379131377,"id":"c","total":1,"ms":83.163792}
+{"_e":"metro:bundling:started","_t":1786379161426,"id":"d","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1786379161523,"id":"d","total":1,"ms":96.368083}
+{"_e":"metro:bundling:started","_t":1786379737058,"id":"e","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1786379738321,"id":"e","total":1,"ms":1258.672125}
+{"_e":"metro:bundling:started","_t":1786390325845,"id":"f","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1786390327238,"id":"f","total":1,"ms":1390.111875}
+{"_e":"metro:bundling:started","_t":1786390358597,"id":"g","platform":"ios","environment":null,"entry":"node_modules/expo-router/entry.js"}
+{"_e":"metro:bundling:done","_t":1786390358648,"id":"g","total":1,"ms":50.856125}
+{"_e":"metro:server_log","_t":1786390708018,"level":"error","data":["[timeout] connection terminated with Device for app='%s' on device='%s' after not responding for %s seconds.","com.holdapp.mobile","iPhone","60"]}

@@ -10,6 +10,14 @@ import type { CircleGroup } from "@/types/hold";
 
 const SUGGESTED_CIRCLES = ["Friends", "Work", "Book Club"];
 
+/**
+ * Every pending (not-yet-real) Circle's id starts with this — Reconnect uses
+ * it to find which of a Hold period's audienceCircles are still pending an
+ * "add permanently?" answer, without needing a separate pending-circle list
+ * of its own. See docs/09-decision-log.md, 2026-08-10.
+ */
+export const PENDING_CIRCLE_ID_PREFIX = "pending-";
+
 export interface PendingNewCircle {
   /** Local-only id, used to key this session's flow state — never a real circleService id. */
   tempId: string;
@@ -25,12 +33,23 @@ interface GroupPickerProps {
    * is written to real, persisted storage here at all (a Circle can't be
    * saved with zero contacts, so creating the empty container first isn't
    * an option either). The whole thing — name and first contact — stays a
-   * local, in-memory object included in this session's send only. The
-   * screen using GroupPicker is responsible for offering to make it
-   * permanent afterward, creating the real Circle and adding the contact
-   * as one atomic action.
+   * local, in-memory object included in this session's send only. Whether
+   * to make it a real, persisted Circle is asked later, at Reconnect, not
+   * here — see docs/09-decision-log.md, 2026-08-10.
    */
   onPendingContact?: (pending: PendingNewCircle) => void;
+  /**
+   * Circle ids sent at least once this Going Quiet session. A sent Circle's
+   * chip switches to the sent/checkmark look and its tap meaning changes
+   * from "remove from audience" to "toggle reselected" (reopen its card for
+   * a further/different send) — removing an already-sent Circle from the
+   * audience doesn't undo the message, so that action stops making sense
+   * once sending has actually happened.
+   */
+  sentCircleIds?: string[];
+  /** Which sent Circles are currently reselected (card reopened) — meaningless for a Circle not yet sent. */
+  reselectedCircleIds?: string[];
+  onToggleReselected?: (circleId: string) => void;
 }
 
 /**
@@ -39,7 +58,14 @@ interface GroupPickerProps {
  * own per-Circle cards now, not behind a second expand-on-demand mechanism
  * here, so there's exactly one place that interaction happens.
  */
-export function GroupPicker({ selectedGroupIds, onToggle, onPendingContact }: GroupPickerProps) {
+export function GroupPicker({
+  selectedGroupIds,
+  onToggle,
+  onPendingContact,
+  sentCircleIds = [],
+  reselectedCircleIds = [],
+  onToggleReselected
+}: GroupPickerProps) {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [groups, setGroups] = useState<CircleGroup[]>([]);
@@ -73,7 +99,12 @@ export function GroupPicker({ selectedGroupIds, onToggle, onPendingContact }: Gr
     nonEmptyGroups.length > 0 && nonEmptyGroups.every((group) => selectedGroupIds.includes(group.id));
 
   const toggleAll = async () => {
+    // Skips any already-sent Circle — "All" is an audience shortcut, and
+    // removing a sent Circle from the audience doesn't undo its message, so
+    // it stays out of reach of this bulk action the same way a single tap
+    // on its own chip now does.
     for (const group of nonEmptyGroups) {
+      if (sentCircleIds.includes(group.id)) continue;
       if (allSelected === selectedGroupIds.includes(group.id)) {
         await onToggle(group);
       }
@@ -91,7 +122,7 @@ export function GroupPicker({ selectedGroupIds, onToggle, onPendingContact }: Gr
       return;
     }
 
-    const tempId = `pending-${Date.now()}`;
+    const tempId = `${PENDING_CIRCLE_ID_PREFIX}${Date.now()}`;
     const pendingCircle: CircleGroup = {
       id: tempId,
       name: trimmed,
@@ -126,15 +157,28 @@ export function GroupPicker({ selectedGroupIds, onToggle, onPendingContact }: Gr
           {groups.length > 0 ? (
             <AdaptiveCircleChip label="All" isSelected={allSelected} onPress={() => void toggleAll()} />
           ) : null}
-          {groups.map((group) => (
-            <AdaptiveCircleChip
-              key={group.id}
-              label={group.name}
-              isSelected={selectedGroupIds.includes(group.id)}
-              isPrimary={group.isCloseCircle}
-              onPress={() => void onToggle(group)}
-            />
-          ))}
+          {groups.map((group) => {
+            const inAudience = selectedGroupIds.includes(group.id);
+            const hasSentThisSession = sentCircleIds.includes(group.id);
+            const isReselected = reselectedCircleIds.includes(group.id);
+            const sentLook = hasSentThisSession && !isReselected;
+
+            return (
+              <AdaptiveCircleChip
+                key={group.id}
+                label={sentLook ? `✓ ${group.name}` : group.name}
+                isSelected={hasSentThisSession ? isReselected : inAudience}
+                hasSentThisSession={hasSentThisSession}
+                isPrimary={group.isCloseCircle}
+                onPress={() =>
+                  hasSentThisSession ? onToggleReselected?.(group.id) : void onToggle(group)
+                }
+                accessibilityLabel={
+                  sentLook ? `${group.name}, already sent. Tap to send another message.` : undefined
+                }
+              />
+            );
+          })}
         </ScrollView>
       </View>
 

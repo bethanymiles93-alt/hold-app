@@ -8,6 +8,7 @@ import { SecondaryButton } from "@/components/SecondaryButton";
 import { AmendWithAI } from "@/components/AmendWithAI";
 import { MemoryNoteSuggestion } from "@/components/MemoryNoteSuggestion";
 import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
+import { PENDING_CIRCLE_ID_PREFIX } from "@/components/GroupPicker";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { QUICK_RECONNECT_MESSAGES } from "@/constants/copy";
@@ -17,6 +18,7 @@ import {
   getHoldPeriodById,
   getReconnectCoverage,
   getReconnectingPeriod,
+  markPendingCircleResolved,
   markReconnectContacted,
   recordSendChannel
 } from "@/services/holdHistoryService";
@@ -25,10 +27,11 @@ import {
   markContacted,
   seedFromAudience
 } from "@/services/conversationService";
+import { addContactToGroup, createGroup } from "@/services/circleService";
 import { deactivateOutOfOffice } from "@/services/emailAccountService";
 import { channelKey, sendOrShare } from "@/services/smsService";
 import { clearDraft, getDraft, saveDraft } from "@/services/messageDraftService";
-import type { HoldPeriod } from "@/types/hold";
+import type { AudienceCircle, HoldPeriod } from "@/types/hold";
 
 const RECONNECT_DRAFT_KEY = "reconnect";
 
@@ -170,6 +173,25 @@ export default function ReconnectScreen() {
     setStatusCleared(true);
   };
 
+  const confirmPendingCircle = async (circle: AudienceCircle) => {
+    if (!period) return;
+    const contact = circle.contacts[0];
+    if (!contact) return;
+
+    // Real Circle creation and the contact add happen together, only now —
+    // nothing exists in storage before this point.
+    const group = await createGroup(circle.circleName);
+    await addContactToGroup(group.id, contact);
+    await markPendingCircleResolved(period.id, circle.circleId);
+    await refresh();
+  };
+
+  const discardPendingCircle = async (circle: AudienceCircle) => {
+    if (!period) return;
+    await markPendingCircleResolved(period.id, circle.circleId);
+    await refresh();
+  };
+
   if (!period || !coverage) {
     return <Screen contentContainerStyle={styles.content} />;
   }
@@ -267,11 +289,46 @@ export default function ReconnectScreen() {
   }
 
   const showOoo = period.emailOutOfOfficeEnabled || period.widerWorldStatusEnabled;
+  const resolvedPendingCircleIds = period.resolvedPendingCircleIds ?? [];
+  const pendingCircles = (period.audienceCircles ?? []).filter(
+    (circle) =>
+      circle.circleId.startsWith(PENDING_CIRCLE_ID_PREFIX) &&
+      !resolvedPendingCircleIds.includes(circle.circleId)
+  );
 
   return (
     <Screen contentContainerStyle={styles.content}>
       <View style={styles.top}>
         <StepHeader body="Everyone's been reached." />
+
+        {pendingCircles.map((circle) => {
+          const contact = circle.contacts[0];
+          if (!contact) return null;
+
+          return (
+            <View key={circle.circleId} style={styles.pendingPromptRow}>
+              <Text style={styles.pendingPromptText}>
+                Add {contact.name} to {circle.circleName} permanently?
+              </Text>
+              <View style={styles.pendingPromptActions}>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => void discardPendingCircle(circle)}
+                  style={styles.smallPill}
+                >
+                  <Text style={styles.smallPillText}>Not now</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => void confirmPendingCircle(circle)}
+                  style={styles.smallPill}
+                >
+                  <Text style={styles.smallPillText}>Yes</Text>
+                </Pressable>
+              </View>
+            </View>
+          );
+        })}
 
         <Text style={styles.gatePrompt}>Want to reply to anyone properly?</Text>
 
@@ -356,6 +413,31 @@ function createStyles(colors: ThemeColors) {
       color: colors.textMuted,
       fontSize: 15,
       lineHeight: 22
+    },
+    pendingPromptRow: {
+      gap: theme.spacing.sm
+    },
+    pendingPromptText: {
+      color: colors.text,
+      fontSize: 16,
+      lineHeight: 23
+    },
+    pendingPromptActions: {
+      flexDirection: "row",
+      gap: theme.spacing.sm
+    },
+    smallPill: {
+      minHeight: 40,
+      borderRadius: theme.radius.pill,
+      paddingHorizontal: theme.spacing.md,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.surfaceStrong
+    },
+    smallPillText: {
+      color: colors.text,
+      fontSize: 14,
+      fontWeight: "600"
     },
     linkText: {
       color: colors.link,
