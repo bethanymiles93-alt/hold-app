@@ -88,3 +88,23 @@ Dated record of product decisions that changed how the app behaves, as opposed t
 **Still flagged, not resolved:** this is derived from the code's constants and formula plus estimated font metrics, not an actual on-device screenshot — no simulator/screenshot capability exists in this session. Needs on-device confirmation, same as the prior entry.
 
 **Also this pass:** GroupPicker's "+ New Circle" button now shows just "+" (`accessibilityLabel="New Circle"` added so screen readers still announce it properly), position unchanged since it already sat immediately after "All." Bumped its `minWidth`/`minHeight` from 38pt to 44pt — with the label text gone, padding-plus-glyph math alone would have landed around 41pt wide, under the accessible minimum.
+
+## 2026-08-10 — Circle-chip sizing redesigned: one fixed diameter, not grow-to-fit
+
+**Replaced the whole floor/cap/natural-diameter model with a single fixed `STANDARD_CHIP_DIAMETER`** per direct instruction, since the grow-to-fit design (even once its two bugs were fixed) produced an inconsistent row — "D" at the bare 44pt floor, "Close" at ~57–60pt, a pill at up to 66pt, none sharing a height. `STANDARD_CHIP_DIAMETER = 48pt (iOS) / 52dp (Android)` — platform-specific by design, not one shared cross-platform value, each a flat +4 above that platform's own accessibility minimum (44pt HIG / 48dp Material). Every chip is exactly this tall now, full stop: a circle at exactly this diameter if the label's measured text fits inside it (minus padding), otherwise a pill at the exact same height with only width growing to fit the text — "the same circle, stretched wider," not a separately-sized shape. Height no longer varies with font size at all (an accepted trade-off, flagged: at very large accessibility text sizes a label's line height could exceed the fixed chip height, and `numberOfLines={1}` means it clips rather than wraps or grows the box).
+
+**Worked table, same estimated-metrics caveat as before (14pt/weight 600, San Francisco, not an on-device measurement):**
+
+| Label | Est. text width | Shape | Width | Height |
+|---|---|---|---|---|
+| "D" | ~9pt | circle | 48pt | 48pt |
+| "All" | ~22pt | circle | 48pt | 48pt |
+| "+" | ~9–10pt | circle | 48pt | 48pt |
+| "Close" | ~37pt | pill | ~57pt | 48pt |
+| "Book Club" | ~75pt | pill | ~95pt | 48pt |
+
+All five share the same 48pt height, confirming the redesign's actual goal (row consistency) independent of which ones end up circles vs. pills.
+
+**Also this pass:** found "+" was never actually going through `AdaptiveCircleChip` — it was still a separately hand-styled `Pressable` (the one manually patched to 44×44pt last time), which is exactly why it wouldn't have picked up this sizing change automatically. Brought it into the shared component properly: added `outline` (the bordered/transparent treatment it already had), `accessibilityLabel` (its visible "+" isn't what a screen reader should announce), and `expanded` (it toggles a creation panel, not a selection — reports `accessibilityState={{expanded}}` instead of `{checked}`) props to `AdaptiveCircleChip` to support it without special-casing. Removed the now-dead `newCirclePill`/`newCirclePillPressed`/`newCirclePillText` styles. One small, honest trade-off: the old "+" button had its own `pressed` background-darken effect that `AdaptiveCircleChip` doesn't replicate — no chip in the shared component has press feedback, consistent with how the original `CirclePill` worked too, so this isn't a new gap, but "+" specifically had it before and now doesn't.
+
+**Still flagged, not resolved:** no simulator/screenshot capability in this session — the table above is derived from code and estimated font metrics, not confirmed on-screen. Needs on-device verification.
