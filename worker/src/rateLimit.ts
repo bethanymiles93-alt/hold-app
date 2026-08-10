@@ -8,9 +8,11 @@
 
 const KV_TTL_SECONDS = 60 * 60 * 24 * 40; // ~40 days — outlives the month it counts, then falls away on its own.
 
-function monthKey(installId: string, now: Date): string {
+// `purpose` keeps separate caps (drafting, safeguarding classifier checks)
+// from sharing one counter — different operations, different volumes.
+function monthKey(purpose: string, installId: string, now: Date): string {
   const yearMonth = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
-  return `usage:${installId}:${yearMonth}`;
+  return `usage:${purpose}:${installId}:${yearMonth}`;
 }
 
 export interface RateLimitResult {
@@ -21,10 +23,11 @@ export interface RateLimitResult {
 
 export async function checkAndIncrement(
   kv: KVNamespace,
+  purpose: string,
   installId: string,
   limit: number
 ): Promise<RateLimitResult> {
-  const key = monthKey(installId, new Date());
+  const key = monthKey(purpose, installId, new Date());
   const raw = await kv.get(key);
   const used = raw ? Number.parseInt(raw, 10) : 0;
 

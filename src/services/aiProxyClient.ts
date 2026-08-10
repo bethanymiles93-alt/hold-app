@@ -81,3 +81,35 @@ export async function requestAiDraft(
 
   return { draft: data.draft, memoryNote: data.memoryNote ?? null };
 }
+
+/**
+ * Hold+ tier's classifier pass for the safeguarding detection layer — see
+ * src/services/safeguardingService.ts, which is the only caller and is
+ * itself gated behind __DEV__. Throws on any failure; the caller fails open
+ * on this specific check (never lets a classifier-call failure block
+ * drafting or hide the on-device keyword layer's own result).
+ */
+export async function requestSafeguardCheck(text: string): Promise<boolean> {
+  if (!PROXY_URL || !CLIENT_KEY) {
+    throw new Error("ai_proxy_not_configured");
+  }
+
+  const installId = await getInstallId();
+
+  const response = await fetch(`${PROXY_URL}/safeguard-check`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-hold-client-key": CLIENT_KEY
+    },
+    body: JSON.stringify({ installId, text })
+  });
+
+  const data = (await response.json()) as { triggered?: boolean; error?: string };
+
+  if (!response.ok || typeof data.triggered !== "boolean") {
+    throw new Error(data.error ?? "ai_proxy_error");
+  }
+
+  return data.triggered;
+}

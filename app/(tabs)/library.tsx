@@ -7,6 +7,8 @@ import { PrimaryButton } from "@/components/PrimaryButton";
 import { SecondaryButton } from "@/components/SecondaryButton";
 import { AmendWithAI } from "@/components/AmendWithAI";
 import { SelectionCircle } from "@/components/SelectionCircle";
+import { SafeguardingBanner } from "@/components/SafeguardingBanner";
+import { useSafeguardingCheck } from "@/hooks/useSafeguardingCheck";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import {
@@ -87,6 +89,7 @@ function PersonaliseAccordion({ person, isOpen, onToggle, onSent }: PersonaliseA
   const [draft, setDraft] = useState("");
   const [status, setStatus] = useState<"none" | "draft" | "sent">("none");
   const [sentAt, setSentAt] = useState<number | null>(null);
+  const safeguardingTriggered = useSafeguardingCheck(draft);
 
   useEffect(() => {
     if (!isOpen || loaded) return;
@@ -249,6 +252,8 @@ function PersonaliseAccordion({ person, isOpen, onToggle, onSent }: PersonaliseA
             textAlignVertical="top"
             value={draft}
           />
+
+          <SafeguardingBanner visible={safeguardingTriggered} />
 
           <AmendWithAI
             surface="conversations-reply"

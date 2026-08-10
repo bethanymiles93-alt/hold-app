@@ -7,6 +7,8 @@ import { SecondaryButton } from "@/components/SecondaryButton";
 import { isHoldPlusActive } from "@/services/holdPlusService";
 import { requestAiDraft, type AiDraftContext, type AiSurface } from "@/services/aiProxyClient";
 import { captureMemoryNote, isMemoryEnabled } from "@/services/aiMemoryService";
+import { useSafeguardingCheck } from "@/hooks/useSafeguardingCheck";
+import { SafeguardingBanner } from "@/components/SafeguardingBanner";
 
 interface AmendWithAIProps {
   surface: AiSurface;
@@ -37,6 +39,7 @@ export function AmendWithAI({ surface, currentMessage, onApply, context, initial
   const [prompt, setPrompt] = useState("");
   const [draft, setDraft] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>("idle");
+  const safeguardingTriggered = useSafeguardingCheck(prompt);
 
   useFocusEffect(
     useCallback(() => {
@@ -109,6 +112,8 @@ export function AmendWithAI({ surface, currentMessage, onApply, context, initial
         textAlignVertical="top"
         value={prompt}
       />
+
+      <SafeguardingBanner visible={safeguardingTriggered} />
 
       <View style={styles.actionsRow}>
         <SecondaryButton

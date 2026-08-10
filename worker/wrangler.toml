@@ -12,6 +12,13 @@ compatibility_date = "2025-01-01"
 [vars]
 MONTHLY_DRAFT_SAFETY_CAP = "20"
 
+# Safeguarding classifier's own monthly safety cap, separate from drafting —
+# see worker/src/safeguarding.ts. Higher than the draft cap since a check can
+# run per keystroke-pause, not per deliberate Send. The detection content
+# itself is a PLACEHOLDER, only ever reachable from a __DEV__-gated app build
+# — see hold-book 06-privacy-security/03-safeguarding.md.
+SAFEGUARD_CHECK_SAFETY_CAP = "60"
+
 # Created via `npm run kv:create` (needs wrangler login first) — paste the
 # resulting id below before deploying. Stores per-install monthly draft
 # counts only (an anonymous UUID + a number), nothing identifying.

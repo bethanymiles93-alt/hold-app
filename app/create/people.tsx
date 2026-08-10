@@ -11,6 +11,8 @@ import { SecondaryButton } from "@/components/SecondaryButton";
 import { AmendWithAI } from "@/components/AmendWithAI";
 import { EmailOutOfOffice } from "@/components/EmailOutOfOffice";
 import { WiderWorldStatus } from "@/components/WiderWorldStatus";
+import { SafeguardingBanner } from "@/components/SafeguardingBanner";
+import { useSafeguardingCheck } from "@/hooks/useSafeguardingCheck";
 import { HOLD_INTENTS } from "@/constants/copy";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
@@ -22,7 +24,7 @@ import { activateOutOfOffice } from "@/services/emailAccountService";
 import { addContactToGroup, createGroup } from "@/services/circleService";
 import { copyToClipboard } from "@/services/clipboardService";
 import { channelKey, sendOrShare } from "@/services/smsService";
-import type { EmailAccount, GoingQuietRecipient, HoldIntent } from "@/types/hold";
+import type { EmailAccount, GoingQuietCircleDraft, GoingQuietRecipient, HoldIntent } from "@/types/hold";
 
 const DEFAULT_OOO_MESSAGE =
   "I’m currently away and will respond when I’m back. Thank you for understanding.";
@@ -250,40 +252,14 @@ export default function HoldPeopleScreen() {
                 ))}
               </View>
             ) : (
-              <View style={styles.messageBlock}>
-                <TextInput
-                  accessibilityLabel={`Message for ${draft.circleName}`}
-                  multiline
-                  onChangeText={(text) => setCircleDraftMessage(draft.circleId, text)}
-                  style={styles.messageInput}
-                  textAlignVertical="top"
-                  value={draft.message}
-                />
-                <View style={styles.messageControls}>
-                  <Pressable accessibilityRole="button" onPress={() => changeTemplate(draft.circleId)}>
-                    <Text style={styles.linkText}>Change template</Text>
-                  </Pressable>
-                  {isSaved ? (
-                    <View style={styles.savedPill} accessibilityRole="text">
-                      <Text style={styles.savedPillText}>✓ Saved to Library</Text>
-                    </View>
-                  ) : (
-                    <Pressable
-                      accessibilityRole="button"
-                      onPress={() => void saveCircleDraftAsDefault(draft.circleId)}
-                    >
-                      <Text style={styles.linkText}>Save to Library</Text>
-                    </Pressable>
-                  )}
-                </View>
-
-                <AmendWithAI
-                  surface="going-quiet"
-                  currentMessage={draft.message}
-                  onApply={(text) => setCircleDraftMessage(draft.circleId, text)}
-                  context={{ intent: draft.intent ?? undefined, recipientLabel: draft.circleName }}
-                />
-              </View>
+              <GoingQuietMessageBox
+                styles={styles}
+                draft={draft}
+                isSaved={isSaved}
+                onChangeText={(text) => setCircleDraftMessage(draft.circleId, text)}
+                onChangeTemplate={() => changeTemplate(draft.circleId)}
+                onSaveDefault={() => void saveCircleDraftAsDefault(draft.circleId)}
+              />
             )}
           </View>
         );
@@ -426,6 +402,67 @@ export default function HoldPeopleScreen() {
         </>
       )}
     </Screen>
+  );
+}
+
+interface GoingQuietMessageBoxProps {
+  styles: ReturnType<typeof createStyles>;
+  draft: GoingQuietCircleDraft;
+  isSaved: boolean;
+  onChangeText: (text: string) => void;
+  onChangeTemplate: () => void;
+  onSaveDefault: () => void;
+}
+
+/**
+ * Extracted so useSafeguardingCheck (a hook) can run once per Circle draft
+ * with a stable identity — circleDrafts.map(...) can't call hooks directly,
+ * since the array's length changes as Circles are toggled on/off.
+ */
+function GoingQuietMessageBox({
+  styles,
+  draft,
+  isSaved,
+  onChangeText,
+  onChangeTemplate,
+  onSaveDefault
+}: GoingQuietMessageBoxProps) {
+  const safeguardingTriggered = useSafeguardingCheck(draft.message);
+
+  return (
+    <View style={styles.messageBlock}>
+      <TextInput
+        accessibilityLabel={`Message for ${draft.circleName}`}
+        multiline
+        onChangeText={onChangeText}
+        style={styles.messageInput}
+        textAlignVertical="top"
+        value={draft.message}
+      />
+      <View style={styles.messageControls}>
+        <Pressable accessibilityRole="button" onPress={onChangeTemplate}>
+          <Text style={styles.linkText}>Change template</Text>
+        </Pressable>
+        {isSaved ? (
+          <View style={styles.savedPill} accessibilityRole="text">
+            <Text style={styles.savedPillText}>✓ Saved to Library</Text>
+          </View>
+        ) : (
+          <Pressable accessibilityRole="button" onPress={onSaveDefault}>
+            <Text style={styles.linkText}>Save to Library</Text>
+          </Pressable>
+        )}
+      </View>
+
+      <SafeguardingBanner visible={safeguardingTriggered} />
+
+      <AmendWithAI
+        surface="going-quiet"
+        currentMessage={draft.message}
+        onApply={onChangeText}
+        context={{ intent: draft.intent ?? undefined, recipientLabel: draft.circleName }}
+      />
+    </View>
   );
 }
 
