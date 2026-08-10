@@ -113,11 +113,12 @@ export function GroupPicker({ selectedGroupIds, onToggle, onPendingContact }: Gr
         ) : null}
         <Pressable
           accessibilityRole="button"
+          accessibilityLabel="New Circle"
           accessibilityState={{ expanded: creating }}
           onPress={() => setCreating((current) => !current)}
           style={({ pressed }) => [styles.newCirclePill, pressed && styles.newCirclePillPressed]}
         >
-          <Text style={styles.newCirclePillText}>+ New Circle</Text>
+          <Text style={styles.newCirclePillText}>+</Text>
         </Pressable>
         <ScrollView
           horizontal
@@ -204,9 +205,9 @@ function createStyles(colors: ThemeColors) {
     container: {
       gap: theme.spacing.md
     },
-    // "All" and "+ New Circle" are fixed, non-scrolling members of this row;
-    // only the named-Circle pills inside the nested ScrollView scroll, so the
-    // whole thing still reads as one continuous line.
+    // "All" and the "+" (New Circle) button are fixed, non-scrolling members
+    // of this row; only the named-Circle pills inside the nested ScrollView
+    // scroll, so the whole thing still reads as one continuous line.
     pinnedRow: {
       flexDirection: "row",
       alignItems: "center",
@@ -225,8 +226,13 @@ function createStyles(colors: ThemeColors) {
       fontSize: 14,
       lineHeight: 21
     },
+    // "+" alone, no label text — minWidth/minHeight explicitly guarantee
+    // the 44x44pt tap target rather than relying on padding-plus-glyph
+    // math to happen to clear it (paddingHorizontal alone would land at
+    // ~41pt wide, just under the minimum).
     newCirclePill: {
-      minHeight: 38,
+      minHeight: 44,
+      minWidth: 44,
       borderRadius: theme.radius.pill,
       borderWidth: 1.5,
       borderColor: colors.primary,
