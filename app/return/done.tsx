@@ -24,7 +24,7 @@ export default function ReturnDoneScreen() {
   };
 
   return (
-    <Screen contentContainerStyle={styles.content}>
+    <Screen contentContainerStyle={styles.content} footer={<PrimaryButton label="Done" onPress={finish} />}>
       <View style={styles.message}>
         <HoldMark size={64} />
         <Text style={styles.title}>You’re reconnected.</Text>
@@ -32,8 +32,6 @@ export default function ReturnDoneScreen() {
           You’ve let the people who matter know you’re here again. That’s enough for today.
         </Text>
       </View>
-
-      <PrimaryButton label="Done" onPress={finish} />
     </Screen>
   );
 }
@@ -41,7 +39,6 @@ export default function ReturnDoneScreen() {
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     content: {
-      justifyContent: "space-between",
       paddingTop: theme.spacing.xxl
     },
     message: {

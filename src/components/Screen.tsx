@@ -1,8 +1,9 @@
-import type { PropsWithChildren } from "react";
+import type { PropsWithChildren, ReactNode } from "react";
 import { useMemo } from "react";
 import {
   Keyboard,
   ScrollView,
+  View,
   type StyleProp,
   StyleSheet,
   TouchableWithoutFeedback,
@@ -14,9 +15,21 @@ import { useAppTheme } from "@/hooks/useAppTheme";
 
 interface ScreenProps extends PropsWithChildren {
   contentContainerStyle?: StyleProp<ViewStyle>;
+  /**
+   * Renders fixed below the scrollable content, inside the same safe area —
+   * never requires scrolling to reach, regardless of how tall the scrollable
+   * content grows (a longer subtitle, a larger accessibility text size,
+   * etc). Use for a screen's primary action on short, fixed-content
+   * "arrival/completion" screens where reaching that action should never
+   * depend on content length — not a substitute for genuinely long,
+   * variable content (many Circles, expanded messages), where scrolling to
+   * reach Send is expected, not a bug. See docs/09-decision-log.md,
+   * 2026-08-10, for why padding/size tuning alone kept failing here.
+   */
+  footer?: ReactNode;
 }
 
-export function Screen({ children, contentContainerStyle }: ScreenProps) {
+export function Screen({ children, contentContainerStyle, footer }: ScreenProps) {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -29,24 +42,27 @@ export function Screen({ children, contentContainerStyle }: ScreenProps) {
           children still get their own tap first, so this only fires on
           genuinely empty space. */}
       <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-        {/* ScrollView's own keyboard-inset handling, not KeyboardAvoidingView —
-            KeyboardAvoidingView's height is only established via onLayout,
-            which reliably settles when a keyboard actually shows; on
-            screens with no (or minimal) text input, that layout pass never
-            gets a reason to fire, and the ScrollView beneath it can lock in
-            an incorrect initial bound and never scroll. Confirmed on-device:
-            input-heavy screens (Going Quiet, Reconnect) scrolled fine,
-            input-light ones (Hold+, Research) didn't — this removes the
-            shared cause instead of patching each screen individually. */}
-        <ScrollView
-          style={styles.flex}
-          keyboardShouldPersistTaps="handled"
-          automaticallyAdjustKeyboardInsets
-          contentInsetAdjustmentBehavior="automatic"
-          contentContainerStyle={[styles.content, contentContainerStyle]}
-        >
-          {children}
-        </ScrollView>
+        <View style={styles.flex}>
+          {/* ScrollView's own keyboard-inset handling, not KeyboardAvoidingView —
+              KeyboardAvoidingView's height is only established via onLayout,
+              which reliably settles when a keyboard actually shows; on
+              screens with no (or minimal) text input, that layout pass never
+              gets a reason to fire, and the ScrollView beneath it can lock in
+              an incorrect initial bound and never scroll. Confirmed on-device:
+              input-heavy screens (Going Quiet, Reconnect) scrolled fine,
+              input-light ones (Hold+, Research) didn't — this removes the
+              shared cause instead of patching each screen individually. */}
+          <ScrollView
+            style={styles.flex}
+            keyboardShouldPersistTaps="handled"
+            automaticallyAdjustKeyboardInsets
+            contentInsetAdjustmentBehavior="automatic"
+            contentContainerStyle={[styles.content, contentContainerStyle]}
+          >
+            {children}
+          </ScrollView>
+          {footer ? <View style={styles.footer}>{footer}</View> : null}
+        </View>
       </TouchableWithoutFeedback>
     </SafeAreaView>
   );
@@ -65,6 +81,11 @@ function createStyles(colors: ThemeColors) {
       flexGrow: 1,
       paddingHorizontal: theme.spacing.lg,
       paddingVertical: theme.spacing.lg
+    },
+    footer: {
+      paddingHorizontal: theme.spacing.lg,
+      paddingTop: theme.spacing.md,
+      paddingBottom: theme.spacing.lg
     }
   });
 }

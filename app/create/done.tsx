@@ -19,7 +19,10 @@ export default function HoldDoneScreen() {
   };
 
   return (
-    <Screen contentContainerStyle={styles.content}>
+    <Screen
+      contentContainerStyle={styles.content}
+      footer={<PrimaryButton label="Begin Taking Time" onPress={finish} />}
+    >
       <View style={styles.message}>
         <HoldMark size={64} />
         <Text style={styles.title}>You’ve taken the first step.</Text>
@@ -28,8 +31,6 @@ export default function HoldDoneScreen() {
           isn’t selfish. You don’t need to earn rest.
         </Text>
       </View>
-
-      <PrimaryButton label="Begin Taking Time" onPress={finish} />
     </Screen>
   );
 }
@@ -37,7 +38,6 @@ export default function HoldDoneScreen() {
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     content: {
-      justifyContent: "space-between",
       paddingTop: theme.spacing.xxl
     },
     message: {

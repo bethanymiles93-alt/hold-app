@@ -548,9 +548,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: theme.spacing.xs
   },
+  // Matches circleLabel below exactly — hold-book's type-scale rule ("only
+  // screen titles/the Home circle header and primary buttons read as
+  // large") applies here too: "Taking time" is this state's headline, not
+  // incidental text, same as "Going quiet"/"Reconnect" are for theirs.
   comingBackLabel: {
-    fontSize: 17,
-    fontWeight: "600",
+    fontSize: 22,
+    lineHeight: 27,
+    fontWeight: "700",
     textAlign: "center"
   },
   quietSinceText: {

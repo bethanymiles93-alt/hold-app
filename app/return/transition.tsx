@@ -16,7 +16,10 @@ export default function ReconnectTransitionScreen() {
   };
 
   return (
-    <Screen contentContainerStyle={styles.content}>
+    <Screen
+      contentContainerStyle={styles.content}
+      footer={<PrimaryButton label="Continue" onPress={goToReconnect} />}
+    >
       <View style={styles.message}>
         <HoldMark size={64} />
         <Text style={styles.title}>Welcome back.</Text>
@@ -24,8 +27,6 @@ export default function ReconnectTransitionScreen() {
           Here’s who’s waiting to hear from you. Reply however feels right today.
         </Text>
       </View>
-
-      <PrimaryButton label="Continue" onPress={goToReconnect} />
     </Screen>
   );
 }
@@ -33,7 +34,6 @@ export default function ReconnectTransitionScreen() {
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     content: {
-      justifyContent: "space-between",
       paddingTop: theme.spacing.xxl
     },
     message: {
