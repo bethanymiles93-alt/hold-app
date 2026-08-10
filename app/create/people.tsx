@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
-import { router } from "expo-router";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
 import { GroupPicker, type PendingNewCircle } from "@/components/GroupPicker";
 import { ChoiceCard } from "@/components/ChoiceCard";
+import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
 import { RecipientPersonalisation } from "@/components/RecipientPersonalisation";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { SecondaryButton } from "@/components/SecondaryButton";
@@ -18,13 +19,24 @@ import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { buildAudienceCircles, useHoldFlow } from "@/context/HoldFlowContext";
 import { createDraft } from "@/services/draftService";
-import { recordPostSendChoices, recordSendChannel, startHoldPeriod } from "@/services/holdHistoryService";
+import {
+  getOpenHoldPeriod,
+  recordPostSendChoices,
+  recordSendChannel,
+  startHoldPeriod
+} from "@/services/holdHistoryService";
 import { seedPersonaliseRecipient } from "@/services/conversationService";
 import { activateOutOfOffice } from "@/services/emailAccountService";
 import { addContactToGroup, createGroup } from "@/services/circleService";
 import { copyToClipboard } from "@/services/clipboardService";
 import { channelKey, sendOrShare } from "@/services/smsService";
-import type { EmailAccount, GoingQuietCircleDraft, GoingQuietRecipient, HoldIntent } from "@/types/hold";
+import type {
+  EmailAccount,
+  GoingQuietCircleDraft,
+  GoingQuietRecipient,
+  HoldIntent,
+  HoldPeriod
+} from "@/types/hold";
 
 const DEFAULT_OOO_MESSAGE =
   "I’m currently away and will respond when I’m back. Thank you for understanding.";
@@ -50,7 +62,18 @@ export default function HoldPeopleScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [showingChipsFor, setShowingChipsFor] = useState<Set<string>>(new Set());
 
-  const [sentAt, setSentAt] = useState<number | null>(null);
+  // Which drafted Circles are currently expanded/included in the next Send —
+  // independent of hasSentThisSession, matching the isSelected/hasSentThisSession
+  // pattern already built for Reconnect, Taking Time's update, and Library's
+  // Quick message. A circle only auto-joins this set once (see the effect
+  // below); once sent-and-deselected it stays deselected until re-tapped.
+  const [selectedCircleIds, setSelectedCircleIds] = useState<Set<string>>(new Set());
+  // Durable, on the still-open Hold period (see holdHistoryService.ts). No new
+  // field needed: recordSendChannel already keys sendChannels by Circle id on
+  // every real group send, so "has this Circle been sent this session" is
+  // derived from it — the same derived-not-stored approach Library's Quick
+  // message uses, rather than inventing a parallel flag that could drift.
+  const [period, setPeriod] = useState<HoldPeriod | null>(null);
   const [personalPromptChoice, setPersonalPromptChoice] = useState<"pending" | "yes" | "not-now">(
     "pending"
   );
@@ -67,14 +90,76 @@ export default function HoldPeopleScreen() {
   const [widerWorldEnabled, setWiderWorldEnabled] = useState(false);
   const [widerWorldText, setWiderWorldText] = useState(DEFAULT_STATUS_LINE);
 
+  const refreshPeriod = useCallback(async () => {
+    setPeriod(await getOpenHoldPeriod());
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void refreshPeriod();
+    }, [refreshPeriod])
+  );
+
+  // sendChannels also holds individual-recipient phone-number keys (from the
+  // instant-message loop in send()) — filtering to circleDrafts' own ids
+  // keeps this to genuine whole-Circle group sends only.
+  const sentCircleIds = useMemo(() => {
+    if (!period?.sendChannels) return [];
+    const channelKeys = new Set(Object.keys(period.sendChannels));
+    return circleDrafts.filter((draft) => channelKeys.has(draft.circleId)).map((draft) => draft.circleId);
+  }, [period, circleDrafts]);
+
+  const hasSentAnything = sentCircleIds.length > 0;
+
+  // Keeps selection in sync as Circles are added/removed via GroupPicker: a
+  // freshly-added, never-sent draft joins the selection automatically (so it
+  // behaves like today's "every selected Circle has a visible card" default);
+  // a sent-and-deselected draft is deliberately left alone, since re-adding it
+  // here would undo the user's own "not now" tap.
+  useEffect(() => {
+    setSelectedCircleIds((current) => {
+      const draftIds = new Set(circleDrafts.map((draft) => draft.circleId));
+      let changed = false;
+      const next = new Set(current);
+      for (const id of next) {
+        if (!draftIds.has(id)) {
+          next.delete(id);
+          changed = true;
+        }
+      }
+      for (const draft of circleDrafts) {
+        if (!next.has(draft.circleId) && !sentCircleIds.includes(draft.circleId)) {
+          next.add(draft.circleId);
+          changed = true;
+        }
+      }
+      return changed ? next : current;
+    });
+  }, [circleDrafts, sentCircleIds]);
+
+  const toggleCircleSelection = (circleId: string) => {
+    setSelectedCircleIds((current) => {
+      const next = new Set(current);
+      if (next.has(circleId)) {
+        next.delete(circleId);
+      } else {
+        next.add(circleId);
+      }
+      return next;
+    });
+  };
+
+  const selectedDrafts = circleDrafts.filter((draft) => selectedCircleIds.has(draft.circleId));
+
   const canSend =
     selectedGroups.length > 0 &&
     selectedGroups.every((group) => group.contacts.length > 0) &&
-    circleDrafts.length > 0 &&
-    circleDrafts.every((draft) => draft.message.trim().length > 0);
+    selectedDrafts.length > 0 &&
+    selectedDrafts.every((draft) => draft.message.trim().length > 0);
 
   const excludedNotRemoved = goingQuietRecipients.filter(
-    (recipient) => !recipient.included && !recipient.individuallyRemoved
+    (recipient) =>
+      !recipient.included && !recipient.individuallyRemoved && sentCircleIds.includes(recipient.circleId)
   );
   // Strict one-at-a-time reveal: nothing to personalise means stage 2 has
   // nothing to answer, so it's treated as already resolved.
@@ -101,10 +186,16 @@ export default function HoldPeopleScreen() {
     (useSameEmailMessage ? sharedEmailMessage : account.message).trim();
 
   const send = async () => {
-    const periodId = await startHoldPeriod({
+    if (selectedDrafts.length === 0) return;
+
+    // The period is created once, on this session's first Send, and reused
+    // for every subsequent per-Circle Send — sending is repeatable now, so
+    // this can no longer start a fresh period (and silently orphan the
+    // previous one) on every call the way the old single-shot send() did.
+    const periodId = period?.id ?? (await startHoldPeriod({
       recipients,
       audienceCircles: buildAudienceCircles(selectedGroups)
-    });
+    }));
 
     const recipientsByCircle = new Map<string, GoingQuietRecipient[]>();
     for (const recipient of goingQuietRecipients) {
@@ -113,7 +204,7 @@ export default function HoldPeopleScreen() {
       recipientsByCircle.set(recipient.circleId, list);
     }
 
-    for (const draft of circleDrafts) {
+    for (const draft of selectedDrafts) {
       const circleRecipients = recipientsByCircle.get(draft.circleId) ?? [];
       const groupRecipients = circleRecipients.filter((recipient) => recipient.included);
       const text = draft.message.trim();
@@ -155,7 +246,16 @@ export default function HoldPeopleScreen() {
       }
     }
 
-    setSentAt(Date.now());
+    await refreshPeriod();
+    // Sent Circles drop out of the selection so their cards collapse back to
+    // a compact sent chip — tapping one re-selects it (per the isSelected/
+    // hasSentThisSession pattern), rather than leaving it expanded as if
+    // still mid-draft.
+    setSelectedCircleIds((current) => {
+      const next = new Set(current);
+      for (const draft of selectedDrafts) next.delete(draft.circleId);
+      return next;
+    });
   };
 
   const sendPersonalNote = async (recipient: GoingQuietRecipient) => {
@@ -211,63 +311,88 @@ export default function HoldPeopleScreen() {
         onPendingContact={(pending) => setPendingNewCircles((current) => [...current, pending])}
       />
 
-      {circleDrafts.map((draft) => {
-        const showChips =
-          showingChipsFor.has(draft.circleId) || (draft.savedMessage === null && !draft.message.trim());
-        const isSaved = draft.savedMessage !== null && draft.message === draft.savedMessage;
-        const circleRecipients = goingQuietRecipients.filter(
-          (recipient) => recipient.circleId === draft.circleId
-        );
+      {circleDrafts.length > 0 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chipRow}
+          style={styles.chipScroll}
+        >
+          {circleDrafts.map((draft) => {
+            const isSelected = selectedCircleIds.has(draft.circleId);
+            const hasSentThisSession = sentCircleIds.includes(draft.circleId);
+            const sentLook = hasSentThisSession && !isSelected;
 
-        if (sentAt !== null) {
+            return (
+              <AdaptiveCircleChip
+                key={draft.circleId}
+                label={sentLook ? `✓ ${draft.circleName}` : draft.circleName}
+                isSelected={isSelected}
+                hasSentThisSession={hasSentThisSession}
+                onPress={() => toggleCircleSelection(draft.circleId)}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  sentLook
+                    ? `${draft.circleName}, already sent. Tap to send another message.`
+                    : draft.circleName
+                }
+              />
+            );
+          })}
+        </ScrollView>
+      ) : null}
+
+      {circleDrafts
+        .filter((draft) => selectedCircleIds.has(draft.circleId))
+        .map((draft) => {
+          const showChips =
+            showingChipsFor.has(draft.circleId) || (draft.savedMessage === null && !draft.message.trim());
+          const isSaved = draft.savedMessage !== null && draft.message === draft.savedMessage;
+          const circleRecipients = goingQuietRecipients.filter(
+            (recipient) => recipient.circleId === draft.circleId
+          );
+
           return (
-            <View key={draft.circleId} style={styles.circleSentRow}>
-              <Text style={styles.circleSentRowText}>✓ {draft.circleName}</Text>
+            <View key={draft.circleId} style={styles.circleSection}>
+              <Text style={styles.sectionLabel}>{draft.circleName}</Text>
+
+              <RecipientPersonalisation
+                recipients={circleRecipients}
+                onToggleIncluded={toggleRecipientIncluded}
+                onSetIndividuallyRemoved={setRecipientIndividuallyRemoved}
+                onSetInstantMessage={setRecipientInstantMessage}
+                onSetRouteToPersonalise={setRecipientRouteToPersonalise}
+              />
+
+              {showChips ? (
+                <View accessibilityRole="radiogroup" style={styles.choices}>
+                  {HOLD_INTENTS.map((choice) => (
+                    <ChoiceCard
+                      key={choice.id}
+                      title={choice.title}
+                      description={choice.description}
+                      selected={draft.intent === choice.id}
+                      onPress={() => void chooseIntent(draft.circleId, choice.id)}
+                    />
+                  ))}
+                </View>
+              ) : (
+                <GoingQuietMessageBox
+                  styles={styles}
+                  draft={draft}
+                  isSaved={isSaved}
+                  onChangeText={(text) => setCircleDraftMessage(draft.circleId, text)}
+                  onChangeTemplate={() => changeTemplate(draft.circleId)}
+                  onSaveDefault={() => void saveCircleDraftAsDefault(draft.circleId)}
+                />
+              )}
             </View>
           );
-        }
+        })}
 
-        return (
-          <View key={draft.circleId} style={styles.circleSection}>
-            <Text style={styles.sectionLabel}>{draft.circleName}</Text>
+      <PrimaryButton disabled={!canSend} label="Send" onPress={() => void send()} />
 
-            <RecipientPersonalisation
-              recipients={circleRecipients}
-              onToggleIncluded={toggleRecipientIncluded}
-              onSetIndividuallyRemoved={setRecipientIndividuallyRemoved}
-              onSetInstantMessage={setRecipientInstantMessage}
-              onSetRouteToPersonalise={setRecipientRouteToPersonalise}
-            />
-
-            {showChips ? (
-              <View accessibilityRole="radiogroup" style={styles.choices}>
-                {HOLD_INTENTS.map((choice) => (
-                  <ChoiceCard
-                    key={choice.id}
-                    title={choice.title}
-                    description={choice.description}
-                    selected={draft.intent === choice.id}
-                    onPress={() => void chooseIntent(draft.circleId, choice.id)}
-                  />
-                ))}
-              </View>
-            ) : (
-              <GoingQuietMessageBox
-                styles={styles}
-                draft={draft}
-                isSaved={isSaved}
-                onChangeText={(text) => setCircleDraftMessage(draft.circleId, text)}
-                onChangeTemplate={() => changeTemplate(draft.circleId)}
-                onSaveDefault={() => void saveCircleDraftAsDefault(draft.circleId)}
-              />
-            )}
-          </View>
-        );
-      })}
-
-      {sentAt === null ? (
-        <PrimaryButton disabled={!canSend} label="Send" onPress={() => void send()} />
-      ) : (
+      {hasSentAnything ? (
         <>
           <Text style={styles.confirmation}>
             Sent. You've communicated to everyone who needs to know.
@@ -400,7 +525,7 @@ export default function HoldPeopleScreen() {
             </>
           ) : null}
         </>
-      )}
+      ) : null}
     </Screen>
   );
 }
@@ -484,6 +609,14 @@ function createStyles(colors: ThemeColors) {
     choices: {
       gap: theme.spacing.sm
     },
+    chipScroll: {
+      flexGrow: 0
+    },
+    chipRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm
+    },
     messageBlock: {
       gap: theme.spacing.xs
     },
@@ -533,20 +666,6 @@ function createStyles(colors: ThemeColors) {
     sentPillText: {
       color: colors.textMuted,
       fontSize: 14,
-      fontWeight: "600"
-    },
-    circleSentRow: {
-      alignSelf: "flex-start",
-      minHeight: 40,
-      borderRadius: theme.radius.pill,
-      paddingHorizontal: theme.spacing.md,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: colors.surfaceStrong
-    },
-    circleSentRowText: {
-      color: colors.textMuted,
-      fontSize: 15,
       fontWeight: "600"
     },
     confirmation: {
