@@ -233,7 +233,7 @@ export default function CircleIndexScreen() {
       <AdaptiveCircleChip
         key={group.id}
         label={`${group.name} ${selected ? "▲" : "▼"}`}
-        selected={selected}
+        isSelected={selected}
         isPrimary={group.isCloseCircle}
         onPress={() => toggleExpanded(group)}
         accessibilityRole="button"
@@ -265,7 +265,7 @@ export default function CircleIndexScreen() {
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillRow}>
         {groups.length > 0 ? (
-          <AdaptiveCircleChip label="All" selected={allExpanded} onPress={toggleAllExpanded} accessibilityRole="button" />
+          <AdaptiveCircleChip label="All" isSelected={allExpanded} onPress={toggleAllExpanded} accessibilityRole="button" />
         ) : null}
         {otherGroups.map(renderPill)}
       </ScrollView>

@@ -12,7 +12,9 @@ import { useAppTheme } from "@/hooks/useAppTheme";
 
 interface AdaptiveCircleChipProps {
   label: string;
-  selected: boolean;
+  isSelected: boolean;
+  /** Whether a message has already been sent to this Circle/person this session — see the priority order below. */
+  hasSentThisSession?: boolean;
   onPress: () => void;
   /** Close's stronger/primary fill, per the app's Circle-picker convention. */
   isPrimary?: boolean;
@@ -21,55 +23,60 @@ interface AdaptiveCircleChipProps {
   accessibilityRole?: "checkbox" | "button";
   /** Defaults to `label` — set when the visible text ("+") isn't what a screen reader should announce. */
   accessibilityLabel?: string;
-  /** When set, accessibilityState reports {expanded} instead of {checked: selected} — for a toggle-a-panel button like "+ New Circle" rather than a toggle-a-selection chip. */
+  /** When set, accessibilityState reports {expanded} instead of {checked: isSelected} — for a toggle-a-panel button like "+ New Circle" rather than a toggle-a-selection chip. */
   expanded?: boolean;
 }
 
 /**
- * One fixed height for every chip in the row — a flat +4 above the 44pt
- * (iOS) / 48dp (Android) accessibility tap-target floor, for deliberate
- * visual breathing room rather than sitting at the bare minimum. This is
- * NOT a floor with per-label growth (that was the prior, now-removed
- * design) — every chip is exactly this size, full stop, so the row reads
- * as one consistent set of shapes rather than a mix of heights.
+ * One fixed height for every chip in the row — the bare platform
+ * accessibility tap-target floor itself (44pt iOS / 48pt Android), chosen
+ * as the closest legally-compliant value to the original CirclePill's
+ * actual height (38pt, confirmed from git history — below the floor, so
+ * can't be matched exactly). An earlier version used a floor-plus-4pt
+ * "comfortable margin"; reverted after the smaller original read closer
+ * to what this needed to feel like. Every chip is exactly this size, no
+ * per-label height variation — see the shape-decision comment below.
  */
-const STANDARD_CHIP_DIAMETER = Platform.OS === "android" ? 52 : 48;
-const HORIZONTAL_PADDING = theme.spacing.sm;
+const STANDARD_CHIP_DIAMETER = Platform.OS === "android" ? 48 : 44;
+// Kept tight so short labels can still plausibly become circles — this is
+// NOT the same value as a pill's own rendered padding (below), decoupled
+// on purpose: the circle-fit check needs to stay strict, but a pill's
+// actual horizontal padding should read as roomy as the original
+// CirclePill's did (paddingHorizontal: theme.spacing.md).
+const CIRCLE_FIT_PADDING = theme.spacing.sm;
+const PILL_HORIZONTAL_PADDING = theme.spacing.md;
 
 /**
  * The one Circle-chip treatment used everywhere a Circle can be picked.
  *
- * Fixed-height model, replacing an earlier grow-to-fit-per-label design
- * (floor at the accessibility minimum, cap at 1.5x that, natural diameter
- * in between) that produced an inconsistent row — "D" sat at the bare
- * floor, "Close" sat noticeably taller, a pill sat taller still. Every
- * chip is now STANDARD_CHIP_DIAMETER tall, with no exceptions:
- * - If the label's measured text width fits inside STANDARD_CHIP_DIAMETER
- *   (minus horizontal padding on both sides) as a circle, it renders as a
- *   true circle at exactly that fixed size.
- * - Otherwise it renders as a pill at the exact same fixed height —
- *   literally the same circle, stretched wider — with its width growing
- *   to fit the text plus padding, uncapped.
+ * Shape: every chip is STANDARD_CHIP_DIAMETER tall. A true circle at
+ * exactly that diameter if the label's measured text fits inside it
+ * (minus CIRCLE_FIT_PADDING on both sides); otherwise a pill at the same
+ * fixed height, width growing to fit the text plus PILL_HORIZONTAL_PADDING
+ * — the same circle, stretched wider, never a separately-sized shape.
+ * Measured via onTextLayout on the real, always-rendered Text (reports the
+ * glyph run's own width directly, unaffected by container sizing), which
+ * naturally re-fires on any relayout including a live Dynamic Type change.
  *
- * Text is measured via onTextLayout on the real, always-rendered Text
- * (reports the glyph run's own width directly, unaffected by container
- * sizing — see docs/09-decision-log.md, 2026-08-10, for why an earlier
- * invisible-measuring-Text approach measured wrong). It naturally re-fires
- * on any relayout, including a live Dynamic Type / accessibility
- * text-size change, so width — both the fits-as-circle decision and a
- * pill's actual rendered width — stays correct at any font size with no
- * separate font-scale listener needed.
+ * State: two independent flags, not one. `isSelected` — part of the
+ * current compose action. `hasSentThisSession` — already sent to this
+ * session, independent of current selection. Priority, in order:
+ * isSelected (ring + normal fill, regardless of hasSentThisSession) →
+ * hasSentThisSession (softened/desaturated fill, no ring) → default fill.
+ * This is what makes "reselect an already-sent chip, then deselect without
+ * sending" correctly land back on the sent look rather than default —
+ * hasSentThisSession is never touched by a selection toggle, only by an
+ * actual send.
  *
- * Height does NOT vary with font size, per direct instruction ("no
- * exceptions, no per-label height variation"). At very large accessibility
- * text sizes this means a label's rendered line height could exceed the
- * fixed chip height — numberOfLines={1} means it would clip rather than
- * wrap or grow the box. Flagged as an accepted trade-off of this
- * simplification, not silently worked around.
+ * Press feedback: a uniform opacity dim on every chip, applied here once
+ * rather than patched per call site (a real gap in an earlier pass — the
+ * old hand-styled "+" button had its own press effect that got silently
+ * dropped when it moved onto this shared component without one).
  */
 export function AdaptiveCircleChip({
   label,
-  selected,
+  isSelected,
+  hasSentThisSession = false,
   onPress,
   isPrimary = false,
   outline = false,
@@ -88,7 +95,7 @@ export function AdaptiveCircleChip({
     setMeasuredWidth(line.width);
   };
 
-  const availableCircleWidth = STANDARD_CHIP_DIAMETER - HORIZONTAL_PADDING * 2;
+  const availableCircleWidth = STANDARD_CHIP_DIAMETER - CIRCLE_FIT_PADDING * 2;
   const fitsAsCircle = measuredWidth !== null && measuredWidth <= availableCircleWidth;
 
   const shapeStyle = fitsAsCircle
@@ -101,23 +108,41 @@ export function AdaptiveCircleChip({
         minWidth: STANDARD_CHIP_DIAMETER,
         height: STANDARD_CHIP_DIAMETER,
         borderRadius: STANDARD_CHIP_DIAMETER / 2,
-        paddingHorizontal: HORIZONTAL_PADDING
+        paddingHorizontal: PILL_HORIZONTAL_PADDING
       };
 
-  const variantStyle = outline ? styles.chipOutline : isPrimary ? styles.chipPrimary : styles.chipSecondary;
-  const labelVariantStyle = outline
-    ? styles.labelTextOutline
-    : isPrimary
-      ? styles.labelTextPrimary
-      : styles.labelTextSecondary;
+  // Sent look only shows when not currently selected — isSelected always
+  // wins, per the priority order above.
+  const showSentFill = !isSelected && hasSentThisSession;
+
+  const variantStyle = showSentFill
+    ? styles.chipSent
+    : outline
+      ? styles.chipOutline
+      : isPrimary
+        ? styles.chipPrimary
+        : styles.chipSecondary;
+  const labelVariantStyle = showSentFill
+    ? styles.labelTextSent
+    : outline
+      ? styles.labelTextOutline
+      : isPrimary
+        ? styles.labelTextPrimary
+        : styles.labelTextSecondary;
 
   return (
     <Pressable
       accessibilityRole={accessibilityRole}
       accessibilityLabel={accessibilityLabel ?? label}
-      accessibilityState={expanded !== undefined ? { expanded } : { checked: selected }}
+      accessibilityState={expanded !== undefined ? { expanded } : { checked: isSelected }}
       onPress={onPress}
-      style={[styles.chip, shapeStyle, variantStyle, !outline && selected && styles.chipSelected]}
+      style={({ pressed }) => [
+        styles.chip,
+        shapeStyle,
+        variantStyle,
+        isSelected && !outline && styles.chipSelected,
+        pressed && styles.chipPressed
+      ]}
     >
       <Text numberOfLines={1} onTextLayout={onTextLayout} style={[styles.labelText, labelVariantStyle]}>
         {label}
@@ -145,9 +170,17 @@ function createStyles(colors: ThemeColors) {
       borderWidth: 1.5,
       borderColor: colors.primary
     },
+    // Matches reconnect.tsx/update.tsx's existing sent-chip convention —
+    // softened/desaturated fill, muted text, no selection ring.
+    chipSent: {
+      backgroundColor: colors.surfaceStrong
+    },
     chipSelected: {
       borderWidth: 2,
       borderColor: colors.text
+    },
+    chipPressed: {
+      opacity: 0.7
     },
     labelText: {
       fontSize: 14,
@@ -161,6 +194,9 @@ function createStyles(colors: ThemeColors) {
     },
     labelTextOutline: {
       color: colors.primary
+    },
+    labelTextSent: {
+      color: colors.textMuted
     }
   });
 }

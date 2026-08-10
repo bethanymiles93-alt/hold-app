@@ -109,7 +109,7 @@ export function GroupPicker({ selectedGroupIds, onToggle, onPendingContact }: Gr
     <View style={styles.container}>
       <View style={styles.pinnedRow}>
         {groups.length > 0 ? (
-          <AdaptiveCircleChip label="All" selected={allSelected} onPress={() => void toggleAll()} />
+          <AdaptiveCircleChip label="All" isSelected={allSelected} onPress={() => void toggleAll()} />
         ) : null}
         <AdaptiveCircleChip
           label="+"
@@ -117,7 +117,7 @@ export function GroupPicker({ selectedGroupIds, onToggle, onPendingContact }: Gr
           accessibilityRole="button"
           expanded={creating}
           outline
-          selected={false}
+          isSelected={false}
           onPress={() => setCreating((current) => !current)}
         />
         <ScrollView
@@ -130,7 +130,7 @@ export function GroupPicker({ selectedGroupIds, onToggle, onPendingContact }: Gr
             <AdaptiveCircleChip
               key={group.id}
               label={group.name}
-              selected={selectedGroupIds.includes(group.id)}
+              isSelected={selectedGroupIds.includes(group.id)}
               isPrimary={group.isCloseCircle}
               onPress={() => void onToggle(group)}
             />

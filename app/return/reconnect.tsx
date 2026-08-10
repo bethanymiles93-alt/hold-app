@@ -7,6 +7,7 @@ import { PrimaryButton } from "@/components/PrimaryButton";
 import { SecondaryButton } from "@/components/SecondaryButton";
 import { AmendWithAI } from "@/components/AmendWithAI";
 import { MemoryNoteSuggestion } from "@/components/MemoryNoteSuggestion";
+import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { QUICK_RECONNECT_MESSAGES } from "@/constants/copy";
@@ -189,70 +190,52 @@ export default function ReconnectScreen() {
           </Text>
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ selected: allSelected }}
+            <AdaptiveCircleChip
+              label="All"
+              isSelected={allSelected}
               onPress={toggleAll}
-              style={[styles.chip, allSelected && styles.chipSelected]}
-            >
-              <Text style={[styles.chipText, allSelected && styles.chipTextSelected]}>All</Text>
-            </Pressable>
+              accessibilityRole="button"
+            />
 
             {circlePills.map((circle) => {
-              const selected = selectedIds.has(circle.circleId);
-              const contacted = !selected && coverage.contactedIds.includes(circle.circleId);
+              const isSelected = selectedIds.has(circle.circleId);
+              const hasSentThisSession = coverage.contactedIds.includes(circle.circleId);
+              const sentLook = hasSentThisSession && !isSelected;
 
-              return contacted ? (
-                <Pressable
+              return (
+                <AdaptiveCircleChip
                   key={circle.circleId}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${circle.circleName}, already reached. Tap to send another message.`}
+                  label={sentLook ? `✓ ${circle.circleName}` : circle.circleName}
+                  isSelected={isSelected}
+                  hasSentThisSession={hasSentThisSession}
                   onPress={() => toggleId(circle.circleId)}
-                  style={styles.chipSent}
-                >
-                  <Text style={styles.chipSentText}>✓ {circle.circleName}</Text>
-                </Pressable>
-              ) : (
-                <Pressable
-                  key={circle.circleId}
                   accessibilityRole="button"
-                  accessibilityState={{ selected }}
-                  onPress={() => toggleId(circle.circleId)}
-                  style={[styles.chip, selected && styles.chipSelected]}
-                >
-                  <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
-                    {circle.circleName}
-                  </Text>
-                </Pressable>
+                  accessibilityLabel={
+                    sentLook
+                      ? `${circle.circleName}, already reached. Tap to send another message.`
+                      : circle.circleName
+                  }
+                />
               );
             })}
 
             {ungroupedPills.map((contact) => {
-              const selected = selectedIds.has(contact.phoneNumber);
-              const contacted = !selected && coverage.contactedIds.includes(contact.phoneNumber);
+              const isSelected = selectedIds.has(contact.phoneNumber);
+              const hasSentThisSession = coverage.contactedIds.includes(contact.phoneNumber);
+              const sentLook = hasSentThisSession && !isSelected;
 
-              return contacted ? (
-                <Pressable
+              return (
+                <AdaptiveCircleChip
                   key={contact.phoneNumber}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${contact.name}, already reached. Tap to send another message.`}
+                  label={sentLook ? `✓ ${contact.name}` : contact.name}
+                  isSelected={isSelected}
+                  hasSentThisSession={hasSentThisSession}
                   onPress={() => toggleId(contact.phoneNumber)}
-                  style={styles.chipSent}
-                >
-                  <Text style={styles.chipSentText}>✓ {contact.name}</Text>
-                </Pressable>
-              ) : (
-                <Pressable
-                  key={contact.phoneNumber}
                   accessibilityRole="button"
-                  accessibilityState={{ selected }}
-                  onPress={() => toggleId(contact.phoneNumber)}
-                  style={[styles.chip, selected && styles.chipSelected]}
-                >
-                  <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
-                    {contact.name}
-                  </Text>
-                </Pressable>
+                  accessibilityLabel={
+                    sentLook ? `${contact.name}, already reached. Tap to send another message.` : contact.name
+                  }
+                />
               );
             })}
           </ScrollView>
@@ -357,40 +340,6 @@ function createStyles(colors: ThemeColors) {
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.sm
-    },
-    chip: {
-      minHeight: 36,
-      borderRadius: theme.radius.pill,
-      borderWidth: 1.5,
-      borderColor: colors.border,
-      paddingHorizontal: theme.spacing.md,
-      alignItems: "center",
-      justifyContent: "center"
-    },
-    chipSelected: {
-      backgroundColor: colors.primary,
-      borderColor: colors.primary
-    },
-    chipText: {
-      color: colors.text,
-      fontSize: 14,
-      fontWeight: "600"
-    },
-    chipTextSelected: {
-      color: colors.onPrimary
-    },
-    chipSent: {
-      minHeight: 36,
-      borderRadius: theme.radius.pill,
-      paddingHorizontal: theme.spacing.md,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: colors.surfaceStrong
-    },
-    chipSentText: {
-      color: colors.textMuted,
-      fontSize: 14,
-      fontWeight: "600"
     },
     input: {
       minHeight: 100,
