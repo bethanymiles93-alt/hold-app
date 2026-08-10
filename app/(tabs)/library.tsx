@@ -7,6 +7,7 @@ import { PrimaryButton } from "@/components/PrimaryButton";
 import { SecondaryButton } from "@/components/SecondaryButton";
 import { AmendWithAI } from "@/components/AmendWithAI";
 import { SelectionCircle } from "@/components/SelectionCircle";
+import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
 import { SafeguardingBanner } from "@/components/SafeguardingBanner";
 import { useSafeguardingCheck } from "@/hooks/useSafeguardingCheck";
 import { theme, type ThemeColors } from "@/constants/theme";
@@ -558,43 +559,46 @@ export default function LibraryScreen() {
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
         {allIds.length > 0 ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ selected: allSelected }}
-            onPress={toggleAll}
-            style={[styles.chip, allSelected && styles.chipSelected]}
-          >
-            <Text style={[styles.chipText, allSelected && styles.chipTextSelected]}>All</Text>
-          </Pressable>
+          <AdaptiveCircleChip label="All" isSelected={allSelected} onPress={toggleAll} accessibilityRole="button" />
         ) : null}
         {circleSections.map((section) => {
-          const selected = selectedIds.has(section.circleId);
+          const isSelected = selectedIds.has(section.circleId);
+          // Derived from existing durable per-person state (ConversationPerson.completed,
+          // set by markQuickSent), not a new persisted flag — every included person in this
+          // Circle already being marked complete is exactly "already sent this session."
+          const hasSentThisSession = section.people.length > 0 && section.people.every((person) => person.completed);
+          const sentLook = hasSentThisSession && !isSelected;
+
           return (
-            <Pressable
+            <AdaptiveCircleChip
               key={section.circleId}
-              accessibilityRole="button"
-              accessibilityState={{ selected }}
+              label={sentLook ? `✓ ${section.circleName}` : section.circleName}
+              isSelected={isSelected}
+              hasSentThisSession={hasSentThisSession}
               onPress={() => toggleId(section.circleId)}
-              style={[styles.chip, selected && styles.chipSelected]}
-            >
-              <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
-                {section.circleName}
-              </Text>
-            </Pressable>
+              accessibilityRole="button"
+              accessibilityLabel={
+                sentLook
+                  ? `${section.circleName}, already sent. Tap to send another message.`
+                  : section.circleName
+              }
+            />
           );
         })}
         {ungroupedPeople.map((person) => {
-          const selected = selectedIds.has(person.id);
+          const isSelected = selectedIds.has(person.id);
+          const sentLook = person.completed && !isSelected;
+
           return (
-            <Pressable
+            <AdaptiveCircleChip
               key={person.id}
-              accessibilityRole="button"
-              accessibilityState={{ selected }}
+              label={sentLook ? `✓ ${person.name}` : person.name}
+              isSelected={isSelected}
+              hasSentThisSession={person.completed}
               onPress={() => toggleId(person.id)}
-              style={[styles.chip, selected && styles.chipSelected]}
-            >
-              <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{person.name}</Text>
-            </Pressable>
+              accessibilityRole="button"
+              accessibilityLabel={sentLook ? `${person.name}, already sent. Tap to send another message.` : person.name}
+            />
           );
         })}
       </ScrollView>
@@ -930,27 +934,6 @@ function createStyles(colors: ThemeColors) {
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing.sm
-  },
-  chip: {
-    minHeight: 36,
-    borderRadius: theme.radius.pill,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    paddingHorizontal: theme.spacing.md,
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  chipSelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary
-  },
-  chipText: {
-    color: colors.text,
-    fontSize: 14,
-    fontWeight: "600"
-  },
-  chipTextSelected: {
-    color: colors.onPrimary
   },
   cardList: {
     gap: theme.spacing.lg

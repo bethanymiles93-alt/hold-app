@@ -1,21 +1,24 @@
-import { useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { router } from "expo-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { router, useFocusEffect } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { AmendWithAI } from "@/components/AmendWithAI";
+import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
 import { MemoryNoteSuggestion } from "@/components/MemoryNoteSuggestion";
 import { DEFAULT_TAKING_TIME_UPDATE } from "@/constants/copy";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { useHoldFlow } from "@/context/HoldFlowContext";
+import { getOpenHoldPeriod, markUpdateSent } from "@/services/holdHistoryService";
 import { sendOrShare } from "@/services/smsService";
+import type { HoldPeriod } from "@/types/hold";
 
 const CONFIRMATION_DISMISS_MS = 1800;
 
 export default function TakingTimeUpdateScreen() {
-  const { audienceCircles, audienceUngrouped, updatedCircleIds, markCircleUpdated } = useHoldFlow();
+  const { audienceCircles, audienceUngrouped } = useHoldFlow();
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -25,6 +28,22 @@ export default function TakingTimeUpdateScreen() {
   const [message, setMessage] = useState(DEFAULT_TAKING_TIME_UPDATE);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [suggestedPrompt, setSuggestedPrompt] = useState<string | undefined>(undefined);
+  // Durable, on the still-open Hold period — see holdHistoryService.ts's
+  // markUpdateSent — so this survives a force-quit the same way Reconnect's
+  // reconnectContactedIds already did, rather than living only in
+  // HoldFlowContext (in-memory, lost on relaunch).
+  const [period, setPeriod] = useState<HoldPeriod | null>(null);
+  const sentCircleIds = period?.updateSentCircleIds ?? [];
+
+  const refreshPeriod = useCallback(async () => {
+    setPeriod(await getOpenHoldPeriod());
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void refreshPeriod();
+    }, [refreshPeriod])
+  );
 
   useEffect(() => {
     if (!showConfirmation) return;
@@ -71,7 +90,7 @@ export default function TakingTimeUpdateScreen() {
     }
 
     for (const circleId of selectedCircleIds) {
-      markCircleUpdated(circleId);
+      await markUpdateSent(circleId);
     }
 
     setSelectedCircleIds(new Set());
@@ -96,44 +115,26 @@ export default function TakingTimeUpdateScreen() {
         <MemoryNoteSuggestion onUseIt={setSuggestedPrompt} />
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ selected: allSelected }}
-            onPress={selectAll}
-            style={[styles.chip, allSelected && styles.chipSelected]}
-          >
-            <Text style={[styles.chipText, allSelected && styles.chipTextSelected]}>All</Text>
-          </Pressable>
+          <AdaptiveCircleChip label="All" isSelected={allSelected} onPress={selectAll} accessibilityRole="button" />
           {audienceCircles.map((circle) => {
-            const selected = selectedCircleIds.has(circle.circleId);
-            const sent = !selected && updatedCircleIds.includes(circle.circleId);
-
-            if (sent) {
-              return (
-                <Pressable
-                  key={circle.circleId}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${circle.circleName}, already updated. Tap to send another update.`}
-                  onPress={() => toggleCircle(circle.circleId)}
-                  style={styles.chipSent}
-                >
-                  <Text style={styles.chipSentText}>✓ {circle.circleName}</Text>
-                </Pressable>
-              );
-            }
+            const isSelected = selectedCircleIds.has(circle.circleId);
+            const hasSentThisSession = sentCircleIds.includes(circle.circleId);
+            const sentLook = hasSentThisSession && !isSelected;
 
             return (
-              <Pressable
+              <AdaptiveCircleChip
                 key={circle.circleId}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
+                label={sentLook ? `✓ ${circle.circleName}` : circle.circleName}
+                isSelected={isSelected}
+                hasSentThisSession={hasSentThisSession}
                 onPress={() => toggleCircle(circle.circleId)}
-                style={[styles.chip, selected && styles.chipSelected]}
-              >
-                <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
-                  {circle.circleName}
-                </Text>
-              </Pressable>
+                accessibilityRole="button"
+                accessibilityLabel={
+                  sentLook
+                    ? `${circle.circleName}, already updated. Tap to send another update.`
+                    : circle.circleName
+                }
+              />
             );
           })}
         </ScrollView>
@@ -177,40 +178,6 @@ function createStyles(colors: ThemeColors) {
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.sm
-    },
-    chip: {
-      minHeight: 36,
-      borderRadius: theme.radius.pill,
-      borderWidth: 1.5,
-      borderColor: colors.border,
-      paddingHorizontal: theme.spacing.md,
-      alignItems: "center",
-      justifyContent: "center"
-    },
-    chipSelected: {
-      backgroundColor: colors.primary,
-      borderColor: colors.primary
-    },
-    chipText: {
-      color: colors.text,
-      fontSize: 14,
-      fontWeight: "600"
-    },
-    chipTextSelected: {
-      color: colors.onPrimary
-    },
-    chipSent: {
-      minHeight: 36,
-      borderRadius: theme.radius.pill,
-      paddingHorizontal: theme.spacing.md,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: colors.surfaceStrong
-    },
-    chipSentText: {
-      color: colors.textMuted,
-      fontSize: 14,
-      fontWeight: "600"
     },
     input: {
       minHeight: 100,

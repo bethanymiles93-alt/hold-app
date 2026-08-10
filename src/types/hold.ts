@@ -63,8 +63,6 @@ export interface HoldFlowState {
   reconnectPeriodId: string | null;
   goingQuietRecipients: GoingQuietRecipient[];
   circleDrafts: GoingQuietCircleDraft[];
-  /** Circle ids already sent a Taking Time update this period — resets whenever resetFlow runs. */
-  updatedCircleIds: string[];
 }
 
 export interface DraftRequest {
@@ -97,6 +95,8 @@ export interface HoldPeriod {
   widerWorldStatusEnabled?: boolean;
   /** Circle ids and ungrouped phone numbers already sent an instant message this Reconnect session — see docs/03-privacy-model.md. */
   reconnectContactedIds?: string[];
+  /** Circle ids already sent a Taking Time "update" this Hold period — durable equivalent of Reconnect's reconnectContactedIds, scoped to the still-open period rather than a separate marker. */
+  updateSentCircleIds?: string[];
   /**
    * How each Circle's/ungrouped contact's message actually went out — process
    * metadata only, never message content. Key: Circle id or phone number,

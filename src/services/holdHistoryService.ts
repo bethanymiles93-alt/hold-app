@@ -195,6 +195,26 @@ export async function getReconnectingPeriod(): Promise<HoldPeriod | null> {
   return readRecord(periodId);
 }
 
+/**
+ * Appends a Circle id to the currently-open period's "already sent a Taking
+ * Time update" list — idempotent, no-ops if there's no open period. Reads
+ * OPEN_KEY directly rather than taking a periodId, matching
+ * recordPostSendChoices's pattern: this always operates on whichever period
+ * is currently open, not a captured id from an earlier point.
+ */
+export async function markUpdateSent(circleId: string): Promise<void> {
+  const openId = await SecureStore.getItemAsync(OPEN_KEY);
+  if (!openId) return;
+
+  const period = await readRecord(openId);
+  if (!period) return;
+
+  const existing = period.updateSentCircleIds ?? [];
+  if (existing.includes(circleId)) return;
+
+  await writeRecord({ ...period, updateSentCircleIds: [...existing, circleId] });
+}
+
 /** Appends a Circle id or ungrouped phone number to the period's contacted list — idempotent. */
 export async function markReconnectContacted(periodId: string, contactedId: string): Promise<void> {
   const period = await readRecord(periodId);
