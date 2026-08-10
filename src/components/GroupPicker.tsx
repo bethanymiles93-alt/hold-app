@@ -3,12 +3,12 @@ import { Link, useFocusEffect } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
-import { CirclePill } from "@/components/CirclePill";
+import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
 import { getGroups } from "@/services/circleService";
 import { pickContact, type PickedContact } from "@/services/contactPickerService";
 import type { CircleGroup } from "@/types/hold";
 
-const SUGGESTED_CIRCLES = ["Work", "Book Club"];
+const SUGGESTED_CIRCLES = ["Friends", "Work", "Book Club"];
 
 export interface PendingNewCircle {
   /** Local-only id, used to key this session's flow state — never a real circleService id. */
@@ -109,7 +109,7 @@ export function GroupPicker({ selectedGroupIds, onToggle, onPendingContact }: Gr
     <View style={styles.container}>
       <View style={styles.pinnedRow}>
         {groups.length > 0 ? (
-          <CirclePill label="All" selected={allSelected} onPress={() => void toggleAll()} />
+          <AdaptiveCircleChip label="All" selected={allSelected} onPress={() => void toggleAll()} />
         ) : null}
         <Pressable
           accessibilityRole="button"
@@ -126,7 +126,7 @@ export function GroupPicker({ selectedGroupIds, onToggle, onPendingContact }: Gr
           style={styles.pillScroll}
         >
           {groups.map((group) => (
-            <CirclePill
+            <AdaptiveCircleChip
               key={group.id}
               label={group.name}
               selected={selectedGroupIds.includes(group.id)}

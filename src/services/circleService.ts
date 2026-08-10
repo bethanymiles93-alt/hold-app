@@ -4,7 +4,9 @@ import type { CircleGroup } from "@/types/hold";
 const INDEX_KEY = "hold.circle.index";
 const GROUP_PREFIX = "hold.circle.group.";
 const CLOSE_CIRCLE_ID = "close-circle";
-const CLOSE_CIRCLE_NAME = "Close Circle";
+const CLOSE_CIRCLE_NAME = "Close";
+/** Pre-rename default, kept only to migrate already-persisted installs — see ensureCloseCircle(). */
+const LEGACY_CLOSE_CIRCLE_NAME = "Close Circle";
 
 function groupKey(id: string): string {
   return `${GROUP_PREFIX}${id}`;
@@ -39,7 +41,18 @@ async function writeGroup(group: CircleGroup): Promise<void> {
 
 async function ensureCloseCircle(): Promise<CircleGroup> {
   const existing = await readGroup(CLOSE_CIRCLE_ID);
-  if (existing) return existing;
+  if (existing) {
+    // One-time migration for installs that already created Close Circle
+    // under its old name — the name itself was never user-editable, so
+    // this is safe to correct unconditionally rather than leaving already-
+    // persisted installs stuck on the pre-rename string forever.
+    if (existing.name === LEGACY_CLOSE_CIRCLE_NAME) {
+      const renamed = { ...existing, name: CLOSE_CIRCLE_NAME };
+      await writeGroup(renamed);
+      return renamed;
+    }
+    return existing;
+  }
 
   const closeCircle: CircleGroup = {
     id: CLOSE_CIRCLE_ID,

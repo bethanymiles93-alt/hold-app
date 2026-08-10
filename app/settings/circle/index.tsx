@@ -5,7 +5,7 @@ import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { SelectionCircle } from "@/components/SelectionCircle";
-import { CirclePill } from "@/components/CirclePill";
+import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
 import { HeaderAddButton } from "@/components/HeaderAddButton";
 import { HeaderSettingsButton } from "@/components/HeaderSettingsButton";
 import { theme, type ThemeColors } from "@/constants/theme";
@@ -220,27 +220,47 @@ export default function CircleIndexScreen() {
     await refresh();
   };
 
+  // Purely organisational/display grouping — does not merge Close and
+  // Friends' data, membership, or templates. Close always exists
+  // (ensureCloseCircle), so this heading always has at least one Circle
+  // under it; Friends joins it only if the user has actually created one.
+  const coreGroups = groups.filter((group) => group.isCloseCircle || group.name === "Friends");
+  const otherGroups = groups.filter((group) => !group.isCloseCircle && group.name !== "Friends");
+
+  const renderPill = (group: CircleGroup) => {
+    const selected = expandedIds.has(group.id);
+    return (
+      <AdaptiveCircleChip
+        key={group.id}
+        label={`${group.name} ${selected ? "▲" : "▼"}`}
+        selected={selected}
+        isPrimary={group.isCloseCircle}
+        onPress={() => toggleExpanded(group)}
+        accessibilityRole="button"
+      />
+    );
+  };
+
   return (
     <Screen contentContainerStyle={styles.content}>
       <StepHeader body="Create and amend your circles." />
 
+      {coreGroups.length > 0 ? (
+        <View style={styles.coreSection}>
+          <Text style={styles.coreSectionHeading}>Core</Text>
+          <Text style={styles.coreSectionCopy}>
+            Your closest few, and the close friends around them, tend to form one connected group
+            in how relationships naturally work.
+          </Text>
+          <View style={styles.corePillRow}>{coreGroups.map(renderPill)}</View>
+        </View>
+      ) : null}
+
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillRow}>
         {groups.length > 0 ? (
-          <CirclePill label="All" selected={allExpanded} onPress={toggleAllExpanded} accessibilityRole="button" />
+          <AdaptiveCircleChip label="All" selected={allExpanded} onPress={toggleAllExpanded} accessibilityRole="button" />
         ) : null}
-        {groups.map((group) => {
-          const selected = expandedIds.has(group.id);
-          return (
-            <CirclePill
-              key={group.id}
-              label={`${group.name} ${selected ? "▲" : "▼"}`}
-              selected={selected}
-              isPrimary={group.isCloseCircle}
-              onPress={() => toggleExpanded(group)}
-              accessibilityRole="button"
-            />
-          );
-        })}
+        {otherGroups.map(renderPill)}
       </ScrollView>
 
       {creatingStage === "naming" ? (
@@ -373,6 +393,27 @@ function createStyles(colors: ThemeColors) {
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing.sm
+  },
+  coreSection: {
+    gap: theme.spacing.xs
+  },
+  coreSectionHeading: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+    textTransform: "uppercase"
+  },
+  coreSectionCopy: {
+    color: colors.textMuted,
+    fontSize: 13,
+    lineHeight: 18
+  },
+  corePillRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.sm,
+    flexWrap: "wrap"
   },
   cardList: {
     gap: theme.spacing.lg
