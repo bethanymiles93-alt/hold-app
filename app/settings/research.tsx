@@ -28,6 +28,10 @@ const RESEARCH_SECTIONS = [
   {
     title: "The guilt spiral, and how Hold speaks",
     body: "Hold looked to the lived experience of people who deal with the guilt spiral in chronic illness and reduced capacity when deciding how it speaks: gentle, short, genuine statements that validate rather than lengthy reassurance; permission without pressure or commentary; never praising a basic act of communication, which reframes it as an achievement and adds pressure; and never naming or narrating a person's psychology back to them, which reads as clinical rather than caring. This is the research behind the voice used throughout Hold."
+  },
+  {
+    title: "Why \"Core\" groups Close and Friends together",
+    body: "Dunbar's layered model of personal relationships describes an innermost \"support clique\" of roughly five closest attachment figures, and a wider \"sympathy group\" of around fifteen close friends just beyond it — together forming the core layer of someone's personal network, before the much larger, looser circles further out. Your Circles' \"Core\" heading reflects that same natural clustering: your closest few, and the close friends around them, tend to function as one connected group rather than two separate tiers."
   }
 ];
 

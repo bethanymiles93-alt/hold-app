@@ -1,6 +1,6 @@
 import { useCallback, useLayoutEffect, useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { useFocusEffect, useNavigation } from "expo-router";
+import { router, useFocusEffect, useNavigation } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
 import { PrimaryButton } from "@/components/PrimaryButton";
@@ -252,6 +252,13 @@ export default function CircleIndexScreen() {
             Your closest few, and the close friends around them, tend to form one connected group
             in how relationships naturally work.
           </Text>
+          <Pressable
+            accessibilityRole="link"
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            onPress={() => router.push("/settings/research")}
+          >
+            <Text style={styles.coreSectionSource}>Where this comes from</Text>
+          </Pressable>
           <View style={styles.corePillRow}>{coreGroups.map(renderPill)}</View>
         </View>
       ) : null}
@@ -408,6 +415,15 @@ function createStyles(colors: ThemeColors) {
     color: colors.textMuted,
     fontSize: 13,
     lineHeight: 18
+  },
+  // Small and muted, deliberately not styled like a normal in-flow link or
+  // an academic footnote number — a quiet pointer to the reasoning behind
+  // the copy above, not a call to action.
+  coreSectionSource: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontStyle: "italic",
+    minHeight: 20
   },
   corePillRow: {
     flexDirection: "row",
