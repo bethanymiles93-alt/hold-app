@@ -21,18 +21,13 @@ import { useAppTheme } from "@/hooks/useAppTheme";
 import { useHoldFlow } from "@/context/HoldFlowContext";
 import {
   addToAudience,
-  beginReconnecting,
   endOpenHoldPeriod,
   endReconnecting,
   getOpenHoldPeriod,
   getReconnectCoverage,
   getReconnectingPeriod
 } from "@/services/holdHistoryService";
-import {
-  completeAll,
-  getProgress as getConversationProgress,
-  seedFromAudience
-} from "@/services/conversationService";
+import { completeAll, getProgress as getConversationProgress } from "@/services/conversationService";
 import { formatShortDate, isSameCalendarDay } from "@/services/holdHistoryFormat";
 import { pickContact } from "@/services/contactPickerService";
 import { sendOrShare } from "@/services/smsService";
@@ -188,14 +183,18 @@ export default function HomeScreen() {
   const beginReconnect = async () => {
     const circles = openPeriod?.audienceCircles ?? [];
     const ungrouped = openPeriod?.audienceUngrouped ?? [];
+    const periodId = openPeriod?.id ?? null;
 
-    if (openPeriod) {
-      await beginReconnecting(openPeriod.id);
-    }
     await endOpenHoldPeriod();
-    await seedFromAudience(circles, ungrouped);
     resetFlow("return");
-    setAudience(circles, ungrouped);
+    // Neither the durable RECONNECTING_KEY marker nor Conversations seeding
+    // happens here — both are deferred to the first genuine send, inside
+    // reconnect.tsx's send(). Doing either on tap meant backing out before
+    // ever sending still left Home showing "Continue reconnecting" or
+    // "Finish Reconnecting" on the next open, for a Reconnect nothing had
+    // actually happened in. periodId travels via context so Reconnect can
+    // still source its audience immediately, without needing either.
+    setAudience(circles, ungrouped, periodId);
     router.push("/return/transition");
   };
 

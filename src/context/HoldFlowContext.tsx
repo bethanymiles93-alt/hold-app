@@ -31,7 +31,7 @@ interface HoldFlowContextValue extends HoldFlowState {
   applyGeneratedTemplate: (circleId: string, text: string) => Promise<void>;
   saveCircleDraftAsDefault: (circleId: string) => Promise<void>;
   setReturnStyle: (style: ReturnStyle) => void;
-  setAudience: (circles: AudienceCircle[], ungrouped: AudienceContact[]) => void;
+  setAudience: (circles: AudienceCircle[], ungrouped: AudienceContact[], periodId: string | null) => void;
   markCircleUpdated: (circleId: string) => void;
   resetFlow: (mode: FlowMode) => void;
 }
@@ -43,6 +43,7 @@ const initialState: HoldFlowState = {
   returnStyle: null,
   audienceCircles: [],
   audienceUngrouped: [],
+  reconnectPeriodId: null,
   goingQuietRecipients: [],
   circleDrafts: [],
   updatedCircleIds: []
@@ -241,8 +242,8 @@ export function HoldFlowProvider({ children }: PropsWithChildren) {
       },
       setReturnStyle: (returnStyle) =>
         setState((current) => ({ ...current, returnStyle })),
-      setAudience: (audienceCircles, audienceUngrouped) =>
-        setState((current) => ({ ...current, audienceCircles, audienceUngrouped })),
+      setAudience: (audienceCircles, audienceUngrouped, reconnectPeriodId) =>
+        setState((current) => ({ ...current, audienceCircles, audienceUngrouped, reconnectPeriodId })),
       markCircleUpdated: (circleId) =>
         setState((current) =>
           current.updatedCircleIds.includes(circleId)

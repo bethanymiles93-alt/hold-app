@@ -59,6 +59,8 @@ export interface HoldFlowState {
   returnStyle: ReturnStyle | null;
   audienceCircles: AudienceCircle[];
   audienceUngrouped: AudienceContact[];
+  /** The Hold period Reconnect is targeting, known immediately on entry — separate from the durable RECONNECTING_KEY marker, which is only set at the first genuine send. */
+  reconnectPeriodId: string | null;
   goingQuietRecipients: GoingQuietRecipient[];
   circleDrafts: GoingQuietCircleDraft[];
   /** Circle ids already sent a Taking Time update this period — resets whenever resetFlow runs. */

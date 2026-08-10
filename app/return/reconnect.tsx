@@ -10,13 +10,20 @@ import { MemoryNoteSuggestion } from "@/components/MemoryNoteSuggestion";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { QUICK_RECONNECT_MESSAGES } from "@/constants/copy";
+import { useHoldFlow } from "@/context/HoldFlowContext";
 import {
+  beginReconnecting,
+  getHoldPeriodById,
   getReconnectCoverage,
   getReconnectingPeriod,
   markReconnectContacted,
   recordSendChannel
 } from "@/services/holdHistoryService";
-import { getAll as getAllConversationPeople, markContacted } from "@/services/conversationService";
+import {
+  getAll as getAllConversationPeople,
+  markContacted,
+  seedFromAudience
+} from "@/services/conversationService";
 import { deactivateOutOfOffice } from "@/services/emailAccountService";
 import { channelKey, sendOrShare } from "@/services/smsService";
 import { clearDraft, getDraft, saveDraft } from "@/services/messageDraftService";
@@ -27,6 +34,7 @@ const RECONNECT_DRAFT_KEY = "reconnect";
 export default function ReconnectScreen() {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const { reconnectPeriodId } = useHoldFlow();
 
   const [period, setPeriod] = useState<HoldPeriod | null>(null);
   const [message, setMessage] = useState(QUICK_RECONNECT_MESSAGES[0]?.text ?? "");
@@ -37,14 +45,20 @@ export default function ReconnectScreen() {
   const [oooExpanded, setOooExpanded] = useState(false);
 
   const refresh = useCallback(async () => {
-    const current = await getReconnectingPeriod();
+    // Prefer the durable marker (force-quit-resume, or any visit after the first
+    // genuine send). Before that marker exists — the very first visit this
+    // session, or a resumed visit after backing out earlier without sending —
+    // fall back to reading the period directly by the id context carried here
+    // from Home, so the picker still has data with nothing durable written yet.
+    const durable = await getReconnectingPeriod();
+    const current = durable ?? (reconnectPeriodId ? await getHoldPeriodById(reconnectPeriodId) : null);
     setPeriod(current);
 
     if (current) {
       const coverage = getReconnectCoverage(current);
       setSelectedIds(new Set(coverage.totalIds.filter((id) => !coverage.contactedIds.includes(id))));
     }
-  }, []);
+  }, [reconnectPeriodId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -107,6 +121,17 @@ export default function ReconnectScreen() {
     } catch {
       // The compose sheet closing is the only signal available either way.
     }
+
+    // Both the durable reconnecting marker and Conversations seeding only
+    // happen here, at the first genuine send — never on entering the flow —
+    // so backing out beforehand never leaves Home wrongly showing "Continue
+    // reconnecting" or "Finish Reconnecting" for a Reconnect that was never
+    // actually acted on. Both are idempotent, so repeat sends are harmless;
+    // seeding uses the period's full audience, not just this send's
+    // selection, so anyone not yet individually messaged still shows up in
+    // Conversations once the coverage gate is eventually satisfied.
+    await beginReconnecting(period.id);
+    await seedFromAudience(period.audienceCircles ?? [], period.audienceUngrouped ?? []);
 
     for (const id of selectedIds) {
       await markReconnectContacted(period.id, id);

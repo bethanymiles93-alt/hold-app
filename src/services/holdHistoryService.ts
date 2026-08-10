@@ -105,6 +105,15 @@ export async function addToAudience(contact: { name: string; phoneNumber: string
   await writeRecord(updated);
 }
 
+/**
+ * A specific Hold period by id, independent of OPEN_KEY/RECONNECTING_KEY — lets
+ * Reconnect source its target period as soon as it's known (right when "Reconnect"
+ * is tapped), before the durable reconnecting marker exists yet.
+ */
+export async function getHoldPeriodById(id: string): Promise<HoldPeriod | null> {
+  return readRecord(id);
+}
+
 /** The currently-open Hold period, if any. Null when the user is not in a Hold. */
 export async function getOpenHoldPeriod(): Promise<HoldPeriod | null> {
   const openId = await SecureStore.getItemAsync(OPEN_KEY);
