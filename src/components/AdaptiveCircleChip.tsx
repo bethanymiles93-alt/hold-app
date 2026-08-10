@@ -28,16 +28,17 @@ interface AdaptiveCircleChipProps {
 }
 
 /**
- * One fixed height for every chip in the row — the bare platform
- * accessibility tap-target floor itself (44pt iOS / 48pt Android), chosen
- * as the closest legally-compliant value to the original CirclePill's
- * actual height (38pt, confirmed from git history — below the floor, so
- * can't be matched exactly). An earlier version used a floor-plus-4pt
- * "comfortable margin"; reverted after the smaller original read closer
- * to what this needed to feel like. Every chip is exactly this size, no
- * per-label height variation — see the shape-decision comment below.
+ * One fixed height for every chip in the row. Increased (2026-08-10, per
+ * direct instruction with a final number given directly — not measured
+ * from a reference screenshot, since this environment has no
+ * pixel-measurement tooling) from the bare 44pt/48pt accessibility floor to
+ * a noticeably larger, more comfortable "story-circle" scale: 64pt (iOS) /
+ * 68dp (Android). Well above the accessible tap-target floor either way, so
+ * this is a stylistic sizing choice, not an accessibility fix. Every chip
+ * is exactly this size, no per-label height variation — see the
+ * shape-decision comment below.
  */
-const STANDARD_CHIP_DIAMETER = Platform.OS === "android" ? 48 : 44;
+const STANDARD_CHIP_DIAMETER = Platform.OS === "android" ? 68 : 64;
 // Kept tight so short labels can still plausibly become circles — this is
 // NOT the same value as a pill's own rendered padding (below), decoupled
 // on purpose: the circle-fit check needs to stay strict, but a pill's

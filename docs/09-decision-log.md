@@ -225,3 +225,34 @@ ONE-TIME COMPLETION (tapped once per visit, ends/advances the whole flow) — un
 **Not done — flagged, not fabricated:** the compact button's exact size and the corrected `AdaptiveCircleChip` diameter were both requested to be derived from measuring reference screenshots (Instagram's chat-send button and story-row avatars). Real screenshots did arrive mid-session, but this environment has no pixel-measurement tooling (no image-analysis execution, no confirmed access to the screenshot's true native resolution vs. its displayed size) — a literal "measured in pixels, converted to points" figure isn't something that can be honestly produced here, only a rough eyeballed proportion dressed up as precision, which is exactly what was asked not to do. `CompactSendButton` currently uses the same 44pt/48pt accessible floor as the Circle chips as a safe, already-established placeholder — not the final Instagram-matched size. `STANDARD_CHIP_DIAMETER` is unchanged. Both remain open pending either a genuine measurement or a number given directly.
 
 `tsc --noEmit` and `vitest run` (27/27) both pass. **Still flagged, not resolved:** no on-device verification possible from this session — this is a real visual/layout change (row alignment, icon centring, spacing around the now-compact buttons) that needs a look before being treated as done, more than most changes this session.
+
+## 2026-08-10 — Chip diameter to 64pt/68dp (given directly); Quick message's reach count restored as visible text
+
+**1. `STANDARD_CHIP_DIAMETER`: 44pt/48pt → 64pt (iOS) / 68dp (Android).** Final numbers given directly, not derived from measuring the reference screenshot — this environment has no pixel-measurement tooling (no image-analysis execution, no confirmed access to a screenshot's true native resolution), so a literal "measured from the photo" figure was never something that could be honestly produced here; flagged plainly rather than faked. `CompactSendButton`'s own tap target is unchanged at 44pt/48pt (the bare accessibility floor) — the two are now deliberately different sizes, not a coincidence to reconcile.
+
+**Recalculated circle-vs-pill fit table at the new size** (same estimated-metrics caveat as every prior pass: 14pt/weight 600, San Francisco-equivalent, not an on-device measurement). `CIRCLE_FIT_PADDING` (`theme.spacing.sm` = 10) is unchanged, so available inner width is `STANDARD_CHIP_DIAMETER - 20`:
+
+| Platform | Available width |
+|---|---|
+| iOS | 64 − 20 = 44pt |
+| Android | 68 − 20 = 48dp |
+
+| Label | Est. text width | iOS (44pt avail.) | Android (48dp avail.) |
+|---|---|---|---|
+| "D" | ~9pt | circle | circle |
+| "+" | ~9–10pt | circle | circle |
+| "All" | ~22pt | circle | circle |
+| "Work" | ~34–36pt | circle | circle |
+| "Close" | ~37pt | circle | circle |
+| "Friends" | ~48–52pt | pill | pill (borderline — estimate sits at/just past the 48dp available width) |
+| "Book Club" | ~75pt | pill | pill |
+
+The main change from the previous (44pt/48pt) table: "Close" now fits as a circle on both platforms — it didn't at the smaller size. "Friends" and "Book Club" still don't fit; "D"/"+"/"All" were already circles and stay circles.
+
+**2. Quick message's per-Circle bulk Send regains its visible reach count**, previously dropped to `accessibilityLabel`-only when this button was compacted. Not a numeral-in-a-circle badge (built, then explicitly rejected) — a badge would visually compete with the Circle chips on the same screen and risk reading as a notification rather than a count. Instead, `CompactSendButton` gained an optional `label` prop: when set, the button grows from a plain icon-only circle into an icon+text pill (same fixed height, width grows to fit — the same shape language `AdaptiveCircleChip` already uses for circle-vs-pill). Text: `"Send (N people)"` / `"Send (1 person)"`, singular/plural handled.
+
+**Corrected "Circles" → "people."** The request's own phrasing ("Send (3 Circles)") didn't match what this button actually does: `sendCircle(section)` is scoped to exactly one Circle's `section.people`, and already shows its own confirmation `Alert` reading `"Reaches {recipientCount} people"` before sending — direct evidence the count was always people within one Circle, never a count of Circles. Implemented as "people" and flagged the correction rather than shipping copy that would have misdescribed the button.
+
+**Legibility at the smallest supported text size, reasoned rather than rendered:** the label is `numberOfLines={1}` at 15pt/weight 600 inside a fixed-height pill that grows in width to fit; at iOS's smallest Dynamic Type step (~80% of default, so ~12pt effective), a short phrase like "Send (3 people)" stays well within normal legible range for a filled button — this is a reasoning-based check, not an on-device render, and is flagged as such rather than claimed as confirmed.
+
+`tsc --noEmit` and `vitest run` (27/27) both pass. **Still flagged, not resolved:** no on-device verification possible from this session — chip size, the new pill-shaped Send button, and text-scale legibility all need a look before being called done.

@@ -745,9 +745,14 @@ export default function LibraryScreen() {
 
                 <View style={styles.sendRow}>
                   <CompactSendButton
+                    label={
+                      includedMembers.length > 0
+                        ? `Send (${includedMembers.length} ${includedMembers.length === 1 ? "person" : "people"})`
+                        : undefined
+                    }
                     accessibilityLabel={
                       includedMembers.length > 0
-                        ? `Send to ${includedMembers.length} people in ${section.circleName}`
+                        ? `Send to ${includedMembers.length} ${includedMembers.length === 1 ? "person" : "people"} in ${section.circleName}`
                         : `Send to ${section.circleName}`
                     }
                     onPress={() => sendCircle(section)}
