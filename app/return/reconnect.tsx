@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-
 import { router, useFocusEffect } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
-import { PrimaryButton } from "@/components/PrimaryButton";
+import { CompactSendButton } from "@/components/CompactSendButton";
 import { SecondaryButton } from "@/components/SecondaryButton";
 import { AmendWithAI } from "@/components/AmendWithAI";
 import { MemoryNoteSuggestion } from "@/components/MemoryNoteSuggestion";
@@ -279,11 +279,12 @@ export default function ReconnectScreen() {
           />
         </View>
 
-        <PrimaryButton
-          disabled={selectedIds.size === 0 || !message.trim()}
-          label="Send"
-          onPress={() => void send()}
-        />
+        <View style={styles.sendRow}>
+          <CompactSendButton
+            disabled={selectedIds.size === 0 || !message.trim()}
+            onPress={() => void send()}
+          />
+        </View>
       </Screen>
     );
   }
@@ -397,6 +398,10 @@ function createStyles(colors: ThemeColors) {
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.sm
+    },
+    sendRow: {
+      flexDirection: "row",
+      justifyContent: "flex-end"
     },
     input: {
       minHeight: 100,

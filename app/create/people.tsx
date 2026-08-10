@@ -7,7 +7,7 @@ import { GroupPicker } from "@/components/GroupPicker";
 import { ChoiceCard } from "@/components/ChoiceCard";
 import { RecipientPersonalisation } from "@/components/RecipientPersonalisation";
 import { PrimaryButton } from "@/components/PrimaryButton";
-import { SecondaryButton } from "@/components/SecondaryButton";
+import { CompactSendButton } from "@/components/CompactSendButton";
 import { AmendWithAI } from "@/components/AmendWithAI";
 import { EmailOutOfOffice } from "@/components/EmailOutOfOffice";
 import { WiderWorldStatus } from "@/components/WiderWorldStatus";
@@ -321,7 +321,9 @@ export default function HoldPeopleScreen() {
           );
         })}
 
-      <PrimaryButton disabled={!canSend} label="Send" onPress={() => void send()} />
+      <View style={styles.sendRow}>
+        <CompactSendButton disabled={!canSend} onPress={() => void send()} />
+      </View>
 
       {hasSentAnything ? (
         <>
@@ -375,11 +377,13 @@ export default function HoldPeopleScreen() {
                           textAlignVertical="top"
                           value={personalNoteDrafts[recipient.contactId] ?? ""}
                         />
-                        <SecondaryButton
-                          disabled={!(personalNoteDrafts[recipient.contactId] ?? "").trim()}
-                          label="Send"
-                          onPress={() => void sendPersonalNote(recipient)}
-                        />
+                        <View style={styles.sendRow}>
+                          <CompactSendButton
+                            disabled={!(personalNoteDrafts[recipient.contactId] ?? "").trim()}
+                            accessibilityLabel={`Send personal note to ${recipient.name}`}
+                            onPress={() => void sendPersonalNote(recipient)}
+                          />
+                        </View>
                       </>
                     )}
                   </View>
@@ -509,6 +513,10 @@ function createStyles(colors: ThemeColors) {
     },
     choices: {
       gap: theme.spacing.sm
+    },
+    sendRow: {
+      flexDirection: "row",
+      justifyContent: "flex-end"
     },
     messageBlock: {
       gap: theme.spacing.xs

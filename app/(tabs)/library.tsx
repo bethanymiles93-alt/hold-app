@@ -3,8 +3,8 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect } from "expo-router";
 import { Screen } from "@/components/Screen";
-import { PrimaryButton } from "@/components/PrimaryButton";
 import { SecondaryButton } from "@/components/SecondaryButton";
+import { CompactSendButton } from "@/components/CompactSendButton";
 import { AmendWithAI } from "@/components/AmendWithAI";
 import { SelectionCircle } from "@/components/SelectionCircle";
 import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
@@ -264,8 +264,12 @@ function PersonaliseAccordion({ person, isOpen, onToggle, onSent }: PersonaliseA
           />
 
           <View style={styles.accordionActions}>
-            <PrimaryButton disabled={!draft.trim()} label="Send now" onPress={sendNow} />
             <SecondaryButton label="Save for later" onPress={saveForLater} />
+            <CompactSendButton
+              disabled={!draft.trim()}
+              accessibilityLabel="Send reply now"
+              onPress={sendNow}
+            />
           </View>
         </View>
       ) : null}
@@ -720,9 +724,9 @@ export default function LibraryScreen() {
                               context={{ recipientLabel: person.name }}
                             />
                             <View style={styles.excludedActions}>
-                              <SecondaryButton
+                              <CompactSendButton
                                 disabled={!(individualMessages[person.id] ?? "").trim()}
-                                label="Send"
+                                accessibilityLabel={`Send to ${person.name}`}
                                 onPress={() => sendIndividual(person)}
                               />
                               <Pressable
@@ -739,10 +743,16 @@ export default function LibraryScreen() {
                   </View>
                 ) : null}
 
-                <SecondaryButton
-                  label={`Send${includedMembers.length > 0 ? ` (${includedMembers.length})` : ""}`}
-                  onPress={() => sendCircle(section)}
-                />
+                <View style={styles.sendRow}>
+                  <CompactSendButton
+                    accessibilityLabel={
+                      includedMembers.length > 0
+                        ? `Send to ${includedMembers.length} people in ${section.circleName}`
+                        : `Send to ${section.circleName}`
+                    }
+                    onPress={() => sendCircle(section)}
+                  />
+                </View>
               </View>
             );
           })}
@@ -811,9 +821,9 @@ export default function LibraryScreen() {
                       context={{ recipientLabel: person.name }}
                     />
                     <View style={styles.excludedActions}>
-                      <SecondaryButton
+                      <CompactSendButton
                         disabled={!(individualMessages[person.id] ?? DEFAULT_QUICK_MESSAGE).trim()}
-                        label="Send"
+                        accessibilityLabel={`Send to ${person.name}`}
                         onPress={() => sendIndividual(person)}
                       />
                       <Pressable accessibilityRole="button" onPress={() => togglePersonaliseSwap(person.id)}>
@@ -1022,6 +1032,10 @@ function createStyles(colors: ThemeColors) {
     alignItems: "center",
     gap: theme.spacing.md
   },
+  sendRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end"
+  },
   checkbox: {
     width: 22,
     height: 22,
@@ -1091,7 +1105,9 @@ function createStyles(colors: ThemeColors) {
     color: colors.onPrimary
   },
   accordionActions: {
-    gap: theme.spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginTop: theme.spacing.sm
   }
   });

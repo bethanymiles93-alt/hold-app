@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
-import { PrimaryButton } from "@/components/PrimaryButton";
+import { CompactSendButton } from "@/components/CompactSendButton";
 import { AmendWithAI } from "@/components/AmendWithAI";
 import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
 import { MemoryNoteSuggestion } from "@/components/MemoryNoteSuggestion";
@@ -156,11 +156,12 @@ export default function TakingTimeUpdateScreen() {
         />
       </View>
 
-      <PrimaryButton
-        disabled={selectedCircleIds.size === 0 || !message.trim()}
-        label="Send"
-        onPress={() => void send()}
-      />
+      <View style={styles.sendRow}>
+        <CompactSendButton
+          disabled={selectedCircleIds.size === 0 || !message.trim()}
+          onPress={() => void send()}
+        />
+      </View>
     </Screen>
   );
 }
@@ -173,6 +174,10 @@ function createStyles(colors: ThemeColors) {
     },
     top: {
       gap: theme.spacing.lg
+    },
+    sendRow: {
+      flexDirection: "row",
+      justifyContent: "flex-end"
     },
     chipRow: {
       flexDirection: "row",
