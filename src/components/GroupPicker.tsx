@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { Link, useFocusEffect } from "expo-router";
+import { useFocusEffect } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
@@ -31,23 +31,21 @@ interface GroupPickerProps {
   reselectedCircleIds?: string[];
   onToggleReselected?: (circleId: string) => void;
   /**
-   * The new-Circle name field is controlled by the parent screen, not owned
-   * here — every screen shares exactly one DockedInputBar, so "which field
-   * is currently active" has to live at the screen level. See
-   * docs/09-decision-log.md, 2026-08-10.
+   * Which Circles' cards are pinned open via their own arrow (independent
+   * of send-selection) — see the circle/arrow split below.
    */
-  newCircleName: string;
+  expandedCircleIds?: string[];
+  onToggleExpanded?: (circleId: string) => void;
+  /**
+   * Whether the new-Circle name field (owned entirely by the parent
+   * screen's shared DockedInputBar — every screen has exactly one, so "which
+   * field is active" lives at the screen level, not here) is currently open.
+   * See docs/09-decision-log.md, 2026-08-10.
+   */
   isNamingActive: boolean;
   onActivateNaming: () => void;
+  /** Re-tapping "+" while already active closes the bar without creating anything — see docs/09-decision-log.md, 2026-08-11. */
   onCancelNaming: () => void;
-  /**
-   * Creates the pending Circle from whatever name is passed in (typed, or a
-   * tapped suggestion) — owned by the parent screen since the docked bar's
-   * suggestion chips (rendered above the keyboard, not inside GroupPicker's
-   * own position in the scrollable content) need to trigger the exact same
-   * submission. See docs/09-decision-log.md, 2026-08-11.
-   */
-  onSubmitName: (name: string) => Promise<void>;
 }
 
 /**
@@ -55,6 +53,13 @@ interface GroupPickerProps {
  * remove, personalise) lives permanently in the merged Going Quiet screen's
  * own per-Circle cards now, not behind a second expand-on-demand mechanism
  * here, so there's exactly one place that interaction happens.
+ *
+ * Each named Circle is two independent tap targets, not one (2026-08-11):
+ * the circle itself (send-selection — audience add/remove for a Circle
+ * never sent this session, reselect-to-resend for one that has been) and a
+ * separate small arrow beside it (pins the card open/closed independently,
+ * without affecting send-selection at all). Tapping one never changes the
+ * other's appearance or state.
  */
 export function GroupPicker({
   selectedGroupIds,
@@ -62,11 +67,11 @@ export function GroupPicker({
   sentCircleIds = [],
   reselectedCircleIds = [],
   onToggleReselected,
-  newCircleName,
+  expandedCircleIds = [],
+  onToggleExpanded,
   isNamingActive,
   onActivateNaming,
-  onCancelNaming,
-  onSubmitName
+  onCancelNaming
 }: GroupPickerProps) {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -114,15 +119,19 @@ export function GroupPicker({
   return (
     <View style={styles.container}>
       <View style={styles.pinnedRow}>
-        <AdaptiveCircleChip
-          label="+"
-          accessibilityLabel="New Circle"
-          accessibilityRole="button"
-          expanded={isNamingActive}
-          outline
-          isSelected={false}
-          onPress={() => (isNamingActive ? onCancelNaming() : onActivateNaming())}
-        />
+        <View style={styles.newCircleStack}>
+          <AdaptiveCircleChip
+            label="+"
+            accessibilityLabel="New Circle"
+            accessibilityRole="button"
+            expanded={isNamingActive}
+            outline
+            isSelected={isNamingActive}
+            labelFontSize={28}
+            onPress={() => (isNamingActive ? onCancelNaming() : onActivateNaming())}
+          />
+          {isNamingActive ? <Text style={styles.newCircleCaption}>New Circle</Text> : null}
+        </View>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -137,26 +146,34 @@ export function GroupPicker({
             const hasSentThisSession = sentCircleIds.includes(group.id);
             const isReselected = reselectedCircleIds.includes(group.id);
             const sentLook = hasSentThisSession && !isReselected;
-            const expanded = hasSentThisSession ? isReselected : inAudience;
-            // A sent-and-collapsed chip shows the checkmark look instead —
-            // no arrow, matching the sent-chip convention everywhere else
-            // this pattern exists (Reconnect, Taking Time's update).
-            const label = sentLook ? `✓ ${group.name}` : `${group.name} ${expanded ? "▲" : "▼"}`;
+            const selectedForSending = hasSentThisSession ? isReselected : inAudience;
+            const arrowExpanded = expandedCircleIds.includes(group.id);
 
             return (
-              <AdaptiveCircleChip
-                key={group.id}
-                label={label}
-                isSelected={expanded}
-                hasSentThisSession={hasSentThisSession}
-                isPrimary={group.isCloseCircle}
-                onPress={() =>
-                  hasSentThisSession ? onToggleReselected?.(group.id) : void onToggle(group)
-                }
-                accessibilityLabel={
-                  sentLook ? `${group.name}, already sent. Tap to send another message.` : group.name
-                }
-              />
+              <View key={group.id} style={styles.circleUnit}>
+                <AdaptiveCircleChip
+                  label={sentLook ? `✓ ${group.name}` : group.name}
+                  isSelected={selectedForSending}
+                  hasSentThisSession={hasSentThisSession}
+                  labelBold={group.isCloseCircle}
+                  onPress={() =>
+                    hasSentThisSession ? onToggleReselected?.(group.id) : void onToggle(group)
+                  }
+                  accessibilityLabel={
+                    sentLook ? `${group.name}, already sent. Tap to send another message.` : group.name
+                  }
+                />
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`${group.name}, ${arrowExpanded ? "hide" : "show"} recipients`}
+                  accessibilityState={{ expanded: arrowExpanded }}
+                  hitSlop={8}
+                  onPress={() => onToggleExpanded?.(group.id)}
+                  style={({ pressed }) => [styles.arrowButton, pressed && styles.arrowPressed]}
+                >
+                  <Text style={styles.arrowGlyph}>{arrowExpanded ? "▲" : "▼"}</Text>
+                </Pressable>
+              </View>
             );
           })}
         </ScrollView>
@@ -168,36 +185,6 @@ export function GroupPicker({
           yet. Add someone from Your Circles in Settings before continuing.
         </Text>
       ) : null}
-
-      {isNamingActive ? (
-        <View style={styles.newCircle}>
-          <Text style={styles.label}>New Circle</Text>
-          <View style={styles.newCircleActions}>
-            <Pressable accessibilityRole="button" onPress={onCancelNaming} style={styles.cancelButton}>
-              <Text style={styles.cancelText}>Cancel</Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Create Circle"
-              disabled={!newCircleName.trim()}
-              onPress={() => void onSubmitName(newCircleName)}
-              style={({ pressed }) => [
-                styles.addButton,
-                pressed && styles.addPressed,
-                !newCircleName.trim() && styles.disabled
-              ]}
-            >
-              <Text style={styles.addText}>Add</Text>
-            </Pressable>
-          </View>
-        </View>
-      ) : null}
-
-      <Link href="/settings/circle" asChild>
-        <Pressable accessibilityRole="link" style={styles.manageLink}>
-          <Text style={styles.manageLinkText}>Manage your Circles</Text>
-        </Pressable>
-      </Link>
     </View>
   );
 }
@@ -215,8 +202,23 @@ function createStyles(colors: ThemeColors) {
     // continuous line.
     pinnedRow: {
       flexDirection: "row",
-      alignItems: "center",
+      alignItems: "flex-start",
       gap: theme.spacing.sm
+    },
+    // "+" is a small vertical stack (circle, then its own caption once
+    // active) rather than a bare circle — matches the story-circle
+    // reference this whole sizing pass has been modelled on. Fixed width
+    // matching the chip itself so the caption, when it appears, doesn't
+    // widen the pinned column.
+    newCircleStack: {
+      alignItems: "center",
+      gap: theme.spacing.xs
+    },
+    newCircleCaption: {
+      color: colors.textMuted,
+      fontSize: 12,
+      fontWeight: "600",
+      textAlign: "center"
     },
     pillScroll: {
       flex: 1
@@ -224,63 +226,35 @@ function createStyles(colors: ThemeColors) {
     pillWrap: {
       flexDirection: "row",
       alignItems: "center",
-      gap: theme.spacing.sm
+      gap: theme.spacing.md
+    },
+    circleUnit: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xs
+    },
+    // A separate tap target from the circle beside it — never visually
+    // merged into the chip's own shape or measured-text fit. Sized to the
+    // accessible tap-target floor via hitSlop, even though the glyph itself
+    // reads small.
+    arrowButton: {
+      minWidth: 32,
+      minHeight: 44,
+      alignItems: "center",
+      justifyContent: "center"
+    },
+    arrowPressed: {
+      opacity: 0.6
+    },
+    arrowGlyph: {
+      color: colors.textMuted,
+      fontSize: 13,
+      fontWeight: "600"
     },
     prompt: {
       color: colors.textMuted,
       fontSize: 14,
       lineHeight: 21
-    },
-    newCircle: {
-      gap: theme.spacing.sm
-    },
-    label: {
-      color: colors.textMuted,
-      fontSize: 14,
-      fontWeight: "600"
-    },
-    newCircleActions: {
-      flexDirection: "row",
-      gap: theme.spacing.sm
-    },
-    cancelButton: {
-      minHeight: 54,
-      paddingHorizontal: theme.spacing.md,
-      alignItems: "center",
-      justifyContent: "center"
-    },
-    cancelText: {
-      color: colors.textMuted,
-      fontSize: 15,
-      fontWeight: "600"
-    },
-    addButton: {
-      minWidth: 72,
-      minHeight: 54,
-      borderRadius: theme.radius.md,
-      backgroundColor: colors.primary,
-      alignItems: "center",
-      justifyContent: "center"
-    },
-    addPressed: {
-      backgroundColor: colors.primaryPressed
-    },
-    disabled: {
-      opacity: 0.4
-    },
-    addText: {
-      color: colors.onPrimary,
-      fontSize: 16,
-      fontWeight: "600"
-    },
-    manageLink: {
-      minHeight: 44,
-      justifyContent: "center"
-    },
-    manageLinkText: {
-      color: colors.primary,
-      fontSize: 15,
-      fontWeight: "600"
     }
   });
 }

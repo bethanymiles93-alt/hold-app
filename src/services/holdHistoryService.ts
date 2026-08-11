@@ -161,6 +161,28 @@ export async function deleteAllHoldHistory(): Promise<void> {
 }
 
 /**
+ * Re-syncs the still-open period's audience to the current, full selection —
+ * called at "Done", after every Send for this session has already happened.
+ * audienceCircles is otherwise only ever set once, at the very first Send
+ * (via startHoldPeriod): a Circle created or added to the selection AFTER
+ * that first Send, with no further Send afterward, would otherwise never
+ * appear in audienceCircles at all — silently dropping that person from
+ * Reconnect's coverage entirely, with no "add permanently?" prompt and no
+ * other signal anywhere that they need following up on. Safe to call
+ * whether or not a period is open (no-ops if not) — Going Quiet can be left
+ * without ever sending.
+ */
+export async function syncAudience(input: StartHoldPeriodInput): Promise<void> {
+  const openId = await SecureStore.getItemAsync(OPEN_KEY);
+  if (!openId) return;
+
+  const period = await readRecord(openId);
+  if (!period) return;
+
+  await writeRecord({ ...period, recipients: input.recipients, audienceCircles: input.audienceCircles });
+}
+
+/**
  * Writes the OOO/status choices made at Going Quiet's "Done" step onto the
  * still-open period (Send already started it; Done is when these are set).
  */

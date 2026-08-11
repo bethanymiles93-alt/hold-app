@@ -43,43 +43,62 @@ export function Screen({ children, contentContainerStyle, footer, dockedInput }:
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
-    <SafeAreaView style={styles.safe} edges={["bottom", "left", "right"]}>
-      {/* Dismisses the keyboard on tap outside an interactive child (a button,
-          an input) — the only dismiss method, since InputAccessoryView's
-          "Done" bar doesn't render under the New Architecture (Fabric).
-          keyboardShouldPersistTaps "handled" on the ScrollView means those
-          children still get their own tap first, so this only fires on
-          genuinely empty space. */}
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-        <View style={styles.flex}>
-          {/* ScrollView's own keyboard-inset handling, not KeyboardAvoidingView —
-              KeyboardAvoidingView's height is only established via onLayout,
-              which reliably settles when a keyboard actually shows; on
-              screens with no (or minimal) text input, that layout pass never
-              gets a reason to fire, and the ScrollView beneath it can lock in
-              an incorrect initial bound and never scroll. Confirmed on-device:
-              input-heavy screens (Going Quiet, Reconnect) scrolled fine,
-              input-light ones (Hold+, Research) didn't — this removes the
-              shared cause instead of patching each screen individually. */}
-          <ScrollView
-            style={styles.flex}
-            keyboardShouldPersistTaps="handled"
-            automaticallyAdjustKeyboardInsets
-            contentInsetAdjustmentBehavior="automatic"
-            contentContainerStyle={[styles.content, contentContainerStyle]}
-          >
-            {children}
-          </ScrollView>
-          {footer ? <View style={styles.footer}>{footer}</View> : null}
-        </View>
-      </TouchableWithoutFeedback>
+    // `dockedInput` (a KeyboardStickyView) renders here, OUTSIDE the
+    // bottom-inset SafeAreaView below, not as its child — see
+    // docs/09-decision-log.md, 2026-08-11. KeyboardStickyView moves its
+    // child by exactly the keyboard's own pixel height (translateY) from
+    // wherever that child naturally rests when the keyboard is closed. If
+    // that resting position sits inside a SafeAreaView that's already
+    // padded inward by the bottom safe-area inset (home-indicator
+    // clearance), the translateY math doesn't know to compensate — the
+    // docked bar ends up stopping short of the keyboard by exactly that
+    // inset, a real structural gap, not a colour/fill issue. Keeping this
+    // root View plain (no safe-area padding of its own) means
+    // KeyboardStickyView's resting position is the screen's true bottom
+    // edge, matching what its translateY assumes.
+    <View style={styles.root}>
+      <SafeAreaView style={styles.safe} edges={["bottom", "left", "right"]}>
+        {/* Dismisses the keyboard on tap outside an interactive child (a button,
+            an input) — the only dismiss method, since InputAccessoryView's
+            "Done" bar doesn't render under the New Architecture (Fabric).
+            keyboardShouldPersistTaps "handled" on the ScrollView means those
+            children still get their own tap first, so this only fires on
+            genuinely empty space. */}
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+          <View style={styles.flex}>
+            {/* ScrollView's own keyboard-inset handling, not KeyboardAvoidingView —
+                KeyboardAvoidingView's height is only established via onLayout,
+                which reliably settles when a keyboard actually shows; on
+                screens with no (or minimal) text input, that layout pass never
+                gets a reason to fire, and the ScrollView beneath it can lock in
+                an incorrect initial bound and never scroll. Confirmed on-device:
+                input-heavy screens (Going Quiet, Reconnect) scrolled fine,
+                input-light ones (Hold+, Research) didn't — this removes the
+                shared cause instead of patching each screen individually. */}
+            <ScrollView
+              style={styles.flex}
+              keyboardShouldPersistTaps="handled"
+              automaticallyAdjustKeyboardInsets
+              contentInsetAdjustmentBehavior="automatic"
+              contentContainerStyle={[styles.content, contentContainerStyle]}
+            >
+              {children}
+            </ScrollView>
+            {footer ? <View style={styles.footer}>{footer}</View> : null}
+          </View>
+        </TouchableWithoutFeedback>
+      </SafeAreaView>
       {dockedInput}
-    </SafeAreaView>
+    </View>
   );
 }
 
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
+    root: {
+      flex: 1,
+      backgroundColor: colors.background
+    },
     safe: {
       flex: 1,
       backgroundColor: colors.background

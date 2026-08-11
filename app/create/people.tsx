@@ -23,7 +23,8 @@ import {
   getOpenHoldPeriod,
   recordPostSendChoices,
   recordSendChannel,
-  startHoldPeriod
+  startHoldPeriod,
+  syncAudience
 } from "@/services/holdHistoryService";
 import { seedPersonaliseRecipient } from "@/services/conversationService";
 import { activateOutOfOffice } from "@/services/emailAccountService";
@@ -81,6 +82,11 @@ export default function HoldPeopleScreen() {
   // yet, since those stay visible unconditionally the same way GroupPicker
   // always showed a selected Circle's card before this session existed.
   const [reselectedCircleIds, setReselectedCircleIds] = useState<Set<string>>(new Set());
+  // Which Circles' cards are pinned open via their own arrow, independent of
+  // send-selection (see GroupPicker's circle/arrow split, docs/09-decision-log.md,
+  // 2026-08-11) — lets a sent Circle's card be viewed/edited without that alone
+  // triggering a reselect-to-resend.
+  const [expandedCircleIds, setExpandedCircleIds] = useState<Set<string>>(new Set());
   // Durable, on the still-open Hold period (see holdHistoryService.ts). No new
   // field needed: recordSendChannel already keys sendChannels by Circle id on
   // every real group send, so "has this Circle been sent this session" is
@@ -140,16 +146,31 @@ export default function HoldPeopleScreen() {
 
   // A never-sent Circle's card stays visible unconditionally (matching the
   // original "every selected Circle has a visible card" default); a sent
-  // Circle's card only reappears once explicitly reselected via its chip.
+  // Circle's card only reappears once explicitly reselected via its chip —
+  // OR pinned open via its own separate arrow, which shows the card for
+  // viewing/editing without implying a reselect-to-resend. That's why this
+  // is two independent conditions, not one: reselecting always sends the
+  // next time Send is tapped, expanding never does on its own.
   const visibleDrafts = circleDrafts.filter(
+    (draft) =>
+      !sentCircleIds.includes(draft.circleId) ||
+      reselectedCircleIds.has(draft.circleId) ||
+      expandedCircleIds.has(draft.circleId)
+  );
+
+  // Send only actually acts on Circles genuinely selected for sending —
+  // reselected (resend) or never-sent — never a merely-expanded sent Circle,
+  // which is visible for viewing only. Kept separate from visibleDrafts
+  // (the render set) for exactly that reason.
+  const draftsToSend = circleDrafts.filter(
     (draft) => !sentCircleIds.includes(draft.circleId) || reselectedCircleIds.has(draft.circleId)
   );
 
   const canSend =
     selectedGroups.length > 0 &&
     selectedGroups.every((group) => group.contacts.length > 0) &&
-    visibleDrafts.length > 0 &&
-    visibleDrafts.every((draft) => draft.message.trim().length > 0);
+    draftsToSend.length > 0 &&
+    draftsToSend.every((draft) => draft.message.trim().length > 0);
 
   const excludedNotRemoved = goingQuietRecipients.filter(
     (recipient) =>
@@ -286,7 +307,7 @@ export default function HoldPeopleScreen() {
     (useSameEmailMessage ? sharedEmailMessage : account.message).trim();
 
   const send = async () => {
-    if (visibleDrafts.length === 0) return;
+    if (draftsToSend.length === 0) return;
 
     // The period is created once, on this session's first Send, and reused
     // for every subsequent per-Circle Send — sending is repeatable now, so
@@ -304,7 +325,7 @@ export default function HoldPeopleScreen() {
       recipientsByCircle.set(recipient.circleId, list);
     }
 
-    for (const draft of visibleDrafts) {
+    for (const draft of draftsToSend) {
       const circleRecipients = recipientsByCircle.get(draft.circleId) ?? [];
       const groupRecipients = circleRecipients.filter((recipient) => recipient.included);
       const text = draft.message.trim();
@@ -353,7 +374,7 @@ export default function HoldPeopleScreen() {
     // expanded as if still mid-draft.
     setReselectedCircleIds((current) => {
       const next = new Set(current);
-      for (const draft of visibleDrafts) next.delete(draft.circleId);
+      for (const draft of draftsToSend) next.delete(draft.circleId);
       return next;
     });
   };
@@ -382,6 +403,16 @@ export default function HoldPeopleScreen() {
       await copyToClipboard(widerWorldText.trim());
     }
 
+    // Catches any Circle added to the selection after the first Send (e.g. a
+    // provisional Circle created mid-session with no further Send
+    // afterward) — without this, it would never make it into the period's
+    // audienceCircles at all, and Reconnect would never know to ask about
+    // it. See syncAudience's own doc comment.
+    await syncAudience({
+      recipients,
+      audienceCircles: buildAudienceCircles(selectedGroups)
+    });
+
     await recordPostSendChoices({
       emailOutOfOfficeEnabled: emailEnabled,
       widerWorldStatusEnabled: widerWorldEnabled
@@ -398,7 +429,19 @@ export default function HoldPeopleScreen() {
           <DockedInputBar
             value={activeFieldValue()}
             onChangeText={setActiveFieldValue}
-            onDone={() => setActiveField(null)}
+            onDone={() => {
+              if (activeField === "new-circle") {
+                void submitNewCircleName(newCircleName);
+              } else {
+                setActiveField(null);
+              }
+            }}
+            onDismiss={() => {
+              if (activeField === "new-circle") {
+                setNewCircleName("");
+              }
+              setActiveField(null);
+            }}
             placeholder={activeFieldLabel()}
             accessibilityLabel={activeFieldLabel()}
             suggestions={
@@ -432,14 +475,24 @@ export default function HoldPeopleScreen() {
         sentCircleIds={sentCircleIds}
         reselectedCircleIds={Array.from(reselectedCircleIds)}
         onToggleReselected={toggleReselected}
-        newCircleName={newCircleName}
+        expandedCircleIds={Array.from(expandedCircleIds)}
+        onToggleExpanded={(circleId) =>
+          setExpandedCircleIds((current) => {
+            const next = new Set(current);
+            if (next.has(circleId)) {
+              next.delete(circleId);
+            } else {
+              next.add(circleId);
+            }
+            return next;
+          })
+        }
         isNamingActive={activeField === "new-circle"}
         onActivateNaming={() => setActiveField("new-circle")}
         onCancelNaming={() => {
           setNewCircleName("");
           setActiveField(null);
         }}
-        onSubmitName={submitNewCircleName}
       />
 
       {visibleDrafts.map((draft) => {

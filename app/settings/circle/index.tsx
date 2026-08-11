@@ -238,7 +238,7 @@ export default function CircleIndexScreen() {
         key={group.id}
         label={`${group.name} ${selected ? "▲" : "▼"}`}
         isSelected={selected}
-        isPrimary={group.isCloseCircle}
+        labelBold={group.isCloseCircle}
         onPress={() => toggleExpanded(group)}
         accessibilityRole="button"
       />

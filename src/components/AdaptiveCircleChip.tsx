@@ -16,8 +16,6 @@ interface AdaptiveCircleChipProps {
   /** Whether a message has already been sent to this Circle/person this session — see the priority order below. */
   hasSentThisSession?: boolean;
   onPress: () => void;
-  /** Close's stronger/primary fill, per the app's Circle-picker convention. */
-  isPrimary?: boolean;
   /** Bordered/transparent treatment instead of a filled circle/pill — e.g. the "+" New Circle button. */
   outline?: boolean;
   accessibilityRole?: "checkbox" | "button";
@@ -25,22 +23,34 @@ interface AdaptiveCircleChipProps {
   accessibilityLabel?: string;
   /** When set, accessibilityState reports {expanded} instead of {checked: isSelected} — for a toggle-a-panel button like "+ New Circle" rather than a toggle-a-selection chip. */
   expanded?: boolean;
+  /**
+   * Bumps the label's own font size beyond the standard 14pt — "+" uses
+   * this to read as visually larger than the small separate dropdown-arrow
+   * element beside a named chip, since it has no competing label text to
+   * share the circle with. See docs/09-decision-log.md, 2026-08-11.
+   */
+  labelFontSize?: number;
+  /**
+   * Heavier font weight, without any colour/fill difference — Close's own
+   * secondary visual cue now that it no longer gets a unique default fill
+   * (see docs/09-decision-log.md, 2026-08-11: removing the colour-meaning
+   * conflict between "this is Close" and "this has been sent").
+   */
+  labelBold?: boolean;
 }
 
 /**
- * One fixed height for every chip in the row. Increased again (2026-08-11,
- * per direct instruction, chosen option — a final number given directly,
- * not measured from a screenshot) from 64pt/68dp to 72pt (iOS) / 76dp
- * (Android), so Going Quiet's and Manage Circles' chips can carry a
- * dropdown arrow (" ▼"/" ▲", appended into the measured label, same
- * technique Manage Circles already used) and still fit as true circles for
- * common short names. Estimated fit is tight for the longest names this
- * needs to cover ("Close ▼" ≈ 52pt against 52pt of available width at this
- * diameter — see the worked table in docs/09-decision-log.md) — flagged as
- * a close-to-the-line estimate, not a comfortable margin, pending on-device
- * confirmation.
+ * One fixed height for every chip in the row. Increased a fourth time
+ * (2026-08-11, confirmed intentional, final number given directly) from
+ * 72pt/76dp to **90pt (iOS) / 95dp (Android)**, a +25% jump — Circles are
+ * core to how the app is used, and the previous size left essentially no
+ * margin for the longest common arrow-chip label. The dropdown arrow is no
+ * longer part of this measurement at all as of the same pass (see
+ * `expanded`/arrow split in GroupPicker.tsx) — it's now a separate element
+ * beside the chip, not appended into the label text — so this diameter only
+ * needs to fit the Circle name itself, not name+arrow.
  */
-const STANDARD_CHIP_DIAMETER = Platform.OS === "android" ? 76 : 72;
+const STANDARD_CHIP_DIAMETER = Platform.OS === "android" ? 95 : 90;
 // Kept tight so short labels can still plausibly become circles — this is
 // NOT the same value as a pill's own rendered padding (below), decoupled
 // on purpose: the circle-fit check needs to stay strict, but a pill's
@@ -81,11 +91,12 @@ export function AdaptiveCircleChip({
   isSelected,
   hasSentThisSession = false,
   onPress,
-  isPrimary = false,
   outline = false,
   accessibilityRole = "checkbox",
   accessibilityLabel,
-  expanded
+  expanded,
+  labelFontSize,
+  labelBold
 }: AdaptiveCircleChipProps) {
   const { colors } = useAppTheme("normal");
   const styles = createStyles(colors);
@@ -118,20 +129,18 @@ export function AdaptiveCircleChip({
   // wins, per the priority order above.
   const showSentFill = !isSelected && hasSentThisSession;
 
-  const variantStyle = showSentFill
-    ? styles.chipSent
-    : outline
-      ? styles.chipOutline
-      : isPrimary
-        ? styles.chipPrimary
-        : styles.chipSecondary;
+  const variantStyle = showSentFill ? styles.chipSent : outline ? styles.chipOutline : styles.chipSecondary;
   const labelVariantStyle = showSentFill
     ? styles.labelTextSent
     : outline
       ? styles.labelTextOutline
-      : isPrimary
-        ? styles.labelTextPrimary
-        : styles.labelTextSecondary;
+      : styles.labelTextSecondary;
+
+  // Outline chips ("+") have no ring path of their own by default — the
+  // standard chipSelected ring only ever applied to filled chips. Without
+  // this, "+"'s active/selected state was invisible (see decision log,
+  // 2026-08-11) rather than just thin.
+  const selectedRingStyle = outline ? styles.chipSelectedOutline : styles.chipSelected;
 
   return (
     <Pressable
@@ -143,11 +152,20 @@ export function AdaptiveCircleChip({
         styles.chip,
         shapeStyle,
         variantStyle,
-        isSelected && !outline && styles.chipSelected,
+        isSelected && selectedRingStyle,
         pressed && styles.chipPressed
       ]}
     >
-      <Text numberOfLines={1} onTextLayout={onTextLayout} style={[styles.labelText, labelVariantStyle]}>
+      <Text
+        numberOfLines={1}
+        onTextLayout={onTextLayout}
+        style={[
+          styles.labelText,
+          labelVariantStyle,
+          labelFontSize ? { fontSize: labelFontSize } : null,
+          labelBold ? styles.labelBold : null
+        ]}
+      >
         {label}
       </Text>
     </Pressable>
@@ -159,9 +177,6 @@ function createStyles(colors: ThemeColors) {
     chip: {
       alignItems: "center",
       justifyContent: "center"
-    },
-    chipPrimary: {
-      backgroundColor: colors.primary
     },
     chipSecondary: {
       backgroundColor: colors.surfaceStrong
@@ -182,6 +197,17 @@ function createStyles(colors: ThemeColors) {
       borderWidth: 2,
       borderColor: colors.text
     },
+    // "+"'s own active-state ring — a filled tint plus a visibly thicker
+    // border, since its normal outline treatment (chipOutline) is already a
+    // thin border on transparent, and a same-weight ring on top of that
+    // read as imperceptible on-device. A distinct temporary "open" state,
+    // not the same treatment as a selected Circle's dark-green fill. See
+    // docs/09-decision-log.md, 2026-08-11.
+    chipSelectedOutline: {
+      backgroundColor: colors.surfaceStrong,
+      borderWidth: 3,
+      borderColor: colors.primary
+    },
     chipPressed: {
       opacity: 0.7
     },
@@ -189,8 +215,8 @@ function createStyles(colors: ThemeColors) {
       fontSize: 14,
       fontWeight: "600"
     },
-    labelTextPrimary: {
-      color: colors.onPrimary
+    labelBold: {
+      fontWeight: "800"
     },
     labelTextSecondary: {
       color: colors.primary
