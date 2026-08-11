@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { router, useFocusEffect } from "expo-router";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
 import { GroupPicker, PENDING_CIRCLE_ID_PREFIX } from "@/components/GroupPicker";
@@ -13,7 +13,9 @@ import { DockedFieldPreview } from "@/components/DockedFieldPreview";
 import { EmailOutOfOffice } from "@/components/EmailOutOfOffice";
 import { WiderWorldStatus } from "@/components/WiderWorldStatus";
 import { SafeguardingBanner } from "@/components/SafeguardingBanner";
+import { PersonaliseCandidateList } from "@/components/PersonaliseCandidateList";
 import { useSafeguardingCheck } from "@/hooks/useSafeguardingCheck";
+import { usePersonaliseCompletion } from "@/hooks/usePersonaliseCompletion";
 import { HOLD_INTENTS } from "@/constants/copy";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
@@ -31,23 +33,23 @@ import { activateOutOfOffice } from "@/services/emailAccountService";
 import { copyToClipboard } from "@/services/clipboardService";
 import { channelKey, sendOrShare } from "@/services/smsService";
 import { pickContact } from "@/services/contactPickerService";
-import type {
-  CircleGroup,
-  EmailAccount,
-  GoingQuietCircleDraft,
-  GoingQuietRecipient,
-  HoldIntent,
-  HoldPeriod
-} from "@/types/hold";
+import { getGroups } from "@/services/circleService";
+import {
+  getCircleTemplate,
+  getCombinationTemplate,
+  getStartingPointsForCombination,
+  saveCircleTemplate,
+  saveCombinationTemplate
+} from "@/services/templateService";
+import type { CircleGroup, EmailAccount, GoingQuietRecipient, HoldIntent, HoldPeriod } from "@/types/hold";
 
 const SUGGESTED_CIRCLES = ["Friends", "Work", "Book Club"];
 
 /** Every distinct docked-bar field on this screen, keyed by a string tag so exactly one DockedInputBar can serve all of them. */
 type ActiveField =
   | "new-circle"
-  | `circle:${string}`
+  | "group-message"
   | `recipient:${string}`
-  | `personal-note:${string}`
   | "ooo-shared"
   | `ooo-account-message:${string}`
   | `ooo-account-label:${string}`
@@ -57,47 +59,62 @@ const DEFAULT_OOO_MESSAGE =
   "I’m currently away and will respond when I’m back. Thank you for understanding.";
 const DEFAULT_STATUS_LINE = "Taking some quiet time. Back soon.";
 
+/**
+ * Sequential, group-based Going Quiet (2026-08-11 redesign — supersedes the
+ * earlier per-Circle-card architecture). Any selected subset of Circles is
+ * ONE group: one shared message (the single, app-wide docked bar — no other
+ * text-entry surface on this screen), one Send action. Send, then the
+ * selection clears back to empty so the next group can be picked — repeat
+ * until Done or every Circle is covered. Matches the same flat-selection +
+ * shared-message pattern already proven in app/return/update.tsx ("Send an
+ * update"), extended here with combination-keyed saved templates (see
+ * templateService.ts) that update.tsx doesn't need. See
+ * docs/09-decision-log.md, 2026-08-11.
+ */
 export default function HoldPeopleScreen() {
   const {
     recipients,
     selectedGroups,
     toggleGroup,
-    circleDrafts,
-    setCircleDraftIntent,
-    setCircleDraftMessage,
-    applyGeneratedTemplate,
-    saveCircleDraftAsDefault,
     goingQuietRecipients,
     toggleRecipientIncluded,
     setRecipientIndividuallyRemoved,
     setRecipientInstantMessage,
-    setRecipientRouteToPersonalise
+    setRecipientRouteToPersonalise,
+    splitRecipientsIntoNewCircle
   } = useHoldFlow();
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const [showingChipsFor, setShowingChipsFor] = useState<Set<string>>(new Set());
+  const personalise = usePersonaliseCompletion();
 
-  // Which already-sent Circles are currently reselected (card reopened for a
-  // further/different send) — meaningless for a Circle that hasn't been sent
-  // yet, since those stay visible unconditionally the same way GroupPicker
-  // always showed a selected Circle's card before this session existed.
-  const [reselectedCircleIds, setReselectedCircleIds] = useState<Set<string>>(new Set());
-  // Which Circles' cards are pinned open via their own arrow, independent of
-  // send-selection (see GroupPicker's circle/arrow split, docs/09-decision-log.md,
-  // 2026-08-11) — lets a sent Circle's card be viewed/edited without that alone
-  // triggering a reselect-to-resend.
-  const [expandedCircleIds, setExpandedCircleIds] = useState<Set<string>>(new Set());
-  // Durable, on the still-open Hold period (see holdHistoryService.ts). No new
-  // field needed: recordSendChannel already keys sendChannels by Circle id on
-  // every real group send, so "has this Circle been sent this session" is
-  // derived from it — the same derived-not-stored approach Library's Quick
-  // message uses, rather than inventing a parallel flag that could drift.
+  // Every real Circle, independent of the current selection — needed to
+  // resolve `sentCircleIds` against something durable (a Circle sent to
+  // earlier this session but not currently selected still needs to show
+  // its filled chip), and to number placeholder names for provisional
+  // Circles split off mid-flow (below).
+  const [allGroups, setAllGroups] = useState<CircleGroup[]>([]);
   const [period, setPeriod] = useState<HoldPeriod | null>(null);
-  const [personalPromptChoice, setPersonalPromptChoice] = useState<"pending" | "yes" | "not-now">(
+
+  // The one shared message for whichever Circle-combination is currently
+  // selected — not per-Circle. `savedDefaultText` is whichever saved
+  // default (single-Circle or combination) currently backs it, if any;
+  // `null` means this exact combination has never had one saved.
+  const [message, setMessage] = useState("");
+  const [savedDefaultText, setSavedDefaultText] = useState<string | null>(null);
+  const [startingPoints, setStartingPoints] = useState<{ circleId: string; circleName: string; text: string }[]>(
+    []
+  );
+  const [intent, setIntent] = useState<HoldIntent | null>(null);
+  // "Change template" escape hatch back to the intent chips even once a
+  // default already backs the current combination — mirrors the old
+  // per-Circle version of the same control.
+  const [forceShowChips, setForceShowChips] = useState(false);
+
+  const [bundleSelectedIds, setBundleSelectedIds] = useState<Set<string>>(new Set());
+
+  const [personalPromptChoice, setPersonalPromptChoice] = useState<"pending" | "not-now" | "personalise">(
     "pending"
   );
-  const [personalNoteDrafts, setPersonalNoteDrafts] = useState<Record<string, string>>({});
-  const [personalNoteSentAt, setPersonalNoteSentAt] = useState<Record<string, number>>({});
   const [oooExpanded, setOooExpanded] = useState(false);
   const [newCircleName, setNewCircleName] = useState("");
   // Exactly one DockedInputBar serves every field on this screen — this is
@@ -115,48 +132,46 @@ export default function HoldPeopleScreen() {
     setPeriod(await getOpenHoldPeriod());
   }, []);
 
+  const refreshGroups = useCallback(async () => {
+    setAllGroups(await getGroups());
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       void refreshPeriod();
-    }, [refreshPeriod])
+      void refreshGroups();
+    }, [refreshPeriod, refreshGroups])
   );
 
   // sendChannels also holds individual-recipient phone-number keys (from the
-  // instant-message loop in send()) — filtering to circleDrafts' own ids
-  // keeps this to genuine whole-Circle group sends only.
+  // per-recipient instant-message loop in send()) — filtering to known real
+  // (or currently-selected provisional) Circle ids keeps this to genuine
+  // whole-Circle group sends only.
+  const knownCircleIds = useMemo(() => {
+    const ids = new Set(allGroups.map((group) => group.id));
+    for (const group of selectedGroups) ids.add(group.id);
+    return ids;
+  }, [allGroups, selectedGroups]);
+
   const sentCircleIds = useMemo(() => {
     if (!period?.sendChannels) return [];
-    const channelKeys = new Set(Object.keys(period.sendChannels));
-    return circleDrafts.filter((draft) => channelKeys.has(draft.circleId)).map((draft) => draft.circleId);
-  }, [period, circleDrafts]);
+    return Object.keys(period.sendChannels).filter((id) => knownCircleIds.has(id));
+  }, [period, knownCircleIds]);
 
   const hasSentAnything = sentCircleIds.length > 0;
 
-  const toggleReselected = (circleId: string) => {
-    setReselectedCircleIds((current) => {
-      const next = new Set(current);
-      if (next.has(circleId)) {
-        next.delete(circleId);
-      } else {
-        next.add(circleId);
-      }
-      return next;
-    });
-  };
-
-  // A never-sent Circle's card stays visible unconditionally (matching the
-  // original "every selected Circle has a visible card" default); a sent
-  // Circle's card only reappears once explicitly reselected via its chip —
-  // OR pinned open via its own separate arrow, which shows the card for
-  // viewing/editing without implying a reselect-to-resend. That's why this
-  // is two independent conditions, not one: reselecting means the card's
-  // own Send button is live again, expanding alone never is.
-  const visibleDrafts = circleDrafts.filter(
-    (draft) =>
-      !sentCircleIds.includes(draft.circleId) ||
-      reselectedCircleIds.has(draft.circleId) ||
-      expandedCircleIds.has(draft.circleId)
+  // Close first, per the send-order rule; every other Circle follows
+  // whatever order it was tapped in.
+  const orderedSelectedGroups = useMemo(
+    () =>
+      [...selectedGroups].sort((a, b) => (a.isCloseCircle === b.isCloseCircle ? 0 : a.isCloseCircle ? -1 : 1)),
+    [selectedGroups]
   );
+  const joinedGroupNames = orderedSelectedGroups.map((group) => group.name).join(", ");
+  const isSingleCircle = selectedGroups.length === 1;
+  const isSaved = savedDefaultText !== null && message === savedDefaultText;
+  const showChips = forceShowChips || (savedDefaultText === null && !message.trim());
+  const safeguardingTriggered = useSafeguardingCheck(message);
 
   const excludedNotRemoved = goingQuietRecipients.filter(
     (recipient) =>
@@ -166,25 +181,15 @@ export default function HoldPeopleScreen() {
   // nothing to answer, so it's treated as already resolved.
   const personalPromptResolved = excludedNotRemoved.length === 0 || personalPromptChoice !== "pending";
 
-  const activeCircleId = activeField?.startsWith("circle:") ? activeField.slice("circle:".length) : null;
-  const activeContactId = activeField?.startsWith("recipient:")
-    ? activeField.slice("recipient:".length)
-    : null;
-  const activeNoteContactId = activeField?.startsWith("personal-note:")
-    ? activeField.slice("personal-note:".length)
-    : null;
+  const activeContactId = activeField?.startsWith("recipient:") ? activeField.slice("recipient:".length) : null;
   const activeOooAccountMessageId = activeField?.startsWith("ooo-account-message:")
     ? activeField.slice("ooo-account-message:".length)
     : null;
   const activeOooAccountLabelId = activeField?.startsWith("ooo-account-label:")
     ? activeField.slice("ooo-account-label:".length)
     : null;
-  const activeDraft = activeCircleId ? circleDrafts.find((d) => d.circleId === activeCircleId) : undefined;
   const activeRecipient = activeContactId
     ? goingQuietRecipients.find((r) => r.contactId === activeContactId)
-    : undefined;
-  const activeNoteRecipient = activeNoteContactId
-    ? goingQuietRecipients.find((r) => r.contactId === activeNoteContactId)
     : undefined;
   const activeOooAccount = activeOooAccountMessageId
     ? emailAccounts.find((a) => a.id === activeOooAccountMessageId)
@@ -194,9 +199,8 @@ export default function HoldPeopleScreen() {
 
   const activeFieldValue = (): string => {
     if (activeField === "new-circle") return newCircleName;
-    if (activeDraft) return activeDraft.message;
+    if (activeField === "group-message") return message;
     if (activeRecipient) return activeRecipient.instantMessage;
-    if (activeNoteContactId) return personalNoteDrafts[activeNoteContactId] ?? "";
     if (activeField === "ooo-shared") return sharedEmailMessage;
     if (activeOooAccountMessageId) return activeOooAccount?.message ?? "";
     if (activeOooAccountLabelId) return activeOooAccount?.label ?? "";
@@ -207,12 +211,10 @@ export default function HoldPeopleScreen() {
   const setActiveFieldValue = (text: string) => {
     if (activeField === "new-circle") {
       setNewCircleName(text);
-    } else if (activeCircleId) {
-      setCircleDraftMessage(activeCircleId, text);
+    } else if (activeField === "group-message") {
+      setMessage(text);
     } else if (activeContactId) {
       setRecipientInstantMessage(activeContactId, text);
-    } else if (activeNoteContactId) {
-      setPersonalNoteDrafts((current) => ({ ...current, [activeNoteContactId]: text }));
     } else if (activeField === "ooo-shared") {
       setSharedEmailMessage(text);
     } else if (activeOooAccountMessageId) {
@@ -230,14 +232,165 @@ export default function HoldPeopleScreen() {
 
   const activeFieldLabel = (): string => {
     if (activeField === "new-circle") return "New Circle name";
-    if (activeDraft) return `Message for ${activeDraft.circleName}`;
+    if (activeField === "group-message") return `Message to ${joinedGroupNames}`;
     if (activeRecipient) return `Message for ${activeRecipient.name}`;
-    if (activeNoteRecipient) return `Personal note for ${activeNoteRecipient.name}`;
     if (activeField === "ooo-shared") return "Out-of-office message";
     if (activeOooAccountMessageId) return `Message for ${activeOooAccount?.label ?? "account"}`;
     if (activeOooAccountLabelId) return "Account label";
     if (activeField === "wider-world-status") return "Wider-world status line";
     return "Message";
+  };
+
+  /**
+   * Reloads the shared message whenever the current Circle-combination
+   * changes: a saved default for that exact combination (or, for a single
+   * Circle, its existing single-Circle default) auto-loads; a brand-new
+   * combination offers single-Circle starting points instead of auto-
+   * loading anything, and carries the previous group's edited text forward
+   * only when there's no saved default to load. See docs/09-decision-log.md,
+   * 2026-08-11.
+   */
+  const loadMessageForSelection = async (groups: CircleGroup[], previousText: string) => {
+    setForceShowChips(false);
+    setIntent(null);
+
+    if (groups.length === 0) {
+      setMessage("");
+      setSavedDefaultText(null);
+      setStartingPoints([]);
+      return;
+    }
+
+    if (groups.length === 1) {
+      const singleDefault = await getCircleTemplate(groups[0]?.id ?? "");
+      setSavedDefaultText(singleDefault);
+      setStartingPoints([]);
+      setMessage(singleDefault ?? "");
+      return;
+    }
+
+    const circleIds = groups.map((group) => group.id);
+    const comboDefault = await getCombinationTemplate(circleIds);
+    if (comboDefault !== null) {
+      setSavedDefaultText(comboDefault);
+      setStartingPoints([]);
+      setMessage(comboDefault);
+      return;
+    }
+
+    setSavedDefaultText(null);
+    const points = await getStartingPointsForCombination(circleIds);
+    const nameById = new Map(groups.map((group) => [group.id, group.name]));
+    setStartingPoints(
+      points.map((point) => ({ ...point, circleName: nameById.get(point.circleId) ?? point.circleId }))
+    );
+    setMessage(previousText);
+  };
+
+  const handleToggleGroup = async (group: CircleGroup) => {
+    const isCurrentlySelected = selectedGroups.some((existing) => existing.id === group.id);
+    const nextGroups = isCurrentlySelected
+      ? selectedGroups.filter((existing) => existing.id !== group.id)
+      : [...selectedGroups, group];
+    const previousText = message;
+
+    await toggleGroup(group);
+    await loadMessageForSelection(nextGroups, previousText);
+  };
+
+  const applyStartingPoint = (text: string) => {
+    setMessage(text);
+    setForceShowChips(false);
+  };
+
+  const chooseIntent = async (choice: HoldIntent) => {
+    setIntent(choice);
+    const recipientNames = selectedGroups.flatMap((group) => group.contacts.map((contact) => contact.name));
+    const draftText = await createDraft({ mode: "hold", recipients: recipientNames, intent: choice });
+    setMessage(draftText);
+    setForceShowChips(false);
+
+    // Mirrors the single-Circle precedent this replaces: whatever generic
+    // text this produces auto-persists as the default immediately — no
+    // separate Save tap needed for the pristine, unedited pick. Applies to
+    // combinations too now (item 2) — there's no manual "Save" control
+    // offered for a combination at all, so this is the only way one gets a
+    // saved default (also happens again, silently, at Send — see send()).
+    if (selectedGroups.length === 1) {
+      const circleId = selectedGroups[0]?.id;
+      if (circleId) {
+        await saveCircleTemplate(circleId, draftText);
+        setSavedDefaultText(draftText);
+      }
+    } else if (selectedGroups.length > 1) {
+      await saveCombinationTemplate(
+        selectedGroups.map((group) => group.id),
+        draftText
+      );
+      setSavedDefaultText(draftText);
+    }
+  };
+
+  const saveSingleCircleDefault = async () => {
+    const circleId = selectedGroups[0]?.id;
+    if (!isSingleCircle || !circleId) return;
+
+    await saveCircleTemplate(circleId, message);
+    setSavedDefaultText(message);
+  };
+
+  const resolvedEmailMessageFor = (account: EmailAccount) =>
+    (useSameEmailMessage ? sharedEmailMessage : account.message).trim();
+
+  const toggleBundleSelected = (contactId: string) => {
+    setBundleSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(contactId)) {
+        next.delete(contactId);
+      } else {
+        next.add(contactId);
+      }
+      return next;
+    });
+  };
+
+  /**
+   * "+ New circle from selected" (item 8) — spins one or more already-
+   * removed people into a new provisional Circle mid-flow. Provisional, not
+   * immediately permanent: auto-generated placeholder name, no naming
+   * prompt here — Reconnect asks whether to make it permanent (and name it
+   * properly) later, regardless of whether anything was ever sent to it
+   * (syncAudience already covers this — see holdHistoryService.ts). Uses
+   * the same PENDING_CIRCLE_ID_PREFIX/toggleGroup-family convention as the
+   * existing "+ New Circle" flow, just built from already-known recipients
+   * instead of a freshly-picked contact. See docs/09-decision-log.md,
+   * 2026-08-11.
+   */
+  const splitIntoNewCircle = async () => {
+    const contactIds = Array.from(bundleSelectedIds);
+    if (contactIds.length === 0) return;
+
+    const people = goingQuietRecipients.filter((recipient) => contactIds.includes(recipient.contactId));
+    if (people.length === 0) return;
+
+    const provisionalCount = selectedGroups.filter((group) => group.id.startsWith(PENDING_CIRCLE_ID_PREFIX)).length;
+    const placeholderName = provisionalCount > 0 ? `New Circle ${provisionalCount + 1}` : "New Circle";
+    const tempId = `${PENDING_CIRCLE_ID_PREFIX}${Date.now()}`;
+    const newGroup: CircleGroup = {
+      id: tempId,
+      name: placeholderName,
+      isCloseCircle: false,
+      contacts: people.map((person) => ({
+        id: person.contactId,
+        name: person.name,
+        phoneNumber: person.phoneNumber
+      }))
+    };
+
+    const nextGroups = [...selectedGroups, newGroup];
+    splitRecipientsIntoNewCircle(contactIds, newGroup);
+    setBundleSelectedIds(new Set());
+    await loadMessageForSelection(nextGroups, message);
   };
 
   /**
@@ -267,121 +420,119 @@ export default function HoldPeopleScreen() {
       contacts: [{ id: `${tempId}-contact`, name: picked.name, phoneNumber: picked.phoneNumber }]
     };
 
+    const nextGroups = [...selectedGroups, pendingCircle];
     await toggleGroup(pendingCircle);
+    await loadMessageForSelection(nextGroups, message);
     setNewCircleName("");
     setActiveField(null);
   };
 
-  const chooseIntent = async (circleId: string, choice: HoldIntent) => {
-    setCircleDraftIntent(circleId, choice);
-    const recipientNames =
-      selectedGroups.find((group) => group.id === circleId)?.contacts.map((contact) => contact.name) ?? [];
-    const draftText = await createDraft({ mode: "hold", recipients: recipientNames, intent: choice });
-    await applyGeneratedTemplate(circleId, draftText);
-    setShowingChipsFor((current) => {
-      const next = new Set(current);
-      next.delete(circleId);
-      return next;
-    });
-  };
-
-  const changeTemplate = (circleId: string) => {
-    setShowingChipsFor((current) => new Set(current).add(circleId));
-  };
-
-  const resolvedEmailMessageFor = (account: EmailAccount) =>
-    (useSameEmailMessage ? sharedEmailMessage : account.message).trim();
-
   /**
-   * Sends exactly one Circle's message — the only send action on this
-   * screen now (2026-08-11: replaces the old page-level "Send" button,
-   * which sent every ready visible Circle in one bulk pass, all-or-nothing.
-   * That button read as greyed out/non-functional whenever ANY selected
-   * Circle didn't have a message yet, even if another Circle right above it
-   * was fully ready to go — a real usability bug, not a leftover from a
-   * pre-sequential architecture (it was still the only thing actually
-   * wired to send anything). This finally makes the per-Circle,
-   * independent sending the rest of the screen's design already implies —
-   * each Circle's own chip state, its own card, its own reselect — a real
-   * button, matching the pattern already used just below for personal
-   * notes, and on Reconnect/Taking Time's update/Library's Quick message.
-   * See docs/09-decision-log.md, 2026-08-11.
+   * Sends the current shared message to whichever Circles are currently
+   * selected, then clears the selection so the next group can be picked —
+   * "repeat until Done or every Circle is covered" (item 1). Only a Circle
+   * that actually contributed at least one included recipient to this send
+   * gets marked sent — a Circle whose every member was individually
+   * excluded/removed this round wasn't genuinely reached by it.
    */
-  const sendCircle = async (draft: GoingQuietCircleDraft) => {
-    const text = draft.message.trim();
-    if (!text) return;
+  const send = async () => {
+    const text = message.trim();
+    if (!text || selectedGroups.length === 0) return;
 
     // The period is created once, on this session's first Send from ANY
-    // Circle, and reused for every subsequent Send — never a fresh period
-    // per Circle, which would silently orphan the previous one.
+    // group, and reused for every subsequent Send.
     const periodId = period?.id ?? (await startHoldPeriod({
       recipients,
       audienceCircles: buildAudienceCircles(selectedGroups)
     }));
 
-    const circleRecipients = goingQuietRecipients.filter(
-      (recipient) => recipient.circleId === draft.circleId
-    );
-    const groupRecipients = circleRecipients.filter((recipient) => recipient.included);
+    const recipientsByCircle = new Map<string, GoingQuietRecipient[]>();
+    for (const recipient of goingQuietRecipients) {
+      const list = recipientsByCircle.get(recipient.circleId) ?? [];
+      list.push(recipient);
+      recipientsByCircle.set(recipient.circleId, list);
+    }
 
-    if (groupRecipients.length > 0) {
+    const contributingGroups = selectedGroups.filter((group) =>
+      (recipientsByCircle.get(group.id) ?? []).some((recipient) => recipient.included)
+    );
+    const includedNumbers = contributingGroups.flatMap((group) =>
+      (recipientsByCircle.get(group.id) ?? [])
+        .filter((recipient) => recipient.included)
+        .map((recipient) => recipient.phoneNumber)
+    );
+
+    if (includedNumbers.length > 0) {
       try {
-        const channel = await sendOrShare(groupRecipients.map((recipient) => recipient.phoneNumber), text);
-        await recordSendChannel(periodId, draft.circleId, channelKey(channel));
+        const channel = await sendOrShare(includedNumbers, text);
+        for (const group of contributingGroups) {
+          await recordSendChannel(periodId, group.id, channelKey(channel));
+        }
       } catch {
         // Move on even if this compose sheet was dismissed.
       }
     }
 
-    const individualRecipients = circleRecipients.filter(
-      (recipient) => !recipient.included && !recipient.individuallyRemoved && !recipient.routeToPersonalise
-    );
-    for (const recipient of individualRecipients) {
-      const individualText = recipient.instantMessage.trim();
-      if (!individualText) continue;
+    for (const group of selectedGroups) {
+      const circleRecipients = recipientsByCircle.get(group.id) ?? [];
 
-      try {
-        const channel = await sendOrShare([recipient.phoneNumber], individualText);
-        await recordSendChannel(periodId, recipient.phoneNumber, channelKey(channel));
-      } catch {
-        // Move on to the next person even if this compose sheet was dismissed.
+      const individualRecipients = circleRecipients.filter(
+        (recipient) => !recipient.included && !recipient.individuallyRemoved && !recipient.routeToPersonalise
+      );
+      for (const recipient of individualRecipients) {
+        const individualText = recipient.instantMessage.trim();
+        if (!individualText) continue;
+
+        try {
+          const channel = await sendOrShare([recipient.phoneNumber], individualText);
+          await recordSendChannel(periodId, recipient.phoneNumber, channelKey(channel));
+        } catch {
+          // Move on to the next person even if this compose sheet was dismissed.
+        }
+      }
+
+      const personaliseRecipients = circleRecipients.filter(
+        (recipient) => !recipient.included && !recipient.individuallyRemoved && recipient.routeToPersonalise
+      );
+      for (const recipient of personaliseRecipients) {
+        await seedPersonaliseRecipient({
+          name: recipient.name,
+          phoneNumber: recipient.phoneNumber,
+          circleId: recipient.circleId,
+          circleName: recipient.circleName
+        });
       }
     }
 
-    const personaliseRecipients = circleRecipients.filter(
-      (recipient) => !recipient.included && !recipient.individuallyRemoved && recipient.routeToPersonalise
-    );
-    for (const recipient of personaliseRecipients) {
-      await seedPersonaliseRecipient({
-        name: recipient.name,
-        phoneNumber: recipient.phoneNumber,
-        circleId: recipient.circleId,
-        circleName: recipient.circleName
-      });
+    if (selectedGroups.length > 1) {
+      await saveCombinationTemplate(selectedGroups.map((group) => group.id), text);
     }
 
     await refreshPeriod();
-    // A just-sent Circle drops out of "reselected" so its card collapses
-    // back to a compact sent chip in GroupPicker's own row — tapping it
-    // reselects (per the isSelected/hasSentThisSession pattern), rather
-    // than leaving it expanded as if still mid-draft.
-    setReselectedCircleIds((current) => {
-      const next = new Set(current);
-      next.delete(draft.circleId);
-      return next;
-    });
+
+    // Clear the current selection back to empty so the next group can be
+    // picked — "repeat until Done or every Circle is covered."
+    for (const group of selectedGroups) {
+      await toggleGroup(group);
+    }
+    setMessage("");
+    setSavedDefaultText(null);
+    setStartingPoints([]);
+    setIntent(null);
   };
 
-  const sendPersonalNote = async (recipient: GoingQuietRecipient) => {
-    const text = (personalNoteDrafts[recipient.contactId] ?? "").trim();
-    if (!text) return;
-
-    try {
-      await sendOrShare([recipient.phoneNumber], text);
-    } catch {
-      // The compose sheet closing is the only signal available either way.
+  const choosePersonalPrompt = (choice: "not-now" | "personalise") => {
+    setPersonalPromptChoice(choice);
+    if (choice === "personalise") {
+      void personalise.seedAndLoad(
+        excludedNotRemoved.map((recipient) => ({
+          name: recipient.name,
+          phoneNumber: recipient.phoneNumber,
+          circleId: recipient.circleId,
+          circleName: recipient.circleName
+        }))
+      );
     }
-    setPersonalNoteSentAt((current) => ({ ...current, [recipient.contactId]: Date.now() }));
   };
 
   const finish = async () => {
@@ -418,7 +569,19 @@ export default function HoldPeopleScreen() {
     <Screen
       contentContainerStyle={styles.content}
       dockedInput={
-        activeField ? (
+        personalise.replyTarget ? (
+          <DockedInputBar
+            value={personalise.drafts[personalise.replyTarget.personId] ?? ""}
+            onChangeText={personalise.replyTarget.onChangeText}
+            onDone={personalise.closeReply}
+            placeholder="Your reply"
+            accessibilityLabel="Your reply"
+            aiAmend={{
+              surface: "conversations-reply",
+              context: { friendMessage: personalise.replyTarget.friendMessage }
+            }}
+          />
+        ) : activeField ? (
           <DockedInputBar
             value={activeFieldValue()}
             onChangeText={setActiveFieldValue}
@@ -446,11 +609,8 @@ export default function HoldPeopleScreen() {
                 : undefined
             }
             aiAmend={
-              activeDraft
-                ? {
-                    surface: "going-quiet",
-                    context: { intent: activeDraft.intent ?? undefined, recipientLabel: activeDraft.circleName }
-                  }
+              activeField === "group-message"
+                ? { surface: "going-quiet", context: { intent: intent ?? undefined, recipientLabel: joinedGroupNames } }
                 : activeField === "ooo-shared" || activeOooAccountMessageId
                   ? { surface: "email-ooo" }
                   : activeField === "wider-world-status"
@@ -464,22 +624,8 @@ export default function HoldPeopleScreen() {
       <StepHeader title="Who needs to know?" />
       <GroupPicker
         selectedGroupIds={selectedGroups.map((group) => group.id)}
-        onToggle={toggleGroup}
+        onToggle={handleToggleGroup}
         sentCircleIds={sentCircleIds}
-        reselectedCircleIds={Array.from(reselectedCircleIds)}
-        onToggleReselected={toggleReselected}
-        expandedCircleIds={Array.from(expandedCircleIds)}
-        onToggleExpanded={(circleId) =>
-          setExpandedCircleIds((current) => {
-            const next = new Set(current);
-            if (next.has(circleId)) {
-              next.delete(circleId);
-            } else {
-              next.add(circleId);
-            }
-            return next;
-          })
-        }
         isNamingActive={activeField === "new-circle"}
         onActivateNaming={() => setActiveField("new-circle")}
         onCancelNaming={() => {
@@ -488,122 +634,154 @@ export default function HoldPeopleScreen() {
         }}
       />
 
-      {visibleDrafts.map((draft) => {
-        const showChips =
-          showingChipsFor.has(draft.circleId) || (draft.savedMessage === null && !draft.message.trim());
-        const isSaved = draft.savedMessage !== null && draft.message === draft.savedMessage;
-        const circleRecipients = goingQuietRecipients.filter(
-          (recipient) => recipient.circleId === draft.circleId
-        );
+      {orderedSelectedGroups.length > 0 ? (
+        <>
+          {orderedSelectedGroups.map((group) => {
+            const circleRecipients = goingQuietRecipients.filter(
+              (recipient) => recipient.circleId === group.id
+            );
 
-        return (
-          <View key={draft.circleId} style={styles.circleSection}>
-            <Text style={styles.sectionLabel}>{draft.circleName}</Text>
+            return (
+              <View key={group.id} style={styles.circleSection}>
+                <Text style={styles.sectionLabel}>{group.name}</Text>
+                <RecipientPersonalisation
+                  recipients={circleRecipients}
+                  onToggleIncluded={(contactId) => toggleRecipientIncluded(contactId, message)}
+                  onSetIndividuallyRemoved={setRecipientIndividuallyRemoved}
+                  onSetRouteToPersonalise={setRecipientRouteToPersonalise}
+                  isFieldActive={(contactId) => activeField === `recipient:${contactId}`}
+                  onActivateField={(contactId) => setActiveField(`recipient:${contactId}`)}
+                  bundleSelectedIds={bundleSelectedIds}
+                  onToggleBundleSelected={toggleBundleSelected}
+                />
+              </View>
+            );
+          })}
 
-            <RecipientPersonalisation
-              recipients={circleRecipients}
-              onToggleIncluded={toggleRecipientIncluded}
-              onSetIndividuallyRemoved={setRecipientIndividuallyRemoved}
-              onSetRouteToPersonalise={setRecipientRouteToPersonalise}
-              isFieldActive={(contactId) => activeField === `recipient:${contactId}`}
-              onActivateField={(contactId) => setActiveField(`recipient:${contactId}`)}
-            />
+          {bundleSelectedIds.size > 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => void splitIntoNewCircle()}
+              style={styles.splitLink}
+            >
+              <Text style={styles.linkText}>
+                + New circle from {bundleSelectedIds.size} selected
+              </Text>
+            </Pressable>
+          ) : null}
 
-            {showChips ? (
+          <Text style={styles.groupLabel}>Message to {joinedGroupNames}</Text>
+
+          {showChips ? (
+            <>
+              {startingPoints.length > 0 ? (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.startingPointsRow}
+                >
+                  {startingPoints.map((point) => (
+                    <Pressable
+                      key={point.circleId}
+                      accessibilityRole="button"
+                      onPress={() => applyStartingPoint(point.text)}
+                      style={styles.startingPointChip}
+                    >
+                      <Text style={styles.startingPointChipText}>Start from {point.circleName}'s message</Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              ) : null}
+
               <View accessibilityRole="radiogroup" style={styles.choices}>
                 {HOLD_INTENTS.map((choice) => (
                   <ChoiceCard
                     key={choice.id}
                     title={choice.title}
                     description={choice.description}
-                    selected={draft.intent === choice.id}
-                    onPress={() => void chooseIntent(draft.circleId, choice.id)}
+                    selected={intent === choice.id}
+                    onPress={() => void chooseIntent(choice.id)}
                   />
                 ))}
               </View>
-            ) : (
-              <>
-                <GoingQuietMessageBox
-                  styles={styles}
-                  draft={draft}
-                  isSaved={isSaved}
-                  isActive={activeField === `circle:${draft.circleId}`}
-                  onActivate={() => setActiveField(`circle:${draft.circleId}`)}
-                  onChangeTemplate={() => changeTemplate(draft.circleId)}
-                  onSaveDefault={() => void saveCircleDraftAsDefault(draft.circleId)}
-                />
-                <View style={styles.sendRow}>
-                  <CompactSendButton
-                    disabled={!draft.message.trim()}
-                    accessibilityLabel={`Send message to ${draft.circleName}`}
-                    onPress={() => void sendCircle(draft)}
-                  />
-                </View>
-              </>
-            )}
+            </>
+          ) : (
+            <View style={styles.messageBlock}>
+              <DockedFieldPreview
+                value={message}
+                placeholder={`Message to ${joinedGroupNames}`}
+                isActive={activeField === "group-message"}
+                onPress={() => setActiveField("group-message")}
+                accessibilityLabel={`Message to ${joinedGroupNames}`}
+              />
+              <View style={styles.messageControls}>
+                <Pressable accessibilityRole="button" onPress={() => setForceShowChips(true)}>
+                  <Text style={styles.linkText}>Change template</Text>
+                </Pressable>
+                {isSingleCircle ? (
+                  isSaved ? (
+                    <View style={styles.savedPill} accessibilityRole="text">
+                      <Text style={styles.savedPillText}>✓ Saved to Library</Text>
+                    </View>
+                  ) : (
+                    <Pressable accessibilityRole="button" onPress={() => void saveSingleCircleDefault()}>
+                      <Text style={styles.linkText}>Save to Library</Text>
+                    </Pressable>
+                  )
+                ) : null}
+              </View>
+
+              <SafeguardingBanner visible={safeguardingTriggered} />
+            </View>
+          )}
+
+          <View style={styles.sendRow}>
+            <CompactSendButton
+              disabled={!message.trim()}
+              accessibilityLabel={`Send to ${joinedGroupNames}`}
+              onPress={() => void send()}
+            />
           </View>
-        );
-      })}
+        </>
+      ) : null}
 
       {hasSentAnything ? (
         <>
           {!personalPromptResolved ? (
             <View style={styles.personalPromptRow}>
-              <Text style={styles.personalPromptText}>
-                Want to send anyone something more personal?
-              </Text>
+              <Text style={styles.personalPromptText}>Want to send personalised messages?</Text>
               <View style={styles.personalPromptActions}>
                 <Pressable
                   accessibilityRole="button"
-                  onPress={() => setPersonalPromptChoice("not-now")}
+                  onPress={() => choosePersonalPrompt("not-now")}
                   style={styles.smallPill}
                 >
                   <Text style={styles.smallPillText}>Not now</Text>
                 </Pressable>
                 <Pressable
                   accessibilityRole="button"
-                  onPress={() => setPersonalPromptChoice("yes")}
+                  onPress={() => choosePersonalPrompt("personalise")}
                   style={styles.smallPill}
                 >
-                  <Text style={styles.smallPillText}>Yes</Text>
+                  <Text style={styles.smallPillText}>Personalise</Text>
                 </Pressable>
               </View>
             </View>
           ) : null}
 
-          {personalPromptResolved && personalPromptChoice === "yes" ? (
-            <View style={styles.personalNoteList}>
-              {excludedNotRemoved.map((recipient) => {
-                const noteSentAt = personalNoteSentAt[recipient.contactId];
-                return (
-                  <View key={recipient.contactId} style={styles.personalNoteBlock}>
-                    <Text style={styles.name}>{recipient.name}</Text>
-                    {noteSentAt ? (
-                      <View style={styles.sentPill}>
-                        <Text style={styles.sentPillText}>✓ Sent</Text>
-                      </View>
-                    ) : (
-                      <>
-                        <DockedFieldPreview
-                          value={personalNoteDrafts[recipient.contactId] ?? ""}
-                          placeholder={`Personal note for ${recipient.name}`}
-                          isActive={activeField === `personal-note:${recipient.contactId}`}
-                          onPress={() => setActiveField(`personal-note:${recipient.contactId}`)}
-                          accessibilityLabel={`Personal note for ${recipient.name}`}
-                        />
-                        <View style={styles.sendRow}>
-                          <CompactSendButton
-                            disabled={!(personalNoteDrafts[recipient.contactId] ?? "").trim()}
-                            accessibilityLabel={`Send personal note to ${recipient.name}`}
-                            onPress={() => void sendPersonalNote(recipient)}
-                          />
-                        </View>
-                      </>
-                    )}
-                  </View>
-                );
-              })}
-            </View>
+          {personalPromptResolved && personalPromptChoice === "personalise" ? (
+            <PersonaliseCandidateList
+              people={personalise.people}
+              expandedId={personalise.expandedId}
+              onToggle={personalise.toggle}
+              onSent={() => void refreshPeriod()}
+              drafts={personalise.drafts}
+              onChangeDraft={personalise.onChangeDraft}
+              styles={personalise.styles}
+              onChangeStyle={personalise.onChangeStyle}
+              replyTargetPersonId={personalise.replyTarget?.personId ?? null}
+              onActivateReply={personalise.activateReply}
+            />
           ) : null}
 
           {personalPromptResolved ? (
@@ -649,7 +827,7 @@ export default function HoldPeopleScreen() {
           ) : null}
         </>
       ) : (
-        // No per-Circle send is required before finishing — someone who
+        // No per-group Send is required before finishing — someone who
         // decides not to send anything this session still needs a way out
         // of Going Quiet. finish() is already safe to call with nothing
         // sent: emailEnabled/widerWorldEnabled default false, and
@@ -658,63 +836,6 @@ export default function HoldPeopleScreen() {
         <PrimaryButton label="Done" onPress={() => void finish()} />
       )}
     </Screen>
-  );
-}
-
-interface GoingQuietMessageBoxProps {
-  styles: ReturnType<typeof createStyles>;
-  draft: GoingQuietCircleDraft;
-  isSaved: boolean;
-  isActive: boolean;
-  onActivate: () => void;
-  onChangeTemplate: () => void;
-  onSaveDefault: () => void;
-}
-
-/**
- * Extracted so useSafeguardingCheck (a hook) can run once per Circle draft
- * with a stable identity — circleDrafts.map(...) can't call hooks directly,
- * since the array's length changes as Circles are toggled on/off. The
- * actual typing now happens in the screen's shared DockedInputBar (AI-amend
- * included) — this just displays the current text and activates it.
- */
-function GoingQuietMessageBox({
-  styles,
-  draft,
-  isSaved,
-  isActive,
-  onActivate,
-  onChangeTemplate,
-  onSaveDefault
-}: GoingQuietMessageBoxProps) {
-  const safeguardingTriggered = useSafeguardingCheck(draft.message);
-
-  return (
-    <View style={styles.messageBlock}>
-      <DockedFieldPreview
-        value={draft.message}
-        placeholder={`Message for ${draft.circleName}`}
-        isActive={isActive}
-        onPress={onActivate}
-        accessibilityLabel={`Message for ${draft.circleName}`}
-      />
-      <View style={styles.messageControls}>
-        <Pressable accessibilityRole="button" onPress={onChangeTemplate}>
-          <Text style={styles.linkText}>Change template</Text>
-        </Pressable>
-        {isSaved ? (
-          <View style={styles.savedPill} accessibilityRole="text">
-            <Text style={styles.savedPillText}>✓ Saved to Library</Text>
-          </View>
-        ) : (
-          <Pressable accessibilityRole="button" onPress={onSaveDefault}>
-            <Text style={styles.linkText}>Save to Library</Text>
-          </Pressable>
-        )}
-      </View>
-
-      <SafeguardingBanner visible={safeguardingTriggered} />
-    </View>
   );
 }
 
@@ -733,8 +854,36 @@ function createStyles(colors: ThemeColors) {
       fontWeight: "600",
       letterSpacing: -0.2
     },
+    splitLink: {
+      alignSelf: "flex-start",
+      minHeight: 32,
+      justifyContent: "center"
+    },
+    groupLabel: {
+      color: colors.textMuted,
+      fontSize: 14,
+      fontWeight: "600"
+    },
     choices: {
       gap: theme.spacing.sm
+    },
+    startingPointsRow: {
+      flexDirection: "row",
+      gap: theme.spacing.sm
+    },
+    startingPointChip: {
+      minHeight: 36,
+      borderRadius: theme.radius.pill,
+      borderWidth: 1.5,
+      borderColor: colors.primary,
+      paddingHorizontal: theme.spacing.md,
+      alignItems: "center",
+      justifyContent: "center"
+    },
+    startingPointChipText: {
+      color: colors.text,
+      fontSize: 14,
+      fontWeight: "600"
     },
     sendRow: {
       flexDirection: "row",
@@ -764,20 +913,6 @@ function createStyles(colors: ThemeColors) {
     savedPillText: {
       color: colors.textMuted,
       fontSize: 13,
-      fontWeight: "600"
-    },
-    sentPill: {
-      alignSelf: "flex-start",
-      minHeight: 32,
-      borderRadius: theme.radius.pill,
-      paddingHorizontal: theme.spacing.md,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: colors.surfaceStrong
-    },
-    sentPillText: {
-      color: colors.textMuted,
-      fontSize: 14,
       fontWeight: "600"
     },
     personalPromptRow: {
@@ -822,17 +957,6 @@ function createStyles(colors: ThemeColors) {
     },
     oooBody: {
       gap: theme.spacing.md
-    },
-    personalNoteList: {
-      gap: theme.spacing.md
-    },
-    personalNoteBlock: {
-      gap: theme.spacing.xs
-    },
-    name: {
-      color: colors.text,
-      fontSize: 16,
-      fontWeight: "600"
     }
   });
 }

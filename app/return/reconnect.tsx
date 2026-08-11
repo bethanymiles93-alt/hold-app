@@ -9,9 +9,11 @@ import { DockedInputBar } from "@/components/DockedInputBar";
 import { DockedFieldPreview } from "@/components/DockedFieldPreview";
 import { MemoryNoteSuggestion } from "@/components/MemoryNoteSuggestion";
 import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
+import { PersonaliseCandidateList } from "@/components/PersonaliseCandidateList";
 import { PENDING_CIRCLE_ID_PREFIX } from "@/components/GroupPicker";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
+import { usePersonaliseCompletion } from "@/hooks/usePersonaliseCompletion";
 import { QUICK_RECONNECT_MESSAGES } from "@/constants/copy";
 import { useHoldFlow } from "@/context/HoldFlowContext";
 import {
@@ -49,6 +51,8 @@ export default function ReconnectScreen() {
   const [suggestedPrompt, setSuggestedPrompt] = useState<string | undefined>(undefined);
   const [oooExpanded, setOooExpanded] = useState(false);
   const [messageFieldActive, setMessageFieldActive] = useState(false);
+  const [showPersonalise, setShowPersonalise] = useState(false);
+  const personalise = usePersonaliseCompletion();
 
   const refresh = useCallback(async () => {
     // Prefer the durable marker (force-quit-resume, or any visit after the first
@@ -158,8 +162,26 @@ export default function ReconnectScreen() {
     await refresh();
   };
 
-  const goToConversations = () => {
-    router.push("/library");
+  /**
+   * Opens the same rich per-person Send/Edit/Personalise accordion Library
+   * itself uses, in place — not a nav-away hand-off (2026-08-11 — the old
+   * plain "Personalise" -> router.push("/library") was itself the gap,
+   * upgraded alongside Going Quiet's own completion step so both reach the
+   * same experience at their equivalent moment). Everyone in this period's
+   * audience is already a ConversationPerson by now (send() already calls
+   * seedFromAudience unconditionally), so there's nothing left to seed here
+   * — just read the matching records back. See docs/09-decision-log.md,
+   * 2026-08-11.
+   */
+  const openPersonalise = () => {
+    setShowPersonalise(true);
+    if (!period) return;
+
+    const phoneNumbers = [
+      ...(period.audienceCircles ?? []).flatMap((circle) => circle.contacts.map((contact) => contact.phoneNumber)),
+      ...(period.audienceUngrouped ?? []).map((contact) => contact.phoneNumber)
+    ];
+    void personalise.loadAlreadySeeded(phoneNumbers);
   };
 
   const notNow = () => {
@@ -311,7 +333,24 @@ export default function ReconnectScreen() {
   );
 
   return (
-    <Screen contentContainerStyle={styles.content}>
+    <Screen
+      contentContainerStyle={styles.content}
+      dockedInput={
+        personalise.replyTarget ? (
+          <DockedInputBar
+            value={personalise.drafts[personalise.replyTarget.personId] ?? ""}
+            onChangeText={personalise.replyTarget.onChangeText}
+            onDone={personalise.closeReply}
+            placeholder="Your reply"
+            accessibilityLabel="Your reply"
+            aiAmend={{
+              surface: "conversations-reply",
+              context: { friendMessage: personalise.replyTarget.friendMessage }
+            }}
+          />
+        ) : null
+      }
+    >
       <View style={styles.top}>
         <StepHeader body="Everyone's been reached." />
 
@@ -385,8 +424,26 @@ export default function ReconnectScreen() {
         ) : null}
       </View>
 
+      {showPersonalise ? (
+        <PersonaliseCandidateList
+          people={personalise.people}
+          expandedId={personalise.expandedId}
+          onToggle={personalise.toggle}
+          onSent={() => void refresh()}
+          drafts={personalise.drafts}
+          onChangeDraft={personalise.onChangeDraft}
+          styles={personalise.styles}
+          onChangeStyle={personalise.onChangeStyle}
+          replyTargetPersonId={personalise.replyTarget?.personId ?? null}
+          onActivateReply={personalise.activateReply}
+        />
+      ) : null}
+
       <View style={styles.actions}>
-        <SecondaryButton label="Personalise" onPress={goToConversations} />
+        <SecondaryButton
+          label={showPersonalise ? "Hide" : "Personalise"}
+          onPress={() => (showPersonalise ? setShowPersonalise(false) : openPersonalise())}
+        />
         <SecondaryButton label="Not now" onPress={notNow} />
       </View>
     </Screen>

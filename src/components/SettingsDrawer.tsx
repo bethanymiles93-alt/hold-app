@@ -21,7 +21,7 @@ import { deleteAllCircles } from "@/services/circleService";
 import { deleteAllConversations } from "@/services/conversationService";
 import { deleteAllHoldHistory } from "@/services/holdHistoryService";
 import { deleteAllReplies } from "@/services/replyStorageService";
-import { deleteAllTemplates } from "@/services/templateService";
+import { deleteAllCombinationTemplates, deleteAllTemplates } from "@/services/templateService";
 import { deleteAllDrafts } from "@/services/messageDraftService";
 import { setMemoryEnabled } from "@/services/aiMemoryService";
 import { setHoldPlusActive } from "@/services/holdPlusService";
@@ -153,6 +153,7 @@ export function SettingsDrawer() {
                 deleteAllReplies(),
                 deleteAllConversations(),
                 deleteAllTemplates(),
+                deleteAllCombinationTemplates(),
                 deleteAllDrafts(),
                 // setMemoryEnabled(false), not deleteAllMemoryNotes() directly — also
                 // clears the Layer-1 "Remember helpful details" toggle itself, not

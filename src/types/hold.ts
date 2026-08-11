@@ -43,15 +43,6 @@ export interface GoingQuietRecipient {
   routeToPersonalise: boolean;
 }
 
-export interface GoingQuietCircleDraft {
-  circleId: string;
-  circleName: string;
-  intent: HoldIntent | null;
-  message: string;
-  /** Exact text currently saved as this Circle's Library default; null if none has ever been saved. */
-  savedMessage: string | null;
-}
-
 export interface HoldFlowState {
   mode: FlowMode;
   recipients: string[];
@@ -62,7 +53,16 @@ export interface HoldFlowState {
   /** The Hold period Reconnect is targeting, known immediately on entry — separate from the durable RECONNECTING_KEY marker, which is only set at the first genuine send. */
   reconnectPeriodId: string | null;
   goingQuietRecipients: GoingQuietRecipient[];
-  circleDrafts: GoingQuietCircleDraft[];
+  /**
+   * contactId -> the id of a provisional Circle they've been split into
+   * mid-flow (see GroupPicker/create/people.tsx's "+ New circle from
+   * selected" action). A contact keeps being a real member of their
+   * original Circle underneath — this only overrides which Circle their
+   * Going Quiet recipient entry is attributed to for THIS session, the same
+   * way individuallyRemoved never touches real Circle membership either.
+   * See docs/09-decision-log.md, 2026-08-11.
+   */
+  recipientCircleOverrides: Record<string, string>;
 }
 
 export interface DraftRequest {

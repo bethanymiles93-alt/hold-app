@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { useFocusEffect } from "expo-router";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
@@ -19,23 +19,15 @@ interface GroupPickerProps {
   selectedGroupIds: string[];
   onToggle: (group: CircleGroup) => Promise<void>;
   /**
-   * Circle ids sent at least once this Going Quiet session. A sent Circle's
-   * chip switches to the sent/checkmark look and its tap meaning changes
-   * from "remove from audience" to "toggle reselected" (reopen its card for
-   * a further/different send) — removing an already-sent Circle from the
-   * audience doesn't undo the message, so that action stops making sense
-   * once sending has actually happened.
+   * Circle ids sent at least once this Going Quiet session — drives the
+   * chip's sent/checkmark fill only (AdaptiveCircleChip's own
+   * hasSentThisSession treatment). Doesn't change what a tap does: sent
+   * Circles are never locked (2026-08-11) — tapping one toggles it in/out
+   * of the current selection exactly like any other Circle, matching Taking
+   * Time's "Send an update" picker (app/return/update.tsx), which this now
+   * mirrors. See docs/09-decision-log.md, 2026-08-11.
    */
   sentCircleIds?: string[];
-  /** Which sent Circles are currently reselected (card reopened) — meaningless for a Circle not yet sent. */
-  reselectedCircleIds?: string[];
-  onToggleReselected?: (circleId: string) => void;
-  /**
-   * Which Circles' cards are pinned open via their own arrow (independent
-   * of send-selection) — see the circle/arrow split below.
-   */
-  expandedCircleIds?: string[];
-  onToggleExpanded?: (circleId: string) => void;
   /**
    * Whether the new-Circle name field (owned entirely by the parent
    * screen's shared DockedInputBar — every screen has exactly one, so "which
@@ -49,26 +41,18 @@ interface GroupPickerProps {
 }
 
 /**
- * Pure Circle picker — selection only. Per-person detail (include/exclude,
- * remove, personalise) lives permanently in the merged Going Quiet screen's
- * own per-Circle cards now, not behind a second expand-on-demand mechanism
- * here, so there's exactly one place that interaction happens.
- *
- * Each named Circle is two independent tap targets, not one (2026-08-11):
- * the circle itself (send-selection — audience add/remove for a Circle
- * never sent this session, reselect-to-resend for one that has been) and a
- * separate small arrow beside it (pins the card open/closed independently,
- * without affecting send-selection at all). Tapping one never changes the
- * other's appearance or state.
+ * Pure Circle picker — selection only. Selecting any subset of Circles is
+ * the one audience for the screen's single shared message (2026-08-11 —
+ * supersedes the earlier per-Circle-card/reselect/expand-arrow machinery,
+ * which existed to solve problems — an independently persisted draft per
+ * Circle, a way to view a sent Circle's card without reselecting it — that
+ * don't exist any more now every Circle-combination shares one message and
+ * one Send action. See docs/09-decision-log.md, 2026-08-11.
  */
 export function GroupPicker({
   selectedGroupIds,
   onToggle,
   sentCircleIds = [],
-  reselectedCircleIds = [],
-  onToggleReselected,
-  expandedCircleIds = [],
-  onToggleExpanded,
   isNamingActive,
   onActivateNaming,
   onCancelNaming
@@ -93,23 +77,10 @@ export function GroupPicker({
     (group) => selectedGroupIds.includes(group.id) && group.contacts.length === 0
   );
 
-  // An empty Circle can never actually be sent to, so "All" only ever
-  // gathers/releases the Circles that genuinely have someone in them —
-  // otherwise a stray empty Circle (e.g. an unused Close Circle) would get
-  // swept in and permanently block Send, which defeats the point of "All"
-  // as a shortcut. Individually tapping an empty Circle's own pill still
-  // works as before, surfacing the "doesn't have anyone in it yet" prompt.
-  const nonEmptyGroups = groups.filter((group) => group.contacts.length > 0);
-  const allSelected =
-    nonEmptyGroups.length > 0 && nonEmptyGroups.every((group) => selectedGroupIds.includes(group.id));
+  const allSelected = groups.length > 0 && groups.every((group) => selectedGroupIds.includes(group.id));
 
   const toggleAll = async () => {
-    // Skips any already-sent Circle — "All" is an audience shortcut, and
-    // removing a sent Circle from the audience doesn't undo its message, so
-    // it stays out of reach of this bulk action the same way a single tap
-    // on its own chip now does.
-    for (const group of nonEmptyGroups) {
-      if (sentCircleIds.includes(group.id)) continue;
+    for (const group of groups) {
       if (allSelected === selectedGroupIds.includes(group.id)) {
         await onToggle(group);
       }
@@ -142,52 +113,22 @@ export function GroupPicker({
             <AdaptiveCircleChip label="All" isSelected={allSelected} onPress={() => void toggleAll()} />
           ) : null}
           {groups.map((group) => {
-            const inAudience = selectedGroupIds.includes(group.id);
+            const isSelected = selectedGroupIds.includes(group.id);
             const hasSentThisSession = sentCircleIds.includes(group.id);
-            const isReselected = reselectedCircleIds.includes(group.id);
-            const sentLook = hasSentThisSession && !isReselected;
-            const selectedForSending = hasSentThisSession ? isReselected : inAudience;
-            const arrowExpanded = expandedCircleIds.includes(group.id);
+            const sentLook = hasSentThisSession && !isSelected;
 
             return (
-              <View key={group.id} style={styles.circleUnit}>
-                <AdaptiveCircleChip
-                  label={sentLook ? `✓ ${group.name}` : group.name}
-                  isSelected={selectedForSending}
-                  hasSentThisSession={hasSentThisSession}
-                  labelBold={group.isCloseCircle}
-                  onPress={() =>
-                    hasSentThisSession ? onToggleReselected?.(group.id) : void onToggle(group)
-                  }
-                  accessibilityLabel={
-                    sentLook ? `${group.name}, already sent. Tap to send another message.` : group.name
-                  }
-                />
-                {/* Positioned inside the chip's own right edge, not floating
-                    outside it (2026-08-11 correction — on-device, an
-                    outside-the-circle arrow read as ambiguous about which
-                    circle it belonged to). Absolute within circleUnit, which
-                    wraps tightly to the chip's own rendered size, so this
-                    works for both the fixed-diameter circle shape and the
-                    grow-to-fit pill shape without knowing which one a given
-                    label produced. Still an independent Pressable — a small
-                    scrim badge behind the glyph keeps it visually distinct
-                    from the label text it now sits on top of. */}
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`${group.name}, ${arrowExpanded ? "hide" : "show"} recipients`}
-                  accessibilityState={{ expanded: arrowExpanded }}
-                  hitSlop={8}
-                  onPress={() => onToggleExpanded?.(group.id)}
-                  style={styles.arrowButton}
-                >
-                  {({ pressed }) => (
-                    <View style={[styles.arrowBadge, pressed && styles.arrowPressed]}>
-                      <Text style={styles.arrowGlyph}>{arrowExpanded ? "▲" : "▼"}</Text>
-                    </View>
-                  )}
-                </Pressable>
-              </View>
+              <AdaptiveCircleChip
+                key={group.id}
+                label={sentLook ? `✓ ${group.name}` : group.name}
+                isSelected={isSelected}
+                hasSentThisSession={hasSentThisSession}
+                labelBold={group.isCloseCircle}
+                onPress={() => void onToggle(group)}
+                accessibilityLabel={
+                  sentLook ? `${group.name}, already sent. Tap to send another message.` : group.name
+                }
+              />
             );
           })}
         </ScrollView>
@@ -221,9 +162,7 @@ function createStyles(colors: ThemeColors) {
     },
     // "+" is a small vertical stack (circle, then its own caption once
     // active) rather than a bare circle — matches the story-circle
-    // reference this whole sizing pass has been modelled on. Fixed width
-    // matching the chip itself so the caption, when it appears, doesn't
-    // widen the pinned column.
+    // reference this whole sizing pass has been modelled on.
     newCircleStack: {
       alignItems: "center",
       gap: theme.spacing.xs
@@ -241,45 +180,6 @@ function createStyles(colors: ThemeColors) {
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.md
-    },
-    // Wraps tightly to the chip's own rendered size (no gap/row layout
-    // needed any more — the arrow is positioned inside it, not beside it).
-    circleUnit: {
-      position: "relative",
-      alignSelf: "flex-start"
-    },
-    // A separate tap target overlaid on the chip's own right edge — never
-    // merged into the chip's shape or measured-text fit, which knows
-    // nothing about this element. top/bottom: 0 gives it the chip's full
-    // height as its hit area; hitSlop widens the narrower horizontal
-    // dimension to stay at/above the accessible tap-target floor without
-    // visually widening the badge itself.
-    arrowButton: {
-      position: "absolute",
-      right: 6,
-      top: 0,
-      bottom: 0,
-      alignItems: "center",
-      justifyContent: "center"
-    },
-    // A small scrim behind the glyph — visual separation from the label
-    // text it now sits on top of, without needing to know which of the
-    // chip's several fill states (default/selected/sent) is underneath it.
-    arrowBadge: {
-      width: 22,
-      height: 22,
-      borderRadius: 11,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: "rgba(0, 0, 0, 0.12)"
-    },
-    arrowPressed: {
-      opacity: 0.6
-    },
-    arrowGlyph: {
-      color: colors.textMuted,
-      fontSize: 13,
-      fontWeight: "600"
     },
     prompt: {
       color: colors.textMuted,
