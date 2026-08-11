@@ -3,61 +3,66 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { SelectionCircle } from "@/components/SelectionCircle";
-import { DockedFieldPreview } from "@/components/DockedFieldPreview";
 import type { GoingQuietRecipient } from "@/types/hold";
 
 interface RecipientPersonalisationProps {
+  /** Full Circle membership, unfiltered — isSoleContact is judged against real membership, not whichever subset happens to still be included. */
   recipients: GoingQuietRecipient[];
-  onToggleIncluded: (contactId: string) => void;
-  onSetIndividuallyRemoved: (contactId: string, removed: boolean) => void;
-  onSetRouteToPersonalise: (contactId: string, route: boolean) => void;
-  /** Whether this recipient's instant-message field currently lives in the parent screen's docked bar. */
-  isFieldActive: (contactId: string) => boolean;
-  onActivateField: (contactId: string) => void;
   /**
-   * Which already-removed recipients are currently checked for bundling
-   * into a new provisional Circle — the "+ New circle from selected"
-   * action lives in the parent screen (it can span people removed from
-   * several different Circles' cards at once), this just renders the
-   * per-person checkbox. See docs/09-decision-log.md, 2026-08-11.
+   * Excluding someone here moves them out of this list entirely and into
+   * the screen-level removed-people roster (2026-08-11 — replaces the
+   * earlier inline excluded-row/instant-message/Personalise sub-flow,
+   * itself replaced screen-wide by the ad-hoc-circle mechanic). The parent
+   * owns both the context toggle and the roster bookkeeping; this only
+   * reports which person was tapped.
    */
-  bundleSelectedIds: Set<string>;
-  onToggleBundleSelected: (contactId: string) => void;
+  onToggleIncluded: (contactId: string) => void;
+  /** "+" row, pinned first — opens the contact picker to add a new member to this Circle, reusing the same mechanism Settings' Manage Circles already uses. See docs/09-decision-log.md, 2026-08-11. */
+  onAddPerson: () => void;
 }
 
 /**
- * One Circle's full recipient list: a top-level include/exclude toggle for
- * everyone, then anyone excluded gets a second row below with their own
- * second-level toggle (individually-removed vs still getting their own
- * instant message), an editable message, and a Personalise link that routes
- * them to Conversations instead (seeded at Send time, not on tap).
+ * One Circle's member list, on demand (behind its own dropdown arrow — see
+ * GroupPicker.tsx). A selection circle per person: solid when included in
+ * the current group message, tap to exclude — which now removes them from
+ * this list outright rather than revealing a second-level sub-row, since
+ * excluded people live in the screen-level removed-people list instead
+ * (2026-08-11).
  *
- * A Circle with only one contact never shows any exclusion control at all —
- * excluding your only recipient already has the same effect as not
- * selecting the Circle in the first place (that's the GroupPicker pill),
- * so offering a second way to reach the same outcome here would just be a
- * confusing, easy-to-get-stuck-in dead end.
+ * A Circle with only one contact never shows the selection control at all
+ * — excluding your only recipient already has the same effect as not
+ * selecting the Circle in the first place (that's GroupPicker's own chip),
+ * so a second way to reach the same outcome here would just be confusing.
  */
 export function RecipientPersonalisation({
   recipients,
   onToggleIncluded,
-  onSetIndividuallyRemoved,
-  onSetRouteToPersonalise,
-  isFieldActive,
-  onActivateField,
-  bundleSelectedIds,
-  onToggleBundleSelected
+  onAddPerson
 }: RecipientPersonalisationProps) {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const isSoleContact = recipients.length === 1;
-  const excluded = isSoleContact ? [] : recipients.filter((recipient) => !recipient.included);
+  const visible = recipients.filter((recipient) => recipient.included);
 
   return (
     <View style={styles.container}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Add person"
+        hitSlop={8}
+        onPress={onAddPerson}
+        style={styles.addRow}
+      >
+        {({ pressed }) => (
+          <View style={[styles.addGlyphCircle, pressed && styles.addGlyphPressed]}>
+            <Text style={styles.addGlyphText}>+</Text>
+          </View>
+        )}
+      </Pressable>
+
       <View style={styles.mainList}>
-        {recipients.map((recipient) =>
+        {visible.map((recipient) =>
           isSoleContact ? (
             <View key={recipient.contactId} style={styles.mainRow}>
               <Text style={styles.name}>{recipient.name}</Text>
@@ -67,90 +72,13 @@ export function RecipientPersonalisation({
               <SelectionCircle
                 selected={recipient.included}
                 onPress={() => onToggleIncluded(recipient.contactId)}
-                accessibilityLabel={`${recipient.included ? "Included" : "Excluded"}: ${recipient.name}`}
+                accessibilityLabel={`${recipient.name}, included. Tap to remove.`}
               />
               <Text style={styles.name}>{recipient.name}</Text>
             </View>
           )
         )}
       </View>
-
-      {excluded.length > 0 ? (
-        <View style={styles.excludedList}>
-          {excluded.map((recipient) => {
-            if (recipient.individuallyRemoved) {
-              return (
-                <View key={recipient.contactId} style={styles.removedRow}>
-                  <View style={styles.removedRowStart}>
-                    <SelectionCircle
-                      selected={false}
-                      onPress={() => onSetIndividuallyRemoved(recipient.contactId, false)}
-                      accessibilityLabel={`Restore ${recipient.name}`}
-                    />
-                    <Text style={styles.nameRemoved}>{recipient.name}</Text>
-                  </View>
-                  <Pressable
-                    accessibilityRole="checkbox"
-                    accessibilityLabel={`Select ${recipient.name} for a new Circle`}
-                    accessibilityState={{ checked: bundleSelectedIds.has(recipient.contactId) }}
-                    hitSlop={8}
-                    onPress={() => onToggleBundleSelected(recipient.contactId)}
-                    style={styles.bundleCheckboxWrap}
-                  >
-                    <View
-                      style={[
-                        styles.bundleCheckbox,
-                        bundleSelectedIds.has(recipient.contactId) && styles.bundleCheckboxChecked
-                      ]}
-                    />
-                  </Pressable>
-                </View>
-              );
-            }
-
-            return (
-              <View key={recipient.contactId} style={styles.excludedBlock}>
-                <View style={styles.excludedRow}>
-                  <SelectionCircle
-                    selected={true}
-                    onPress={() => onSetIndividuallyRemoved(recipient.contactId, true)}
-                    accessibilityLabel={`Remove ${recipient.name}`}
-                  />
-                  <Text style={styles.name}>{recipient.name}</Text>
-                </View>
-
-                {recipient.routeToPersonalise ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => onSetRouteToPersonalise(recipient.contactId, false)}
-                    style={styles.personaliseNote}
-                  >
-                    <Text style={styles.personaliseNoteText}>
-                      Will personalise in Conversations
-                    </Text>
-                  </Pressable>
-                ) : (
-                  <>
-                    <DockedFieldPreview
-                      value={recipient.instantMessage}
-                      placeholder={`Message for ${recipient.name}`}
-                      isActive={isFieldActive(recipient.contactId)}
-                      onPress={() => onActivateField(recipient.contactId)}
-                      accessibilityLabel={`Message for ${recipient.name}`}
-                    />
-                    <Pressable
-                      accessibilityRole="button"
-                      onPress={() => onSetRouteToPersonalise(recipient.contactId, true)}
-                    >
-                      <Text style={styles.linkText}>Personalise</Text>
-                    </Pressable>
-                  </>
-                )}
-              </View>
-            );
-          })}
-        </View>
-      ) : null}
     </View>
   );
 }
@@ -159,6 +87,32 @@ function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     container: {
       gap: theme.spacing.sm
+    },
+    // Deliberately reads as a control, not a name row — a bordered circular
+    // "+" badge rather than plain text, so it can't be mistaken for a
+    // person while scanning the list. See docs/09-decision-log.md, 2026-08-11.
+    addRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      minHeight: 44
+    },
+    addGlyphCircle: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      borderWidth: 1.5,
+      borderColor: colors.primary,
+      alignItems: "center",
+      justifyContent: "center"
+    },
+    addGlyphPressed: {
+      opacity: 0.6
+    },
+    addGlyphText: {
+      color: colors.primary,
+      fontSize: 20,
+      fontWeight: "700",
+      lineHeight: 22
     },
     mainList: {
       gap: theme.spacing.xs
@@ -172,64 +126,6 @@ function createStyles(colors: ThemeColors) {
     name: {
       color: colors.text,
       fontSize: 16
-    },
-    excludedList: {
-      gap: theme.spacing.sm,
-      marginLeft: 32,
-      paddingLeft: theme.spacing.sm,
-      borderLeftWidth: 1.5,
-      borderLeftColor: colors.border
-    },
-    excludedBlock: {
-      gap: theme.spacing.xs
-    },
-    excludedRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.sm,
-      minHeight: 36
-    },
-    removedRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      minHeight: 36
-    },
-    removedRowStart: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.sm
-    },
-    nameRemoved: {
-      color: colors.textMuted
-    },
-    bundleCheckboxWrap: {
-      alignItems: "center",
-      justifyContent: "center"
-    },
-    bundleCheckbox: {
-      width: 22,
-      height: 22,
-      borderRadius: theme.radius.sm,
-      borderWidth: 1.5,
-      borderColor: colors.primary
-    },
-    bundleCheckboxChecked: {
-      backgroundColor: colors.primary
-    },
-    linkText: {
-      color: colors.link,
-      fontSize: 13,
-      fontWeight: "600"
-    },
-    personaliseNote: {
-      minHeight: 32,
-      justifyContent: "center"
-    },
-    personaliseNoteText: {
-      color: colors.textMuted,
-      fontSize: 13,
-      fontStyle: "italic"
     }
   });
 }

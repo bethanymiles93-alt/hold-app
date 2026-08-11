@@ -184,8 +184,18 @@ export default function ReconnectScreen() {
     void personalise.loadAlreadySeeded(phoneNumbers);
   };
 
-  const notNow = () => {
-    router.replace("/");
+  /**
+   * Ends Reconnect's own completion step — corrected (2026-08-11) to match
+   * Going Quiet's own finish(), which always lands on a calm completion
+   * screen (create/done.tsx) right after its OOO/Personalise decisions.
+   * Reconnect had no equivalent: this button used to go straight home,
+   * with return/done.tsx ("You're reconnected") only ever reachable via a
+   * completely different path (Library, once every Conversation is
+   * complete) — a real asymmetry, not a deliberate design choice. See
+   * docs/09-decision-log.md, 2026-08-11.
+   */
+  const finishReconnecting = () => {
+    router.replace("/return/done");
   };
 
   const turnOffEmail = () => {
@@ -270,7 +280,7 @@ export default function ReconnectScreen() {
               return (
                 <AdaptiveCircleChip
                   key={circle.circleId}
-                  label={sentLook ? `✓ ${circle.circleName}` : circle.circleName}
+                  label={circle.circleName}
                   isSelected={isSelected}
                   hasSentThisSession={hasSentThisSession}
                   onPress={() => toggleId(circle.circleId)}
@@ -292,7 +302,7 @@ export default function ReconnectScreen() {
               return (
                 <AdaptiveCircleChip
                   key={contact.phoneNumber}
-                  label={sentLook ? `✓ ${contact.name}` : contact.name}
+                  label={contact.name}
                   isSelected={isSelected}
                   hasSentThisSession={hasSentThisSession}
                   onPress={() => toggleId(contact.phoneNumber)}
@@ -444,7 +454,7 @@ export default function ReconnectScreen() {
           label={showPersonalise ? "Hide" : "Personalise"}
           onPress={() => (showPersonalise ? setShowPersonalise(false) : openPersonalise())}
         />
-        <SecondaryButton label="Not now" onPress={notNow} />
+        <SecondaryButton label="Not now" onPress={finishReconnecting} />
       </View>
     </Screen>
   );

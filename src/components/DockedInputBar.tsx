@@ -272,28 +272,32 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     },
     row: {
       flexDirection: "row",
-      alignItems: "flex-end",
+      alignItems: "flex-start",
       gap: theme.spacing.xs,
       paddingBottom: theme.spacing.sm
     },
     // One continuous rounded shape holding the text input and all three of
     // its icons (AI-amend, mic, send) — Instagram-style, not separate
-    // elements in a row (2026-08-11: AI-amend moved in from outside the
-    // pill, joining the mic/send icons already there). borderRadius uses
-    // the pill token throughout; on a multi-line-grown tall box this still
-    // reads as a fully-rounded (stadium) shape at whatever height the text
-    // has grown to, matching the reference.
+    // elements in a row. borderRadius uses the pill token throughout; on a
+    // multi-line-grown tall box this still reads as a fully-rounded
+    // (stadium) shape at whatever height the text has grown to. Icons sit
+    // at the TOP of the pill, following the curve of its rounded top edge
+    // (2026-08-11 correction — they previously sat at the bottom, where the
+    // outer two clipped/overlapped the pill's own rounded corner; extra
+    // top padding here gives them clearance from that curve). See
+    // docs/09-decision-log.md.
     pill: {
       flex: 1,
       flexDirection: "row",
-      alignItems: "flex-end",
+      alignItems: "flex-start",
       minHeight: 44,
       maxHeight: 132,
       borderRadius: theme.radius.pill,
       backgroundColor: pillFill,
-      paddingLeft: theme.spacing.xs,
-      paddingRight: theme.spacing.xs,
-      paddingVertical: theme.spacing.xs
+      paddingLeft: theme.spacing.sm,
+      paddingRight: theme.spacing.sm,
+      paddingTop: theme.spacing.sm,
+      paddingBottom: theme.spacing.xs
     },
     input: {
       flex: 1,

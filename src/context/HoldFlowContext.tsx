@@ -19,6 +19,28 @@ interface HoldFlowContextValue extends HoldFlowState {
   setRecipients: (recipients: string[]) => void;
   toggleGroup: (group: CircleGroup) => Promise<void>;
   /**
+   * Replaces the whole selection in one atomic step — for bulk operations
+   * ("All", restoring a prior selection) that need to land in one render,
+   * not N sequential `toggleGroup` calls. A loop of individually-awaited
+   * `toggleGroup` calls is genuinely unsafe for this: each one reads
+   * `selectedGroups` fresh from the CALLER's own render closure, and since
+   * `toggleGroup` itself no longer does any real async work, successive
+   * calls can resolve faster than React re-renders the caller with the
+   * previous call's result — so a rapid loop ends up non-deterministic
+   * about which Circles it actually toggles (confirmed as the root cause
+   * of a real "All" bug, 2026-08-11). See docs/09-decision-log.md.
+   */
+  setSelectedGroups: (groups: CircleGroup[]) => void;
+  /**
+   * Replaces one already-selected Circle's own data in place (e.g. after
+   * adding a member to it mid-flow) — `toggleGroup`/`setSelectedGroups`
+   * only ever use whatever CircleGroup object the caller already has, they
+   * never refetch from storage themselves, so without this, a newly-added
+   * member wouldn't appear in `goingQuietRecipients` until the Circle was
+   * deselected and reselected. See docs/09-decision-log.md, 2026-08-11.
+   */
+  updateSelectedGroup: (updatedGroup: CircleGroup) => void;
+  /**
    * `fallbackMessage` pre-fills the excluded recipient's own instant message
    * — the currently active shared group message, passed in by the caller
    * rather than looked up here, since the shared message is now owned by
@@ -187,6 +209,33 @@ export function HoldFlowProvider({ children }: PropsWithChildren) {
           };
         });
       },
+      setSelectedGroups: (selectedGroups) =>
+        setState((current) => ({
+          ...current,
+          selectedGroups,
+          recipients: dedupeContactsByPhoneNumber(selectedGroups).map((contact) => contact.name),
+          goingQuietRecipients: mergeGoingQuietRecipients(
+            current.goingQuietRecipients,
+            selectedGroups,
+            current.recipientCircleOverrides
+          )
+        })),
+      updateSelectedGroup: (updatedGroup) =>
+        setState((current) => {
+          const selectedGroups = current.selectedGroups.map((existing) =>
+            existing.id === updatedGroup.id ? updatedGroup : existing
+          );
+          return {
+            ...current,
+            selectedGroups,
+            recipients: dedupeContactsByPhoneNumber(selectedGroups).map((contact) => contact.name),
+            goingQuietRecipients: mergeGoingQuietRecipients(
+              current.goingQuietRecipients,
+              selectedGroups,
+              current.recipientCircleOverrides
+            )
+          };
+        }),
       toggleRecipientIncluded: (contactId, fallbackMessage) =>
         setState((current) => ({
           ...current,
