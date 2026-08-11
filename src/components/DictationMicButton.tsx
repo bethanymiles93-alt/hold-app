@@ -61,7 +61,7 @@ export function DictationMicButton({ onResult }: DictationMicButtonProps) {
     >
       <Ionicons
         name={listening ? "mic" : "mic-outline"}
-        size={20}
+        size={26}
         color={listening ? colors.onPrimary : colors.textMuted}
       />
     </Pressable>

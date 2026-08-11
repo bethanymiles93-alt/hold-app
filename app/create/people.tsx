@@ -3,7 +3,7 @@ import { router, useFocusEffect } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
-import { GroupPicker } from "@/components/GroupPicker";
+import { GroupPicker, PENDING_CIRCLE_ID_PREFIX } from "@/components/GroupPicker";
 import { ChoiceCard } from "@/components/ChoiceCard";
 import { RecipientPersonalisation } from "@/components/RecipientPersonalisation";
 import { PrimaryButton } from "@/components/PrimaryButton";
@@ -29,13 +29,17 @@ import { seedPersonaliseRecipient } from "@/services/conversationService";
 import { activateOutOfOffice } from "@/services/emailAccountService";
 import { copyToClipboard } from "@/services/clipboardService";
 import { channelKey, sendOrShare } from "@/services/smsService";
+import { pickContact } from "@/services/contactPickerService";
 import type {
+  CircleGroup,
   EmailAccount,
   GoingQuietCircleDraft,
   GoingQuietRecipient,
   HoldIntent,
   HoldPeriod
 } from "@/types/hold";
+
+const SUGGESTED_CIRCLES = ["Friends", "Work", "Book Club"];
 
 /** Every distinct docked-bar field on this screen, keyed by a string tag so exactly one DockedInputBar can serve all of them. */
 type ActiveField =
@@ -229,6 +233,38 @@ export default function HoldPeopleScreen() {
     return "Message";
   };
 
+  /**
+   * Creates the pending (not-yet-real) Circle from whatever name is passed
+   * in — typed, or a tapped suggestion. Lifted up from GroupPicker so the
+   * docked bar's suggestion chips (rendered above the keyboard, not inside
+   * GroupPicker's own position in the scrollable content) can trigger the
+   * exact same submission GroupPicker's own "Add" button uses. See
+   * docs/09-decision-log.md, 2026-08-11.
+   */
+  const submitNewCircleName = async (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+
+    const picked = await pickContact();
+    if (!picked) {
+      // A Circle can't be created or saved with zero contacts — without a
+      // contact there's nothing valid to create, staged or otherwise.
+      return;
+    }
+
+    const tempId = `${PENDING_CIRCLE_ID_PREFIX}${Date.now()}`;
+    const pendingCircle: CircleGroup = {
+      id: tempId,
+      name: trimmed,
+      isCloseCircle: false,
+      contacts: [{ id: `${tempId}-contact`, name: picked.name, phoneNumber: picked.phoneNumber }]
+    };
+
+    await toggleGroup(pendingCircle);
+    setNewCircleName("");
+    setActiveField(null);
+  };
+
   const chooseIntent = async (circleId: string, choice: HoldIntent) => {
     setCircleDraftIntent(circleId, choice);
     const recipientNames =
@@ -365,6 +401,14 @@ export default function HoldPeopleScreen() {
             onDone={() => setActiveField(null)}
             placeholder={activeFieldLabel()}
             accessibilityLabel={activeFieldLabel()}
+            suggestions={
+              activeField === "new-circle"
+                ? SUGGESTED_CIRCLES.map((name) => ({
+                    label: name,
+                    onPress: () => void submitNewCircleName(name)
+                  }))
+                : undefined
+            }
             aiAmend={
               activeDraft
                 ? {
@@ -391,10 +435,11 @@ export default function HoldPeopleScreen() {
         newCircleName={newCircleName}
         isNamingActive={activeField === "new-circle"}
         onActivateNaming={() => setActiveField("new-circle")}
-        onPendingContact={() => {
+        onCancelNaming={() => {
           setNewCircleName("");
           setActiveField(null);
         }}
+        onSubmitName={submitNewCircleName}
       />
 
       {visibleDrafts.map((draft) => {

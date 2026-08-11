@@ -6,6 +6,7 @@ import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { useDockedAiAmend } from "@/hooks/useDockedAiAmend";
 import { DictationMicButton } from "@/components/DictationMicButton";
+import { mixColors } from "@/utils/colorMix";
 import type { AiDraftContext, AiSurface } from "@/services/aiProxyClient";
 
 interface DockedInputBarProps {
@@ -21,6 +22,13 @@ interface DockedInputBarProps {
    * more friction than value. See docs/09-decision-log.md, 2026-08-10.
    */
   aiAmend?: { surface: AiSurface; context?: AiDraftContext; initialPrompt?: string };
+  /**
+   * Shown as their own row directly above the main input line, only while
+   * the field is empty — tapping one submits immediately rather than typing
+   * it out. Currently only Going Quiet's new-Circle name uses this. See
+   * docs/09-decision-log.md, 2026-08-11.
+   */
+  suggestions?: { label: string; onPress: () => void }[];
 }
 
 /**
@@ -42,7 +50,8 @@ export function DockedInputBar({
   onDone,
   placeholder,
   accessibilityLabel,
-  aiAmend
+  aiAmend,
+  suggestions
 }: DockedInputBarProps) {
   const { colors } = useAppTheme("normal");
   const styles = createStyles(colors);
@@ -91,6 +100,21 @@ export function DockedInputBar({
           <Text style={styles.errorText}>Couldn't reach AI right now — try again.</Text>
         ) : null}
 
+        {suggestions && suggestions.length > 0 && !value.trim() ? (
+          <View style={styles.suggestionsRow}>
+            {suggestions.map((suggestion) => (
+              <Pressable
+                key={suggestion.label}
+                accessibilityRole="button"
+                onPress={suggestion.onPress}
+                style={({ pressed }) => [styles.suggestionChip, pressed && styles.pressed]}
+              >
+                <Text style={styles.suggestionText}>{suggestion.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+
         <View style={styles.row}>
           {amend.available ? (
             <Pressable
@@ -127,7 +151,7 @@ export function DockedInputBar({
             onPress={onDone}
             style={({ pressed }) => [styles.doneButton, pressed && styles.pressed]}
           >
-            <Ionicons name="checkmark" size={20} color={colors.onPrimary} />
+            <Ionicons name="send" size={20} color={colors.onPrimary} style={styles.doneIcon} />
           </Pressable>
         </View>
       </SafeAreaView>
@@ -136,11 +160,18 @@ export function DockedInputBar({
 }
 
 function createStyles(colors: ThemeColors) {
+  // Blends the pale chip green toward the app's own neutral border tone —
+  // reads as a transition between the (typically grey) system keyboard and
+  // the app's own green-leaning palette, rather than a flat block sitting
+  // on top of it. Derived from two existing tokens, not a new invented
+  // colour — see src/utils/colorMix.ts. See docs/09-decision-log.md, 2026-08-11.
+  const dockedFill = mixColors(colors.surfaceStrong, colors.border, 0.6);
+
   return StyleSheet.create({
     safe: {
-      backgroundColor: colors.surface,
-      borderTopWidth: 1,
-      borderTopColor: colors.border,
+      backgroundColor: dockedFill,
+      borderTopWidth: 3,
+      borderTopColor: colors.primary,
       paddingHorizontal: theme.spacing.sm,
       paddingTop: theme.spacing.sm,
       gap: theme.spacing.xs
@@ -179,8 +210,33 @@ function createStyles(colors: ThemeColors) {
       alignItems: "center",
       justifyContent: "center"
     },
+    // Same optical-centring nudge as CompactSendButton's own paper-plane —
+    // the glyph itself leans right, uncorrected.
+    doneIcon: {
+      marginLeft: 2
+    },
     pressed: {
       opacity: 0.7
+    },
+    suggestionsRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: theme.spacing.sm,
+      paddingBottom: theme.spacing.xs
+    },
+    suggestionChip: {
+      minHeight: 40,
+      justifyContent: "center",
+      borderRadius: theme.radius.pill,
+      backgroundColor: dockedFill,
+      borderWidth: 1.5,
+      borderColor: colors.primary,
+      paddingHorizontal: theme.spacing.md
+    },
+    suggestionText: {
+      color: colors.text,
+      fontSize: 15,
+      fontWeight: "500"
     },
     amendRow: {
       flexDirection: "row",

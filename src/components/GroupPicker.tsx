@@ -4,12 +4,8 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
-import { DockedFieldPreview } from "@/components/DockedFieldPreview";
 import { getGroups } from "@/services/circleService";
-import { pickContact, type PickedContact } from "@/services/contactPickerService";
 import type { CircleGroup } from "@/types/hold";
-
-const SUGGESTED_CIRCLES = ["Friends", "Work", "Book Club"];
 
 /**
  * Every pending (not-yet-real) Circle's id starts with this — Reconnect uses
@@ -19,26 +15,9 @@ const SUGGESTED_CIRCLES = ["Friends", "Work", "Book Club"];
  */
 export const PENDING_CIRCLE_ID_PREFIX = "pending-";
 
-export interface PendingNewCircle {
-  /** Local-only id, used to key this session's flow state — never a real circleService id. */
-  tempId: string;
-  circleName: string;
-  contact: PickedContact;
-}
-
 interface GroupPickerProps {
   selectedGroupIds: string[];
   onToggle: (group: CircleGroup) => Promise<void>;
-  /**
-   * Fired when a Circle is "created" mid-flow via a picked contact — nothing
-   * is written to real, persisted storage here at all (a Circle can't be
-   * saved with zero contacts, so creating the empty container first isn't
-   * an option either). The whole thing — name and first contact — stays a
-   * local, in-memory object included in this session's send only. Whether
-   * to make it a real, persisted Circle is asked later, at Reconnect, not
-   * here — see docs/09-decision-log.md, 2026-08-10.
-   */
-  onPendingContact?: (pending: PendingNewCircle) => void;
   /**
    * Circle ids sent at least once this Going Quiet session. A sent Circle's
    * chip switches to the sent/checkmark look and its tap meaning changes
@@ -60,6 +39,15 @@ interface GroupPickerProps {
   newCircleName: string;
   isNamingActive: boolean;
   onActivateNaming: () => void;
+  onCancelNaming: () => void;
+  /**
+   * Creates the pending Circle from whatever name is passed in (typed, or a
+   * tapped suggestion) — owned by the parent screen since the docked bar's
+   * suggestion chips (rendered above the keyboard, not inside GroupPicker's
+   * own position in the scrollable content) need to trigger the exact same
+   * submission. See docs/09-decision-log.md, 2026-08-11.
+   */
+  onSubmitName: (name: string) => Promise<void>;
 }
 
 /**
@@ -71,18 +59,18 @@ interface GroupPickerProps {
 export function GroupPicker({
   selectedGroupIds,
   onToggle,
-  onPendingContact,
   sentCircleIds = [],
   reselectedCircleIds = [],
   onToggleReselected,
   newCircleName,
   isNamingActive,
-  onActivateNaming
+  onActivateNaming,
+  onCancelNaming,
+  onSubmitName
 }: GroupPickerProps) {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [groups, setGroups] = useState<CircleGroup[]>([]);
-  const [creating, setCreating] = useState(false);
 
   const refresh = useCallback(async () => {
     setGroups(await getGroups());
@@ -123,30 +111,6 @@ export function GroupPicker({
     }
   };
 
-  const addCircle = async (name: string) => {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-
-    const picked = await pickContact();
-    if (!picked) {
-      // A Circle can't be created or saved with zero contacts — without a
-      // contact there's nothing valid to create, staged or otherwise.
-      return;
-    }
-
-    const tempId = `${PENDING_CIRCLE_ID_PREFIX}${Date.now()}`;
-    const pendingCircle: CircleGroup = {
-      id: tempId,
-      name: trimmed,
-      isCloseCircle: false,
-      contacts: [{ id: `${tempId}-contact`, name: picked.name, phoneNumber: picked.phoneNumber }]
-    };
-
-    setCreating(false);
-    onPendingContact?.({ tempId, circleName: trimmed, contact: picked });
-    await onToggle(pendingCircle);
-  };
-
   return (
     <View style={styles.container}>
       <View style={styles.pinnedRow}>
@@ -154,10 +118,10 @@ export function GroupPicker({
           label="+"
           accessibilityLabel="New Circle"
           accessibilityRole="button"
-          expanded={creating}
+          expanded={isNamingActive}
           outline
           isSelected={false}
-          onPress={() => setCreating((current) => !current)}
+          onPress={() => (isNamingActive ? onCancelNaming() : onActivateNaming())}
         />
         <ScrollView
           horizontal
@@ -173,19 +137,24 @@ export function GroupPicker({
             const hasSentThisSession = sentCircleIds.includes(group.id);
             const isReselected = reselectedCircleIds.includes(group.id);
             const sentLook = hasSentThisSession && !isReselected;
+            const expanded = hasSentThisSession ? isReselected : inAudience;
+            // A sent-and-collapsed chip shows the checkmark look instead —
+            // no arrow, matching the sent-chip convention everywhere else
+            // this pattern exists (Reconnect, Taking Time's update).
+            const label = sentLook ? `✓ ${group.name}` : `${group.name} ${expanded ? "▲" : "▼"}`;
 
             return (
               <AdaptiveCircleChip
                 key={group.id}
-                label={sentLook ? `✓ ${group.name}` : group.name}
-                isSelected={hasSentThisSession ? isReselected : inAudience}
+                label={label}
+                isSelected={expanded}
                 hasSentThisSession={hasSentThisSession}
                 isPrimary={group.isCloseCircle}
                 onPress={() =>
                   hasSentThisSession ? onToggleReselected?.(group.id) : void onToggle(group)
                 }
                 accessibilityLabel={
-                  sentLook ? `${group.name}, already sent. Tap to send another message.` : undefined
+                  sentLook ? `${group.name}, already sent. Tap to send another message.` : group.name
                 }
               />
             );
@@ -200,39 +169,18 @@ export function GroupPicker({
         </Text>
       ) : null}
 
-      {creating ? (
+      {isNamingActive ? (
         <View style={styles.newCircle}>
           <Text style={styles.label}>New Circle</Text>
-
-          {!newCircleName.trim() ? (
-            <View style={styles.suggestionRow}>
-              {SUGGESTED_CIRCLES.map((name) => (
-                <Pressable
-                  key={name}
-                  accessibilityRole="button"
-                  onPress={() => void addCircle(name)}
-                  style={({ pressed }) => [styles.suggestionChip, pressed && styles.suggestionPressed]}
-                >
-                  <Text style={styles.suggestionText}>{name}</Text>
-                </Pressable>
-              ))}
-            </View>
-          ) : null}
-
-          <View style={styles.inputRow}>
-            <DockedFieldPreview
-              value={newCircleName}
-              placeholder="Circle name, e.g. Book Club"
-              isActive={isNamingActive}
-              onPress={onActivateNaming}
-              accessibilityLabel="New Circle name"
-              style={styles.flex1}
-            />
+          <View style={styles.newCircleActions}>
+            <Pressable accessibilityRole="button" onPress={onCancelNaming} style={styles.cancelButton}>
+              <Text style={styles.cancelText}>Cancel</Text>
+            </Pressable>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Create Circle"
               disabled={!newCircleName.trim()}
-              onPress={() => void addCircle(newCircleName)}
+              onPress={() => void onSubmitName(newCircleName)}
               style={({ pressed }) => [
                 styles.addButton,
                 pressed && styles.addPressed,
@@ -291,31 +239,20 @@ function createStyles(colors: ThemeColors) {
       fontSize: 14,
       fontWeight: "600"
     },
-    suggestionRow: {
+    newCircleActions: {
       flexDirection: "row",
       gap: theme.spacing.sm
     },
-    suggestionChip: {
-      minHeight: 40,
-      justifyContent: "center",
-      borderRadius: theme.radius.pill,
-      backgroundColor: colors.surfaceStrong,
-      paddingHorizontal: theme.spacing.md
+    cancelButton: {
+      minHeight: 54,
+      paddingHorizontal: theme.spacing.md,
+      alignItems: "center",
+      justifyContent: "center"
     },
-    suggestionPressed: {
-      opacity: 0.7
-    },
-    suggestionText: {
-      color: colors.text,
+    cancelText: {
+      color: colors.textMuted,
       fontSize: 15,
-      fontWeight: "500"
-    },
-    inputRow: {
-      flexDirection: "row",
-      gap: theme.spacing.sm
-    },
-    flex1: {
-      flex: 1
+      fontWeight: "600"
     },
     addButton: {
       minWidth: 72,

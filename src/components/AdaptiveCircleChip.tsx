@@ -28,17 +28,19 @@ interface AdaptiveCircleChipProps {
 }
 
 /**
- * One fixed height for every chip in the row. Increased (2026-08-10, per
- * direct instruction with a final number given directly — not measured
- * from a reference screenshot, since this environment has no
- * pixel-measurement tooling) from the bare 44pt/48pt accessibility floor to
- * a noticeably larger, more comfortable "story-circle" scale: 64pt (iOS) /
- * 68dp (Android). Well above the accessible tap-target floor either way, so
- * this is a stylistic sizing choice, not an accessibility fix. Every chip
- * is exactly this size, no per-label height variation — see the
- * shape-decision comment below.
+ * One fixed height for every chip in the row. Increased again (2026-08-11,
+ * per direct instruction, chosen option — a final number given directly,
+ * not measured from a screenshot) from 64pt/68dp to 72pt (iOS) / 76dp
+ * (Android), so Going Quiet's and Manage Circles' chips can carry a
+ * dropdown arrow (" ▼"/" ▲", appended into the measured label, same
+ * technique Manage Circles already used) and still fit as true circles for
+ * common short names. Estimated fit is tight for the longest names this
+ * needs to cover ("Close ▼" ≈ 52pt against 52pt of available width at this
+ * diameter — see the worked table in docs/09-decision-log.md) — flagged as
+ * a close-to-the-line estimate, not a comfortable margin, pending on-device
+ * confirmation.
  */
-const STANDARD_CHIP_DIAMETER = Platform.OS === "android" ? 68 : 64;
+const STANDARD_CHIP_DIAMETER = Platform.OS === "android" ? 76 : 72;
 // Kept tight so short labels can still plausibly become circles — this is
 // NOT the same value as a pill's own rendered padding (below), decoupled
 // on purpose: the circle-fit check needs to stay strict, but a pill's
