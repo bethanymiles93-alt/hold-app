@@ -32,7 +32,7 @@ import {
 } from "@/services/conversationService";
 import { addContactToGroup, createGroup } from "@/services/circleService";
 import { deactivateOutOfOffice } from "@/services/emailAccountService";
-import { channelKey, sendOrShare } from "@/services/smsService";
+import { channelKey, sendOrShare, sendToCircles } from "@/services/smsService";
 import { clearDraft, getDraft, saveDraft } from "@/services/messageDraftService";
 import type { AudienceCircle, HoldPeriod } from "@/types/hold";
 
@@ -53,6 +53,11 @@ export default function ReconnectScreen() {
   const [messageFieldActive, setMessageFieldActive] = useState(false);
   const [showPersonalise, setShowPersonalise] = useState(false);
   const personalise = usePersonaliseCompletion();
+  // Frozen the moment the docked bar opens for the message — reorder and
+  // grey-out both key off this snapshot, not the live selection, so they
+  // only ever happen at that one moment, not on every tap (2026-08-11 —
+  // matches Going Quiet's own GroupPicker fix). See docs/09-decision-log.md.
+  const [composingActiveIds, setComposingActiveIds] = useState<string[] | null>(null);
 
   const refresh = useCallback(async () => {
     // Prefer the durable marker (force-quit-resume, or any visit after the first
@@ -97,6 +102,12 @@ export default function ReconnectScreen() {
     setSelectedIds(allSelected ? new Set() : new Set(coverage.totalIds));
   };
 
+  if (messageFieldActive && composingActiveIds === null) {
+    setComposingActiveIds(Array.from(selectedIds));
+  } else if (!messageFieldActive && composingActiveIds !== null) {
+    setComposingActiveIds(null);
+  }
+
   const toggleId = (id: string) => {
     setSelectedIds((current) => {
       const next = new Set(current);
@@ -109,6 +120,15 @@ export default function ReconnectScreen() {
     });
   };
 
+  /**
+   * Delivery is individual/BCC-style by default per Circle, or one shared
+   * group thread for a Circle with `sendAsGroup` turned on — mixed
+   * combinations follow each Circle's own setting independently within
+   * this one Send (2026-08-11, corrects the earlier one-shared-message
+   * behaviour, matching Going Quiet's own fix). Ungrouped contacts were
+   * never part of a Circle in the first place, so they're always sent
+   * individually. See docs/09-decision-log.md.
+   */
   const send = async () => {
     if (!period) return;
 
@@ -116,20 +136,30 @@ export default function ReconnectScreen() {
     const ungrouped = (period.audienceUngrouped ?? []).filter((contact) =>
       selectedIds.has(contact.phoneNumber)
     );
-    const numbers = [
-      ...circles.flatMap((circle) => circle.contacts.map((contact) => contact.phoneNumber)),
-      ...ungrouped.map((contact) => contact.phoneNumber)
-    ];
     const text = message.trim();
-    if (numbers.length === 0 || !text) return;
+    const hasAnyRecipient = circles.some((circle) => circle.contacts.length > 0) || ungrouped.length > 0;
+    if (!hasAnyRecipient || !text) return;
 
-    try {
-      const channel = await sendOrShare(numbers, text);
-      for (const id of selectedIds) {
-        await recordSendChannel(period.id, id, channelKey(channel));
+    const deliveryTargets = circles
+      .map((circle) => ({
+        circleId: circle.circleId,
+        sendAsGroup: circle.sendAsGroup ?? false,
+        numbers: circle.contacts.map((contact) => contact.phoneNumber)
+      }))
+      .filter((target) => target.numbers.length > 0);
+
+    const channelByCircle = await sendToCircles(deliveryTargets, text);
+    for (const [id, channel] of channelByCircle) {
+      await recordSendChannel(period.id, id, channelKey(channel));
+    }
+
+    for (const contact of ungrouped) {
+      try {
+        const channel = await sendOrShare([contact.phoneNumber], text);
+        await recordSendChannel(period.id, contact.phoneNumber, channelKey(channel));
+      } catch {
+        // Move on to the next recipient even if this compose sheet was dismissed.
       }
-    } catch {
-      // The compose sheet closing is the only signal available either way.
     }
 
     // Both the durable reconnecting marker and Conversations seeding only
@@ -150,7 +180,10 @@ export default function ReconnectScreen() {
     // Keep Library/Conversations' own per-person sentAt truthfully in sync,
     // so PersonaliseAccordion can honestly show already-contacted vs not.
     const conversationPeople = await getAllConversationPeople();
-    const sentNumbers = new Set(numbers);
+    const sentNumbers = new Set([
+      ...circles.flatMap((circle) => circle.contacts.map((contact) => contact.phoneNumber)),
+      ...ungrouped.map((contact) => contact.phoneNumber)
+    ]);
     const matchedIds = conversationPeople
       .filter((person) => sentNumbers.has(person.phoneNumber))
       .map((person) => person.id);
@@ -231,8 +264,19 @@ export default function ReconnectScreen() {
   }
 
   if (!coverage.complete) {
-    const circlePills = period.audienceCircles ?? [];
-    const ungroupedPills = period.audienceUngrouped ?? [];
+    // Reorder + grey-out only while composing (composingActiveIds), same
+    // trigger as Going Quiet's own GroupPicker — never on a bare selection
+    // tap. See docs/09-decision-log.md, 2026-08-11.
+    const composingIds = composingActiveIds ? new Set(composingActiveIds) : null;
+    const orderPills = <T,>(items: T[], idOf: (item: T) => string): T[] => {
+      if (!composingIds) return items;
+      const active = items.filter((item) => composingIds.has(idOf(item)));
+      const rest = items.filter((item) => !composingIds.has(idOf(item)));
+      return [...active, ...rest];
+    };
+
+    const circlePills = orderPills(period.audienceCircles ?? [], (circle) => circle.circleId);
+    const ungroupedPills = orderPills(period.audienceUngrouped ?? [], (contact) => contact.phoneNumber);
 
     return (
       <Screen
@@ -242,7 +286,13 @@ export default function ReconnectScreen() {
             <DockedInputBar
               value={message}
               onChangeText={changeMessage}
-              onDone={() => setMessageFieldActive(false)}
+              onDone={() => {
+                // Sends immediately — no intermediate "return to preview"
+                // step, matching Going Quiet's own fix. See
+                // docs/09-decision-log.md, 2026-08-11.
+                void send();
+                setMessageFieldActive(false);
+              }}
               placeholder="Message to send"
               accessibilityLabel="Message to send"
               aiAmend={{ surface: "reconnect", initialPrompt: suggestedPrompt }}
@@ -260,10 +310,6 @@ export default function ReconnectScreen() {
             }}
           />
 
-          <Text style={styles.progressText}>
-            {coverage.contactedIds.length} of {coverage.totalIds.length} reached
-          </Text>
-
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
             <AdaptiveCircleChip
               label="All"
@@ -276,21 +322,23 @@ export default function ReconnectScreen() {
               const isSelected = selectedIds.has(circle.circleId);
               const hasSentThisSession = coverage.contactedIds.includes(circle.circleId);
               const sentLook = hasSentThisSession && !isSelected;
+              const isGreyedOut = composingIds !== null && !composingIds.has(circle.circleId);
 
               return (
-                <AdaptiveCircleChip
-                  key={circle.circleId}
-                  label={circle.circleName}
-                  isSelected={isSelected}
-                  hasSentThisSession={hasSentThisSession}
-                  onPress={() => toggleId(circle.circleId)}
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    sentLook
-                      ? `${circle.circleName}, already reached. Tap to send another message.`
-                      : circle.circleName
-                  }
-                />
+                <View key={circle.circleId} style={isGreyedOut && styles.chipGreyed}>
+                  <AdaptiveCircleChip
+                    label={circle.circleName}
+                    isSelected={isSelected}
+                    hasSentThisSession={hasSentThisSession}
+                    onPress={() => toggleId(circle.circleId)}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      sentLook
+                        ? `${circle.circleName}, already reached. Tap to send another message.`
+                        : circle.circleName
+                    }
+                  />
+                </View>
               );
             })}
 
@@ -298,19 +346,21 @@ export default function ReconnectScreen() {
               const isSelected = selectedIds.has(contact.phoneNumber);
               const hasSentThisSession = coverage.contactedIds.includes(contact.phoneNumber);
               const sentLook = hasSentThisSession && !isSelected;
+              const isGreyedOut = composingIds !== null && !composingIds.has(contact.phoneNumber);
 
               return (
-                <AdaptiveCircleChip
-                  key={contact.phoneNumber}
-                  label={contact.name}
-                  isSelected={isSelected}
-                  hasSentThisSession={hasSentThisSession}
-                  onPress={() => toggleId(contact.phoneNumber)}
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    sentLook ? `${contact.name}, already reached. Tap to send another message.` : contact.name
-                  }
-                />
+                <View key={contact.phoneNumber} style={isGreyedOut && styles.chipGreyed}>
+                  <AdaptiveCircleChip
+                    label={contact.name}
+                    isSelected={isSelected}
+                    hasSentThisSession={hasSentThisSession}
+                    onPress={() => toggleId(contact.phoneNumber)}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      sentLook ? `${contact.name}, already reached. Tap to send another message.` : contact.name
+                    }
+                  />
+                </View>
               );
             })}
           </ScrollView>
@@ -325,6 +375,13 @@ export default function ReconnectScreen() {
         </View>
 
         <View style={styles.sendRow}>
+          {/* Manual early exit only — finishing normally happens on its own
+              once every Circle/contact has been reached (coverage.complete
+              above), matching Going Quiet's own Done/auto-complete model.
+              See docs/09-decision-log.md, 2026-08-11. */}
+          {coverage.contactedIds.length > 0 ? (
+            <SecondaryButton label="Done" onPress={finishReconnecting} />
+          ) : null}
           <CompactSendButton
             disabled={selectedIds.size === 0 || !message.trim()}
             onPress={() => void send()}
@@ -469,19 +526,19 @@ function createStyles(colors: ThemeColors) {
     top: {
       gap: theme.spacing.lg
     },
-    progressText: {
-      color: colors.textMuted,
-      fontSize: 14,
-      fontWeight: "600"
-    },
     chipRow: {
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.sm
     },
+    chipGreyed: {
+      opacity: 0.4
+    },
     sendRow: {
       flexDirection: "row",
-      justifyContent: "flex-end"
+      alignItems: "center",
+      justifyContent: "flex-end",
+      gap: theme.spacing.sm
     },
     gatePrompt: {
       color: colors.textMuted,

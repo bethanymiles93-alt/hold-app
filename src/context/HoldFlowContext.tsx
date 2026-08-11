@@ -147,7 +147,8 @@ export function buildAudienceCircles(groups: CircleGroup[]): AudienceCircle[] {
   return groups.map((group) => ({
     circleId: group.id,
     circleName: group.name,
-    contacts: group.contacts.map((contact) => ({ name: contact.name, phoneNumber: contact.phoneNumber }))
+    contacts: group.contacts.map((contact) => ({ name: contact.name, phoneNumber: contact.phoneNumber })),
+    sendAsGroup: group.sendAsGroup ?? false
   }));
 }
 

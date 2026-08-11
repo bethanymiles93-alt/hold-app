@@ -28,7 +28,7 @@ import {
 } from "@/services/holdHistoryService";
 import { activateOutOfOffice } from "@/services/emailAccountService";
 import { copyToClipboard } from "@/services/clipboardService";
-import { channelKey, sendOrShare } from "@/services/smsService";
+import { channelKey, sendToCircles } from "@/services/smsService";
 import { pickContact } from "@/services/contactPickerService";
 import { addContactToGroup, getGroup, getGroups } from "@/services/circleService";
 import {
@@ -103,6 +103,15 @@ export default function HoldPeopleScreen() {
   // (deselecting a Circle for the current message doesn't drop it from the
   // queue). Drives auto-complete. See docs/09-decision-log.md, 2026-08-11.
   const [queuedGroupIds, setQueuedGroupIds] = useState<Set<string>>(new Set());
+  // Same queue, keyed by id, but holding the actual CircleGroup snapshot —
+  // needed because finish()'s syncAudience call must cover every Circle
+  // ever queued this session, not just whatever's still selected at the
+  // moment Done fires. `selectedGroups` alone can't do this: it's cleared
+  // back to empty by send() right after each send, so a `finish()` built
+  // from it (as it used to be) would silently wipe out audienceCircles for
+  // every Circle already sent to earlier in the session — a real bug found
+  // 2026-08-11. See docs/09-decision-log.md.
+  const [queuedGroups, setQueuedGroups] = useState<Map<string, CircleGroup>>(new Map());
   const [autoFinished, setAutoFinished] = useState(false);
 
   // The one shared message for whichever Circle-combination is currently
@@ -134,6 +143,7 @@ export default function HoldPeopleScreen() {
 
   const [oooExpanded, setOooExpanded] = useState(false);
   const [newCircleName, setNewCircleName] = useState("");
+  const [sendAsGroupDraft, setSendAsGroupDraft] = useState(false);
   // Exactly one DockedInputBar serves every field on this screen — this is
   // which one, if any, currently owns it. See docs/09-decision-log.md, 2026-08-10.
   const [activeField, setActiveField] = useState<ActiveField | null>(null);
@@ -174,13 +184,33 @@ export default function HoldPeopleScreen() {
       }
       return changed ? next : current;
     });
+    setQueuedGroups((current) => {
+      let changed = false;
+      const next = new Map(current);
+      for (const group of selectedGroups) {
+        if (!next.has(group.id)) {
+          next.set(group.id, group);
+          changed = true;
+        }
+      }
+      return changed ? next : current;
+    });
   }, [selectedGroups]);
 
+  // Real bug found and fixed (2026-08-11): this used to fall back to
+  // `selectedGroups` for provisional Circles not yet in `allGroups` — but
+  // `send()` clears `selectedGroups` back to empty right after sending, so
+  // a provisional Circle's own sendChannels entry would drop out of
+  // `sentCircleIds` the moment it was deselected, even though it genuinely
+  // was sent to — making auto-complete permanently unable to recognise the
+  // queue as covered whenever it included a provisional Circle. `queuedGroupIds`
+  // never shrinks, so it's the correct thing to union against instead. See
+  // docs/09-decision-log.md.
   const knownCircleIds = useMemo(() => {
     const ids = new Set(allGroups.map((group) => group.id));
-    for (const group of selectedGroups) ids.add(group.id);
+    for (const id of queuedGroupIds) ids.add(id);
     return ids;
-  }, [allGroups, selectedGroups]);
+  }, [allGroups, queuedGroupIds]);
 
   const sentCircleIds = useMemo(() => {
     if (!period?.sendChannels) return [];
@@ -495,13 +525,15 @@ export default function HoldPeopleScreen() {
       id: tempId,
       name: trimmed,
       isCloseCircle: false,
-      contacts: [{ id: `${tempId}-contact`, name: picked.name, phoneNumber: picked.phoneNumber }]
+      contacts: [{ id: `${tempId}-contact`, name: picked.name, phoneNumber: picked.phoneNumber }],
+      sendAsGroup: sendAsGroupDraft
     };
 
     const nextGroups = [...selectedGroups, pendingCircle];
     await toggleGroup(pendingCircle);
     await loadMessageForSelection(nextGroups, message);
     setNewCircleName("");
+    setSendAsGroupDraft(false);
     setActiveField(null);
     setExpandedCircleId(tempId);
   };
@@ -510,7 +542,12 @@ export default function HoldPeopleScreen() {
    * Sends the current shared message to whichever Circles are currently
    * selected, then clears the selection so the next group can be picked.
    * Only a Circle that actually contributed at least one included
-   * recipient to this send gets marked sent.
+   * recipient to this send gets marked sent. Delivery is individual/BCC-
+   * style by default per Circle, or one shared group thread for a Circle
+   * with its own `sendAsGroup` turned on — each Circle in this combination
+   * follows its own setting independently within this one Send action
+   * (2026-08-11, corrects the earlier one-shared-message-for-everyone
+   * behaviour). See docs/09-decision-log.md.
    */
   const send = async () => {
     const text = message.trim();
@@ -528,24 +565,19 @@ export default function HoldPeopleScreen() {
       recipientsByCircle.set(recipient.circleId, list);
     }
 
-    const contributingGroups = selectedGroups.filter((group) =>
-      (recipientsByCircle.get(group.id) ?? []).some((recipient) => recipient.included)
-    );
-    const includedNumbers = contributingGroups.flatMap((group) =>
-      (recipientsByCircle.get(group.id) ?? [])
-        .filter((recipient) => recipient.included)
-        .map((recipient) => recipient.phoneNumber)
-    );
+    const deliveryTargets = selectedGroups
+      .map((group) => ({
+        circleId: group.id,
+        sendAsGroup: group.sendAsGroup ?? false,
+        numbers: (recipientsByCircle.get(group.id) ?? [])
+          .filter((recipient) => recipient.included)
+          .map((recipient) => recipient.phoneNumber)
+      }))
+      .filter((target) => target.numbers.length > 0);
 
-    if (includedNumbers.length > 0) {
-      try {
-        const channel = await sendOrShare(includedNumbers, text);
-        for (const group of contributingGroups) {
-          await recordSendChannel(periodId, group.id, channelKey(channel));
-        }
-      } catch {
-        // Move on even if this compose sheet was dismissed.
-      }
+    const channelByCircle = await sendToCircles(deliveryTargets, text);
+    for (const [circleId, channel] of channelByCircle) {
+      await recordSendChannel(periodId, circleId, channelKey(channel));
     }
 
     const sentGroups = selectedGroups;
@@ -585,9 +617,12 @@ export default function HoldPeopleScreen() {
     // Catches any Circle added to the selection after the first Send —
     // without this, it would never make it into the period's
     // audienceCircles, and Reconnect would never know to ask about it.
+    // Must read from `queuedGroups` (every Circle queued this session), not
+    // `selectedGroups` — the latter is usually already empty by the time
+    // finish() runs, since send() clears it right after sending.
     await syncAudience({
       recipients,
-      audienceCircles: buildAudienceCircles(selectedGroups)
+      audienceCircles: buildAudienceCircles(Array.from(queuedGroups.values()))
     });
 
     await recordPostSendChoices({
@@ -626,6 +661,7 @@ export default function HoldPeopleScreen() {
             onDismiss={() => {
               if (activeField === "new-circle") {
                 setNewCircleName("");
+                setSendAsGroupDraft(false);
               }
               setActiveField(null);
             }}
@@ -654,6 +690,29 @@ export default function HoldPeopleScreen() {
     >
       <StepHeader title="Who needs to know?" />
 
+      <GroupPicker
+        selectedGroupIds={selectedGroups.map((group) => group.id)}
+        onToggle={handleToggleGroup}
+        onSetSelection={(groups) => void handleSetSelection(groups)}
+        sentCircleIds={sentCircleIds}
+        expandedCircleId={expandedCircleId}
+        onToggleExpanded={(circleId) =>
+          setExpandedCircleId((current) => (current === circleId ? null : circleId))
+        }
+        isNamingActive={activeField === "new-circle"}
+        onActivateNaming={() => setActiveField("new-circle")}
+        onCancelNaming={() => {
+          setNewCircleName("");
+          setSendAsGroupDraft(false);
+          setActiveField(null);
+        }}
+        sendAsGroupDraft={sendAsGroupDraft}
+        onToggleSendAsGroupDraft={setSendAsGroupDraft}
+        isComposing={activeField === "group-message"}
+      />
+
+      {/* Below the circle row, above the text box (2026-08-11 — the circle
+          row must always stay topmost). See docs/09-decision-log.md. */}
       {removedPeople.length > 0 ? (
         <View style={styles.removedRosterSection}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.removedRosterRow}>
@@ -694,23 +753,6 @@ export default function HoldPeopleScreen() {
           </Pressable>
         </View>
       ) : null}
-
-      <GroupPicker
-        selectedGroupIds={selectedGroups.map((group) => group.id)}
-        onToggle={handleToggleGroup}
-        onSetSelection={(groups) => void handleSetSelection(groups)}
-        sentCircleIds={sentCircleIds}
-        expandedCircleId={expandedCircleId}
-        onToggleExpanded={(circleId) =>
-          setExpandedCircleId((current) => (current === circleId ? null : circleId))
-        }
-        isNamingActive={activeField === "new-circle"}
-        onActivateNaming={() => setActiveField("new-circle")}
-        onCancelNaming={() => {
-          setNewCircleName("");
-          setActiveField(null);
-        }}
-      />
 
       {expandedGroup ? (
         <View style={styles.circleSection}>
@@ -782,14 +824,16 @@ export default function HoldPeopleScreen() {
                     </Pressable>
                   )
                 ) : null}
-                {doneButton}
               </View>
 
               <SafeguardingBanner visible={safeguardingTriggered} />
             </View>
           )}
 
+          {/* Done sits beside Send, not as its own oversized banner —
+              2026-08-11, see docs/09-decision-log.md. */}
           <View style={styles.sendRow}>
+            {doneButton}
             <CompactSendButton
               disabled={!message.trim()}
               accessibilityLabel={`Send to ${joinedGroupNames}`}
@@ -819,6 +863,9 @@ export default function HoldPeopleScreen() {
                 <Text style={styles.savedPillText}>✓ Saved as Template</Text>
               </View>
             )}
+          </View>
+
+          <View style={styles.sendRow}>
             {doneButton}
           </View>
         </View>
@@ -946,7 +993,9 @@ function createStyles(colors: ThemeColors) {
     },
     sendRow: {
       flexDirection: "row",
-      justifyContent: "flex-end"
+      alignItems: "center",
+      justifyContent: "flex-end",
+      gap: theme.spacing.sm
     },
     messageBlock: {
       gap: theme.spacing.xs

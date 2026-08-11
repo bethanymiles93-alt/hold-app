@@ -84,16 +84,27 @@ export async function getGroup(id: string): Promise<CircleGroup | null> {
   return readGroup(id);
 }
 
-export async function createGroup(name: string): Promise<CircleGroup> {
+export async function createGroup(name: string, sendAsGroup = false): Promise<CircleGroup> {
   const group: CircleGroup = {
     id: createId(),
     name,
     isCloseCircle: false,
-    contacts: []
+    contacts: [],
+    sendAsGroup
   };
 
   await writeGroup(group);
   return group;
+}
+
+/** Toggles a Circle's delivery mode — individual/BCC-style (default) vs. one shared group thread. */
+export async function setSendAsGroup(groupId: string, sendAsGroup: boolean): Promise<CircleGroup | null> {
+  const group = await readGroup(groupId);
+  if (!group) return null;
+
+  const updated: CircleGroup = { ...group, sendAsGroup };
+  await writeGroup(updated);
+  return updated;
 }
 
 /** No-ops for Close Circle, which can't be deleted. */

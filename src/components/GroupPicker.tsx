@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { useFocusEffect } from "expo-router";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
@@ -49,6 +49,23 @@ interface GroupPickerProps {
   onActivateNaming: () => void;
   /** Re-tapping "+" while already active closes the bar without creating anything — see docs/09-decision-log.md, 2026-08-11. */
   onCancelNaming: () => void;
+  /**
+   * Whether the Circle currently being created will deliver as one shared
+   * group thread instead of individual/BCC-style messages (default false —
+   * individual). See docs/09-decision-log.md, 2026-08-11.
+   */
+  sendAsGroupDraft: boolean;
+  onToggleSendAsGroupDraft: (value: boolean) => void;
+  /**
+   * True once the person has moved from circle-selection into the text box
+   * (the shared docked bar is open for the group message) — the ONLY
+   * moment the row reorders (active Circles to the front) and un-selected
+   * ones grey out. Before that point, selection can be freely adjusted
+   * with no reordering or greying, however many taps it takes (2026-08-11
+   * — corrects the earlier version, which reordered/greyed on every single
+   * tap). See docs/09-decision-log.md.
+   */
+  isComposing: boolean;
 }
 
 /**
@@ -68,7 +85,10 @@ export function GroupPicker({
   onToggleExpanded,
   isNamingActive,
   onActivateNaming,
-  onCancelNaming
+  onCancelNaming,
+  sendAsGroupDraft,
+  onToggleSendAsGroupDraft,
+  isComposing
 }: GroupPickerProps) {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -78,6 +98,18 @@ export function GroupPicker({
   // Local to this component: purely a UI memory of one specific gesture,
   // not state anything else in the app needs to know about.
   const [preAllSelection, setPreAllSelection] = useState<string[] | null>(null);
+  // Frozen the moment composing starts — the row's display order and
+  // grey-out both key off this snapshot, not the live selection, so
+  // further edits to the message don't cause the row to keep jumping
+  // around. Released back to null once composing ends. See
+  // docs/09-decision-log.md, 2026-08-11.
+  const [composingActiveIds, setComposingActiveIds] = useState<string[] | null>(null);
+
+  if (isComposing && composingActiveIds === null) {
+    setComposingActiveIds(selectedGroupIds);
+  } else if (!isComposing && composingActiveIds !== null) {
+    setComposingActiveIds(null);
+  }
 
   const refresh = useCallback(async () => {
     setGroups(await getGroups());
@@ -95,16 +127,19 @@ export function GroupPicker({
     (group) => selectedGroupIds.includes(group.id) && group.contacts.length === 0
   );
 
-  // Circles currently selected for the message being typed right now float
-  // to the front, so the person can always see who they're messaging
-  // without scrolling — recomputed live as selection changes. Everyone else
-  // keeps their existing relative order behind them. (2026-08-11 — see
-  // docs/09-decision-log.md.)
+  // Reorder + grey-out only ever apply once composing has actually started
+  // (isComposing, frozen into composingActiveIds above) — never on a bare
+  // selection tap. Before that point the row keeps its natural order and
+  // full-opacity look regardless of how selection changes. (2026-08-11,
+  // corrects the earlier version which reordered live on every tap.)
   const displayGroups = useMemo(() => {
-    const active = groups.filter((group) => selectedGroupIds.includes(group.id));
-    const rest = groups.filter((group) => !selectedGroupIds.includes(group.id));
+    if (composingActiveIds === null) return groups;
+
+    const activeIds = new Set(composingActiveIds);
+    const active = groups.filter((group) => activeIds.has(group.id));
+    const rest = groups.filter((group) => !activeIds.has(group.id));
     return [...active, ...rest];
-  }, [groups, selectedGroupIds]);
+  }, [groups, composingActiveIds]);
 
   // "All" only ever gathers/releases Circles that genuinely have someone in
   // them — an empty Circle can never actually be sent to, so sweeping it in
@@ -148,7 +183,20 @@ export function GroupPicker({
             labelFontSize={28}
             onPress={() => (isNamingActive ? onCancelNaming() : onActivateNaming())}
           />
-          {isNamingActive ? <Text style={styles.newCircleCaption}>New Circle</Text> : null}
+          {isNamingActive ? (
+            <>
+              <Text style={styles.newCircleCaption}>New Circle</Text>
+              <View style={styles.sendAsGroupRow}>
+                <Text style={styles.sendAsGroupLabel}>Send as group</Text>
+                <Switch
+                  accessibilityLabel="Send as one shared group message instead of individually"
+                  value={sendAsGroupDraft}
+                  onValueChange={onToggleSendAsGroupDraft}
+                  trackColor={{ true: colors.primary, false: colors.border }}
+                />
+              </View>
+            </>
+          ) : null}
         </View>
         <ScrollView
           horizontal
@@ -164,9 +212,10 @@ export function GroupPicker({
             const hasSentThisSession = sentCircleIds.includes(group.id);
             const sentLook = hasSentThisSession && !isSelected;
             const isExpanded = expandedCircleId === group.id;
+            const isGreyedOut = composingActiveIds !== null && !composingActiveIds.includes(group.id);
 
             return (
-              <View key={group.id} style={styles.circleUnit}>
+              <View key={group.id} style={[styles.circleUnit, isGreyedOut && styles.circleUnitGreyed]}>
                 <AdaptiveCircleChip
                   label={sentLook ? `✓ ${group.name}` : group.name}
                   isSelected={isSelected}
@@ -232,6 +281,20 @@ function createStyles(colors: ThemeColors) {
       fontWeight: "600",
       textAlign: "center"
     },
+    // "Individual" is the default and unlabelled (matches how most
+    // Circles will stay) — only the "group" state needs a visible toggle.
+    // Deliberately narrow, matching the pinned "+" column's own width, so
+    // it doesn't force the pinned area wider than the chip itself.
+    sendAsGroupRow: {
+      alignItems: "center",
+      gap: 2
+    },
+    sendAsGroupLabel: {
+      color: colors.textMuted,
+      fontSize: 11,
+      fontWeight: "600",
+      textAlign: "center"
+    },
     pillScroll: {
       flex: 1
     },
@@ -246,11 +309,23 @@ function createStyles(colors: ThemeColors) {
       position: "relative",
       alignSelf: "flex-start"
     },
+    // Reorder + grey-out only while composing (see composingActiveIds) —
+    // a plain opacity reduction, not a separate colour treatment, so it
+    // reads as "temporarily out of focus" rather than any other chip state
+    // (selected/sent) it might be confused with.
+    circleUnitGreyed: {
+      opacity: 0.4
+    },
+    // Positioned toward the BOTTOM of the circle, not vertically centred —
+    // centred (the original placement) put it directly over the centred
+    // label text for any name long enough to need the space (2026-08-11
+    // fix; grown-circle was the alternative considered and rejected, since
+    // the diameter was already increased three times this session and a
+    // fourth would cost more than repositioning the arrow does).
     arrowButton: {
       position: "absolute",
       right: 6,
-      top: 0,
-      bottom: 0,
+      bottom: 8,
       alignItems: "center",
       justifyContent: "center"
     },

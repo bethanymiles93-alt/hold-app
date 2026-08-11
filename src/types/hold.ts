@@ -21,6 +21,8 @@ export interface AudienceCircle {
   circleId: string;
   circleName: string;
   contacts: AudienceContact[];
+  /** Carried over from CircleGroup.sendAsGroup at the point the audience was built — Reconnect needs this to honour the same per-Circle delivery setting Going Quiet used. See docs/09-decision-log.md, 2026-08-11. */
+  sendAsGroup?: boolean;
 }
 
 export interface GoingQuietRecipient {
@@ -125,6 +127,16 @@ export interface CircleGroup {
   name: string;
   isCloseCircle: boolean;
   contacts: CircleContact[];
+  /**
+   * Default false — delivery is individual/BCC-style by default: everyone
+   * in this Circle gets a separate message, never a shared thread where
+   * they can see each other, since people in the same Circle may not know
+   * each other. Only when explicitly turned on does this Circle's messages
+   * go out as one shared group thread instead. Set when creating a Circle
+   * or from its own settings in Manage Circles. See docs/09-decision-log.md,
+   * 2026-08-11.
+   */
+  sendAsGroup?: boolean;
 }
 
 export type EmailProvider = "gmail" | "outlook";

@@ -260,12 +260,14 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       // darker-green border" read as a jarring, heavy line on-device).
       // Rounded top corners instead, to read as a soft merge with the
       // keyboard's own top edge rather than a hard-edged panel dropped on
-      // top of it. 24pt (theme.radius.lg) is a reasoned, deliberate choice,
-      // not a measured value — the real system keyboard's own corner
-      // curvature (if any, by OS/version) can't be read from app code.
-      // Confirm on-device whether this reads right.
-      borderTopLeftRadius: theme.radius.lg,
-      borderTopRightRadius: theme.radius.lg,
+      // top of it. Reduced from 24pt (theme.radius.lg) to 10pt
+      // (theme.radius.sm) the same day, later — the larger radius read as
+      // too aggressively curved on-device, and (combined with the icons
+      // now sitting at the top of the pill just inside it) visually
+      // clipped against the icons near the bar's own top corners. Still a
+      // reasoned choice, not a measured value. See docs/09-decision-log.md.
+      borderTopLeftRadius: theme.radius.sm,
+      borderTopRightRadius: theme.radius.sm,
       paddingHorizontal: theme.spacing.sm,
       paddingTop: theme.spacing.sm,
       gap: theme.spacing.xs
@@ -294,8 +296,8 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       maxHeight: 132,
       borderRadius: theme.radius.pill,
       backgroundColor: pillFill,
-      paddingLeft: theme.spacing.sm,
-      paddingRight: theme.spacing.sm,
+      paddingLeft: theme.spacing.md,
+      paddingRight: theme.spacing.md,
       paddingTop: theme.spacing.sm,
       paddingBottom: theme.spacing.xs
     },

@@ -1,5 +1,5 @@
 import { useCallback, useLayoutEffect, useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { router, useFocusEffect, useNavigation } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
@@ -18,7 +18,8 @@ import {
   createGroup,
   deleteGroup,
   getGroups,
-  removeContactFromGroup
+  removeContactFromGroup,
+  setSendAsGroup
 } from "@/services/circleService";
 import type { CircleGroup } from "@/types/hold";
 
@@ -37,6 +38,7 @@ export default function CircleIndexScreen() {
   const [creatingStage, setCreatingStage] = useState<"none" | "naming">("none");
   const [newCircleContacts, setNewCircleContacts] = useState<PickedContact[]>([]);
   const [newCircleName, setNewCircleName] = useState("");
+  const [newCircleSendAsGroup, setNewCircleSendAsGroup] = useState(false);
   const [activeField, setActiveField] = useState<"new-circle-name" | null>(null);
 
   const refresh = useCallback(async () => {
@@ -208,6 +210,7 @@ export default function CircleIndexScreen() {
     setCreatingStage("none");
     setNewCircleContacts([]);
     setNewCircleName("");
+    setNewCircleSendAsGroup(false);
     setActiveField(null);
   };
 
@@ -215,12 +218,18 @@ export default function CircleIndexScreen() {
     const name = newCircleName.trim();
     if (!name || newCircleContacts.length === 0) return;
 
-    const group = await createGroup(name);
+    const group = await createGroup(name, newCircleSendAsGroup);
     for (const contact of newCircleContacts) {
       await addContactToGroup(group.id, contact);
     }
 
     cancelCreating();
+    await refresh();
+  };
+
+  /** Individual/BCC-style delivery is the default for every Circle — this only ever turns the shared-group-thread option on or off. See docs/09-decision-log.md, 2026-08-11. */
+  const toggleGroupDelivery = async (group: CircleGroup, value: boolean) => {
+    await setSendAsGroup(group.id, value);
     await refresh();
   };
 
@@ -303,6 +312,22 @@ export default function CircleIndexScreen() {
             <Text style={styles.linkText}>+ Add another person</Text>
           </Pressable>
 
+          <View style={styles.sendAsGroupRow}>
+            <View style={styles.sendAsGroupText}>
+              <Text style={styles.sendAsGroupTitle}>Send as group</Text>
+              <Text style={styles.sendAsGroupBody}>
+                Off by default: everyone gets their own separate message. Turn on to send one
+                shared message everyone in this Circle can see together instead.
+              </Text>
+            </View>
+            <Switch
+              accessibilityLabel="Send as one shared group message instead of individually"
+              value={newCircleSendAsGroup}
+              onValueChange={setNewCircleSendAsGroup}
+              trackColor={{ true: colors.primary, false: colors.border }}
+            />
+          </View>
+
           <View style={styles.inputRow}>
             <DockedFieldPreview
               value={newCircleName}
@@ -381,6 +406,22 @@ export default function CircleIndexScreen() {
                 <Pressable accessibilityRole="button" onPress={() => void addMemberToStaged(group.id)}>
                   <Text style={styles.linkText}>Add from Contacts</Text>
                 </Pressable>
+
+                <View style={styles.sendAsGroupRow}>
+                  <View style={styles.sendAsGroupText}>
+                    <Text style={styles.sendAsGroupTitle}>Send as group</Text>
+                    <Text style={styles.sendAsGroupBody}>
+                      Off by default: everyone gets their own separate message. Turn on to send
+                      one shared message everyone in this Circle can see together instead.
+                    </Text>
+                  </View>
+                  <Switch
+                    accessibilityLabel={`Send as one shared group message instead of individually for ${group.name}`}
+                    value={group.sendAsGroup ?? false}
+                    onValueChange={(value) => void toggleGroupDelivery(group, value)}
+                    trackColor={{ true: colors.primary, false: colors.border }}
+                  />
+                </View>
 
                 <PrimaryButton
                   disabled={resultingCount === 0}
@@ -491,6 +532,25 @@ function createStyles(colors: ThemeColors) {
     color: colors.link,
     fontSize: 14,
     fontWeight: "600"
+  },
+  sendAsGroupRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.md
+  },
+  sendAsGroupText: {
+    flex: 1,
+    gap: 2
+  },
+  sendAsGroupTitle: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: "600"
+  },
+  sendAsGroupBody: {
+    color: colors.textMuted,
+    fontSize: 13,
+    lineHeight: 18
   },
   deleteLabel: {
     color: colors.error,
