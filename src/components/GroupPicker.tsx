@@ -163,15 +163,29 @@ export function GroupPicker({
                     sentLook ? `${group.name}, already sent. Tap to send another message.` : group.name
                   }
                 />
+                {/* Positioned inside the chip's own right edge, not floating
+                    outside it (2026-08-11 correction — on-device, an
+                    outside-the-circle arrow read as ambiguous about which
+                    circle it belonged to). Absolute within circleUnit, which
+                    wraps tightly to the chip's own rendered size, so this
+                    works for both the fixed-diameter circle shape and the
+                    grow-to-fit pill shape without knowing which one a given
+                    label produced. Still an independent Pressable — a small
+                    scrim badge behind the glyph keeps it visually distinct
+                    from the label text it now sits on top of. */}
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={`${group.name}, ${arrowExpanded ? "hide" : "show"} recipients`}
                   accessibilityState={{ expanded: arrowExpanded }}
                   hitSlop={8}
                   onPress={() => onToggleExpanded?.(group.id)}
-                  style={({ pressed }) => [styles.arrowButton, pressed && styles.arrowPressed]}
+                  style={styles.arrowButton}
                 >
-                  <Text style={styles.arrowGlyph}>{arrowExpanded ? "▲" : "▼"}</Text>
+                  {({ pressed }) => (
+                    <View style={[styles.arrowBadge, pressed && styles.arrowPressed]}>
+                      <Text style={styles.arrowGlyph}>{arrowExpanded ? "▲" : "▼"}</Text>
+                    </View>
+                  )}
                 </Pressable>
               </View>
             );
@@ -228,20 +242,36 @@ function createStyles(colors: ThemeColors) {
       alignItems: "center",
       gap: theme.spacing.md
     },
+    // Wraps tightly to the chip's own rendered size (no gap/row layout
+    // needed any more — the arrow is positioned inside it, not beside it).
     circleUnit: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.xs
+      position: "relative",
+      alignSelf: "flex-start"
     },
-    // A separate tap target from the circle beside it — never visually
-    // merged into the chip's own shape or measured-text fit. Sized to the
-    // accessible tap-target floor via hitSlop, even though the glyph itself
-    // reads small.
+    // A separate tap target overlaid on the chip's own right edge — never
+    // merged into the chip's shape or measured-text fit, which knows
+    // nothing about this element. top/bottom: 0 gives it the chip's full
+    // height as its hit area; hitSlop widens the narrower horizontal
+    // dimension to stay at/above the accessible tap-target floor without
+    // visually widening the badge itself.
     arrowButton: {
-      minWidth: 32,
-      minHeight: 44,
+      position: "absolute",
+      right: 6,
+      top: 0,
+      bottom: 0,
       alignItems: "center",
       justifyContent: "center"
+    },
+    // A small scrim behind the glyph — visual separation from the label
+    // text it now sits on top of, without needing to know which of the
+    // chip's several fill states (default/selected/sent) is underneath it.
+    arrowBadge: {
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "rgba(0, 0, 0, 0.12)"
     },
     arrowPressed: {
       opacity: 0.6

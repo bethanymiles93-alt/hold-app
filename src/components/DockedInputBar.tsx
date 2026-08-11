@@ -68,15 +68,22 @@ interface DockedInputBarProps {
  * old standalone AmendWithAI panel that sat inline below each message box
  * (2026-08-10 — see decision log for the explicit supersession).
  *
- * Shape (2026-08-11): one continuous rounded pill holds the text input plus
- * its mic and send icons at the far right end, Instagram-style — not three
- * separate elements in a row. Only the AI-amend toggle (a distinct,
- * occasional action, not part of composing) stays outside the pill. Colour
- * is two-tier: inside the pill uses the existing chip-green blend with the
- * theme's own text colour (dark in light mode, light in dark mode — never a
- * fixed white, which would fail contrast against this pale a fill); outside
- * the pill blends toward an approximated keyboard-grey instead, so the whole
- * bar reads as one continuous surface with the keyboard beneath it.
+ * Shape (2026-08-11, corrected same day): one continuous rounded pill holds
+ * the text input plus all three of its icons — AI-amend (sparkle, kept as
+ * the icon choice: the established cross-industry convention for
+ * "AI-powered action"), mic, and send — Instagram-style, not separate
+ * elements in a row; AI-amend moved in from outside the pill after an
+ * on-device pass found it sitting apart from the other two. Colour is
+ * two-tier and was corrected a second time the same day after an on-device
+ * pass found the first attempt read as uniformly too dark: inside the pill,
+ * a lighter blend anchored to `onPrimary`/`primary` (light mode leans
+ * toward white, dark mode toward the vivid accent green) so the pill reads
+ * as a clearly lighter accent against its surround, paired with the theme's
+ * own text colour (never a fixed white); outside the pill, a blend leaning
+ * further toward an approximated keyboard-grey. Neither is a literal,
+ * sampled Instagram value — this session has no way to read real pixels
+ * from the Instagram app — both are reasoned adjustments targeting specific
+ * on-device complaints, flagged as such in the decision log.
  */
 export function DockedInputBar({
   value,
@@ -168,23 +175,24 @@ export function DockedInputBar({
         ) : null}
 
         <View style={styles.row}>
-          {amend.available ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={amend.open ? "Close AI amend" : "Amend with AI"}
-              accessibilityState={{ expanded: amend.open }}
-              onPress={amend.toggle}
-              style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
-            >
-              <Ionicons
-                name={amend.open ? "sparkles" : "sparkles-outline"}
-                size={20}
-                color={amend.open ? colors.primary : colors.textMuted}
-              />
-            </Pressable>
-          ) : null}
-
           <View style={styles.pill}>
+            {amend.available ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={amend.open ? "Close AI amend" : "Amend with AI"}
+                accessibilityState={{ expanded: amend.open }}
+                onPress={amend.toggle}
+                hitSlop={8}
+                style={({ pressed }) => [styles.pillIconButton, pressed && styles.pressed]}
+              >
+                <Ionicons
+                  name={amend.open ? "sparkles" : "sparkles-outline"}
+                  size={20}
+                  color={amend.open ? colors.primary : colors.textMuted}
+                />
+              </Pressable>
+            ) : null}
+
             <TextInput
               accessibilityLabel={accessibilityLabel}
               autoFocus
@@ -202,6 +210,7 @@ export function DockedInputBar({
               accessibilityRole="button"
               accessibilityLabel="Done"
               onPress={onDone}
+              hitSlop={8}
               style={({ pressed }) => [styles.doneButton, pressed && styles.pressed]}
             >
               <Ionicons name="send" size={20} color={colors.onPrimary} style={styles.doneIcon} />
@@ -214,17 +223,35 @@ export function DockedInputBar({
 }
 
 function createStyles(colors: ThemeColors, isDark: boolean) {
-  // Inside the pill: the existing chip-green blend (e.g. #c8d1c9 in light-
-  // normal) — unchanged from the prior pass. See src/utils/colorMix.ts.
-  const pillFill = mixColors(colors.surfaceStrong, colors.border, 0.6);
+  // Inside the pill (2026-08-11, second correction — the prior pass's
+  // surfaceStrong+border blend read as "too dark" on-device in dark mode,
+  // where both source tokens are themselves fairly dark, leaving no visible
+  // lightness contrast between the pill and its surroundings). Light mode:
+  // surfaceStrong (already pale) blended further toward onPrimary (white,
+  // an existing token, not invented) for a subtle near-white mint wash,
+  // closer to how pale Instagram's own light-mode composer pill reads. Dark
+  // mode: primary (the vivid accent green, not the dark tokens used
+  // elsewhere) blended toward surfaceStrong, so the pill reads as a clearly
+  // lighter, more saturated accent sitting on a darker surround — the
+  // relationship Instagram's own dark-mode pill has to its background,
+  // which the previous value inverted (pill and surround were nearly the
+  // same darkness). Still not a literal Instagram colour match — this
+  // session has no way to sample real pixels from the Instagram app; it's a
+  // reasoned adjustment targeting the two specific on-device complaints
+  // ("outside too dark," "pill too dark"), not a verified sample. See
+  // docs/09-decision-log.md, 2026-08-11.
+  const pillFill = isDark
+    ? mixColors(colors.primary, colors.surfaceStrong, 0.35)
+    : mixColors(colors.surfaceStrong, colors.onPrimary, 0.55);
   // Outside the pill (the bar's own backdrop + suggestion row): blended
-  // mostly toward the approximated keyboard grey rather than the app's own
-  // background, so the whole bar reads as an extension of the keyboard
-  // surface beneath it, only lightly tinted by the app's palette. See
-  // docs/09-decision-log.md, 2026-08-11 (corrects the prior pass, which
-  // blended toward the app's own border/background tokens only).
+  // toward the approximated keyboard grey, weighted slightly more toward it
+  // than the prior pass (0.3 → 0.25 pill-fill weight) so the outer area
+  // reads closer to a neutral keyboard-like grey and further from the
+  // (now lighter, more saturated) pill fill above — reinforcing rather than
+  // undoing the pill/surround contrast this correction is trying to
+  // establish. Same "reasoned approximation, not sampled" caveat as above.
   const keyboardBackdrop = isDark ? KEYBOARD_BACKDROP_DARK : KEYBOARD_BACKDROP_LIGHT;
-  const barFill = mixColors(pillFill, keyboardBackdrop, 0.3);
+  const barFill = mixColors(pillFill, keyboardBackdrop, 0.25);
 
   return StyleSheet.create({
     safe: {
@@ -249,11 +276,13 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       gap: theme.spacing.xs,
       paddingBottom: theme.spacing.sm
     },
-    // One continuous rounded shape holding the text input and both its
-    // icons — Instagram-style, not three separate siblings. borderRadius
-    // uses the pill token throughout; on a multi-line-grown tall box this
-    // still reads as a fully-rounded (stadium) shape at whatever height the
-    // text has grown to, matching the reference.
+    // One continuous rounded shape holding the text input and all three of
+    // its icons (AI-amend, mic, send) — Instagram-style, not separate
+    // elements in a row (2026-08-11: AI-amend moved in from outside the
+    // pill, joining the mic/send icons already there). borderRadius uses
+    // the pill token throughout; on a multi-line-grown tall box this still
+    // reads as a fully-rounded (stadium) shape at whatever height the text
+    // has grown to, matching the reference.
     pill: {
       flex: 1,
       flexDirection: "row",
@@ -262,7 +291,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       maxHeight: 132,
       borderRadius: theme.radius.pill,
       backgroundColor: pillFill,
-      paddingLeft: theme.spacing.md,
+      paddingLeft: theme.spacing.xs,
       paddingRight: theme.spacing.xs,
       paddingVertical: theme.spacing.xs
     },
@@ -270,22 +299,30 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       flex: 1,
       maxHeight: 108,
       minHeight: 32,
+      paddingHorizontal: theme.spacing.xs,
       paddingVertical: theme.spacing.xs,
       // The theme's own text colour, not a fixed literal — near-black in
       // light mode, near-white in dark mode, matching whichever fill this
-      // sits on in that mode. Computed contrast (light-normal pill
-      // #c8d1c9 + this text colour #242825): ratio ≈ 9.55:1, well past
-      // WCAG AA's 4.5:1 (and AAA's 7:1). Dark-normal pill #3a4039 + text
-      // #edefe8: ratio ≈ 9.19:1, same margin. Not verified on a live
-      // device — computed from the theme's own defined hex values. See
+      // sits on in that mode. Recomputed against the corrected, lighter
+      // pill fill above (2026-08-11): light-normal (pill ≈ #eaefeb, text
+      // #242825) ≈ 12.8:1; dark-normal (pill ≈ #4b5e4e, text #edefe8) ≈
+      // 6.0:1 — both still comfortably past WCAG AA's 4.5:1, though the
+      // dark-mode margin is now smaller than the previous value's 9.2:1, a
+      // direct, reported trade-off of deliberately lightening the pill for
+      // the "too dark" fix above. Not verified on a live device — computed
+      // from the theme's own defined hex values. See
       // docs/09-decision-log.md, 2026-08-11.
       color: colors.text,
       fontSize: 16,
       lineHeight: 21
     },
-    iconButton: {
-      width: 44,
-      height: 44,
+    // Sized to sit comfortably inside the pill alongside the mic/send
+    // icons — visually more compact than the 44pt tap-target floor, so
+    // hitSlop (set at each call site) restores an effectively ≥44pt hit
+    // area without inflating the pill's own visual height.
+    pillIconButton: {
+      width: 28,
+      height: 28,
       alignItems: "center",
       justifyContent: "center"
     },

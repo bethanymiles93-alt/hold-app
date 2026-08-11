@@ -149,28 +149,14 @@ export default function HoldPeopleScreen() {
   // Circle's card only reappears once explicitly reselected via its chip —
   // OR pinned open via its own separate arrow, which shows the card for
   // viewing/editing without implying a reselect-to-resend. That's why this
-  // is two independent conditions, not one: reselecting always sends the
-  // next time Send is tapped, expanding never does on its own.
+  // is two independent conditions, not one: reselecting means the card's
+  // own Send button is live again, expanding alone never is.
   const visibleDrafts = circleDrafts.filter(
     (draft) =>
       !sentCircleIds.includes(draft.circleId) ||
       reselectedCircleIds.has(draft.circleId) ||
       expandedCircleIds.has(draft.circleId)
   );
-
-  // Send only actually acts on Circles genuinely selected for sending —
-  // reselected (resend) or never-sent — never a merely-expanded sent Circle,
-  // which is visible for viewing only. Kept separate from visibleDrafts
-  // (the render set) for exactly that reason.
-  const draftsToSend = circleDrafts.filter(
-    (draft) => !sentCircleIds.includes(draft.circleId) || reselectedCircleIds.has(draft.circleId)
-  );
-
-  const canSend =
-    selectedGroups.length > 0 &&
-    selectedGroups.every((group) => group.contacts.length > 0) &&
-    draftsToSend.length > 0 &&
-    draftsToSend.every((draft) => draft.message.trim().length > 0);
 
   const excludedNotRemoved = goingQuietRecipients.filter(
     (recipient) =>
@@ -306,75 +292,82 @@ export default function HoldPeopleScreen() {
   const resolvedEmailMessageFor = (account: EmailAccount) =>
     (useSameEmailMessage ? sharedEmailMessage : account.message).trim();
 
-  const send = async () => {
-    if (draftsToSend.length === 0) return;
+  /**
+   * Sends exactly one Circle's message — the only send action on this
+   * screen now (2026-08-11: replaces the old page-level "Send" button,
+   * which sent every ready visible Circle in one bulk pass, all-or-nothing.
+   * That button read as greyed out/non-functional whenever ANY selected
+   * Circle didn't have a message yet, even if another Circle right above it
+   * was fully ready to go — a real usability bug, not a leftover from a
+   * pre-sequential architecture (it was still the only thing actually
+   * wired to send anything). This finally makes the per-Circle,
+   * independent sending the rest of the screen's design already implies —
+   * each Circle's own chip state, its own card, its own reselect — a real
+   * button, matching the pattern already used just below for personal
+   * notes, and on Reconnect/Taking Time's update/Library's Quick message.
+   * See docs/09-decision-log.md, 2026-08-11.
+   */
+  const sendCircle = async (draft: GoingQuietCircleDraft) => {
+    const text = draft.message.trim();
+    if (!text) return;
 
-    // The period is created once, on this session's first Send, and reused
-    // for every subsequent per-Circle Send — sending is repeatable now, so
-    // this can no longer start a fresh period (and silently orphan the
-    // previous one) on every call the way the old single-shot send() did.
+    // The period is created once, on this session's first Send from ANY
+    // Circle, and reused for every subsequent Send — never a fresh period
+    // per Circle, which would silently orphan the previous one.
     const periodId = period?.id ?? (await startHoldPeriod({
       recipients,
       audienceCircles: buildAudienceCircles(selectedGroups)
     }));
 
-    const recipientsByCircle = new Map<string, GoingQuietRecipient[]>();
-    for (const recipient of goingQuietRecipients) {
-      const list = recipientsByCircle.get(recipient.circleId) ?? [];
-      list.push(recipient);
-      recipientsByCircle.set(recipient.circleId, list);
+    const circleRecipients = goingQuietRecipients.filter(
+      (recipient) => recipient.circleId === draft.circleId
+    );
+    const groupRecipients = circleRecipients.filter((recipient) => recipient.included);
+
+    if (groupRecipients.length > 0) {
+      try {
+        const channel = await sendOrShare(groupRecipients.map((recipient) => recipient.phoneNumber), text);
+        await recordSendChannel(periodId, draft.circleId, channelKey(channel));
+      } catch {
+        // Move on even if this compose sheet was dismissed.
+      }
     }
 
-    for (const draft of draftsToSend) {
-      const circleRecipients = recipientsByCircle.get(draft.circleId) ?? [];
-      const groupRecipients = circleRecipients.filter((recipient) => recipient.included);
-      const text = draft.message.trim();
+    const individualRecipients = circleRecipients.filter(
+      (recipient) => !recipient.included && !recipient.individuallyRemoved && !recipient.routeToPersonalise
+    );
+    for (const recipient of individualRecipients) {
+      const individualText = recipient.instantMessage.trim();
+      if (!individualText) continue;
 
-      if (groupRecipients.length > 0 && text) {
-        try {
-          const channel = await sendOrShare(groupRecipients.map((recipient) => recipient.phoneNumber), text);
-          await recordSendChannel(periodId, draft.circleId, channelKey(channel));
-        } catch {
-          // Move on even if this compose sheet was dismissed.
-        }
+      try {
+        const channel = await sendOrShare([recipient.phoneNumber], individualText);
+        await recordSendChannel(periodId, recipient.phoneNumber, channelKey(channel));
+      } catch {
+        // Move on to the next person even if this compose sheet was dismissed.
       }
+    }
 
-      const individualRecipients = circleRecipients.filter(
-        (recipient) => !recipient.included && !recipient.individuallyRemoved && !recipient.routeToPersonalise
-      );
-      for (const recipient of individualRecipients) {
-        const individualText = recipient.instantMessage.trim();
-        if (!individualText) continue;
-
-        try {
-          const channel = await sendOrShare([recipient.phoneNumber], individualText);
-          await recordSendChannel(periodId, recipient.phoneNumber, channelKey(channel));
-        } catch {
-          // Move on to the next person even if this compose sheet was dismissed.
-        }
-      }
-
-      const personaliseRecipients = circleRecipients.filter(
-        (recipient) => !recipient.included && !recipient.individuallyRemoved && recipient.routeToPersonalise
-      );
-      for (const recipient of personaliseRecipients) {
-        await seedPersonaliseRecipient({
-          name: recipient.name,
-          phoneNumber: recipient.phoneNumber,
-          circleId: recipient.circleId,
-          circleName: recipient.circleName
-        });
-      }
+    const personaliseRecipients = circleRecipients.filter(
+      (recipient) => !recipient.included && !recipient.individuallyRemoved && recipient.routeToPersonalise
+    );
+    for (const recipient of personaliseRecipients) {
+      await seedPersonaliseRecipient({
+        name: recipient.name,
+        phoneNumber: recipient.phoneNumber,
+        circleId: recipient.circleId,
+        circleName: recipient.circleName
+      });
     }
 
     await refreshPeriod();
-    // Just-sent Circles drop out of "reselected" so their cards collapse back
-    // to a compact sent chip in GroupPicker's own row — tapping it reselects
-    // (per the isSelected/hasSentThisSession pattern), rather than leaving it
-    // expanded as if still mid-draft.
+    // A just-sent Circle drops out of "reselected" so its card collapses
+    // back to a compact sent chip in GroupPicker's own row — tapping it
+    // reselects (per the isSelected/hasSentThisSession pattern), rather
+    // than leaving it expanded as if still mid-draft.
     setReselectedCircleIds((current) => {
       const next = new Set(current);
-      for (const draft of draftsToSend) next.delete(draft.circleId);
+      next.delete(draft.circleId);
       return next;
     });
   };
@@ -529,23 +522,28 @@ export default function HoldPeopleScreen() {
                 ))}
               </View>
             ) : (
-              <GoingQuietMessageBox
-                styles={styles}
-                draft={draft}
-                isSaved={isSaved}
-                isActive={activeField === `circle:${draft.circleId}`}
-                onActivate={() => setActiveField(`circle:${draft.circleId}`)}
-                onChangeTemplate={() => changeTemplate(draft.circleId)}
-                onSaveDefault={() => void saveCircleDraftAsDefault(draft.circleId)}
-              />
+              <>
+                <GoingQuietMessageBox
+                  styles={styles}
+                  draft={draft}
+                  isSaved={isSaved}
+                  isActive={activeField === `circle:${draft.circleId}`}
+                  onActivate={() => setActiveField(`circle:${draft.circleId}`)}
+                  onChangeTemplate={() => changeTemplate(draft.circleId)}
+                  onSaveDefault={() => void saveCircleDraftAsDefault(draft.circleId)}
+                />
+                <View style={styles.sendRow}>
+                  <CompactSendButton
+                    disabled={!draft.message.trim()}
+                    accessibilityLabel={`Send message to ${draft.circleName}`}
+                    onPress={() => void sendCircle(draft)}
+                  />
+                </View>
+              </>
             )}
           </View>
         );
       })}
-
-      <View style={styles.sendRow}>
-        <CompactSendButton disabled={!canSend} onPress={() => void send()} />
-      </View>
 
       {hasSentAnything ? (
         <>
@@ -650,7 +648,15 @@ export default function HoldPeopleScreen() {
             </>
           ) : null}
         </>
-      ) : null}
+      ) : (
+        // No per-Circle send is required before finishing — someone who
+        // decides not to send anything this session still needs a way out
+        // of Going Quiet. finish() is already safe to call with nothing
+        // sent: emailEnabled/widerWorldEnabled default false, and
+        // syncAudience()/recordPostSendChoices() both no-op when no Hold
+        // period is open yet. See docs/09-decision-log.md, 2026-08-11.
+        <PrimaryButton label="Done" onPress={() => void finish()} />
+      )}
     </Screen>
   );
 }
