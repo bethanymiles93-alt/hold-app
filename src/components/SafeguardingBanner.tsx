@@ -58,7 +58,7 @@ export function SafeguardingBanner({ visible }: SafeguardingBannerProps) {
   };
 
   const confirmNotify = () => {
-    Alert.alert("Notify your Close Circle?", "Sends a message now, letting them know you need support.", [
+    Alert.alert("Notify your Close?", "Sends a message now, letting them know you need support.", [
       { text: "Cancel", style: "cancel" },
       { text: "Send", onPress: () => void notifyCloseCircle() }
     ]);
@@ -83,10 +83,10 @@ export function SafeguardingBanner({ visible }: SafeguardingBannerProps) {
       <Text style={styles.grounding}>{SAFEGUARDING_GROUNDING_PROMPT_PLACEHOLDER}</Text>
 
       {notified ? (
-        <Text style={styles.notifiedText}>Sent to your Close Circle.</Text>
+        <Text style={styles.notifiedText}>Sent to your Close.</Text>
       ) : (
         <Pressable accessibilityRole="button" disabled={notifying} onPress={confirmNotify}>
-          <Text style={styles.notifyText}>Notify someone from your Close Circle now</Text>
+          <Text style={styles.notifyText}>Notify someone from your Close now</Text>
         </Pressable>
       )}
     </View>

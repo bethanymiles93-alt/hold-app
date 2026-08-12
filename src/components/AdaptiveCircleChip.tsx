@@ -188,10 +188,14 @@ function createStyles(colors: ThemeColors) {
       borderWidth: 1.5,
       borderColor: colors.primary
     },
-    // Matches reconnect.tsx/update.tsx's existing sent-chip convention —
-    // softened/desaturated fill, muted text, no selection ring.
+    // The app's one standard sent treatment: dark-green fill, white text,
+    // colour only, no glyph. Was wrongly using the same backgroundColor as
+    // the default unselected chip (colors.surfaceStrong) — a real
+    // regression, not a deliberate softened look, since this shared
+    // component is what Going Quiet/Reconnect/Taking Time's update all
+    // render sent chips through. See docs/09-decision-log.md, 2026-08-12.
     chipSent: {
-      backgroundColor: colors.surfaceStrong
+      backgroundColor: colors.primary
     },
     chipSelected: {
       borderWidth: 2,

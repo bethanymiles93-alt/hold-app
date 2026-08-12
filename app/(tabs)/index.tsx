@@ -65,23 +65,12 @@ const BREATHE_HALF_CYCLE_MS = 4000;
 
 type HomeState = "loading" | "normal" | "taking-time" | "reconnecting" | "post-reconnect";
 
-interface PostReconnectProgress {
-  done: number;
-  total: number;
-}
-
 export default function HomeScreen() {
   const { resetFlow, setAudience } = useHoldFlow();
   const normalTheme = useAppTheme("normal");
   const quietTheme = useAppTheme("quiet");
   const [openPeriod, setOpenPeriod] = useState<HoldPeriod | null>(null);
   const [homeState, setHomeState] = useState<HomeState>("loading");
-  const [postReconnectProgress, setPostReconnectProgress] = useState<PostReconnectProgress | null>(
-    null
-  );
-  const [reconnectingProgress, setReconnectingProgress] = useState<PostReconnectProgress | null>(
-    null
-  );
   const [isAnimating, setIsAnimating] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
 
@@ -135,8 +124,6 @@ export default function HomeScreen() {
         setOpenPeriod(period);
 
         let resolvedState: HomeState = "normal";
-        let progress: PostReconnectProgress | null = null;
-        let reconnecting: PostReconnectProgress | null = null;
 
         if (period) {
           resolvedState = "taking-time";
@@ -149,20 +136,16 @@ export default function HomeScreen() {
             // directly rather than showing a misleading Normal Home, so a
             // force-quit mid-Reconnect never loses track of who's left.
             resolvedState = "reconnecting";
-            reconnecting = { done: coverage.contactedIds.length, total: coverage.totalIds.length };
           } else {
             const conversationProgress = await getConversationProgress().catch(() => null);
 
             if (conversationProgress && conversationProgress.completed < conversationProgress.total) {
               resolvedState = "post-reconnect";
-              progress = { done: conversationProgress.completed, total: conversationProgress.total };
             }
           }
         }
 
         setHomeState(resolvedState);
-        setPostReconnectProgress(progress);
-        setReconnectingProgress(reconnecting);
 
         scaleAnim.setValue(resolvedState === "taking-time" ? QUIET_CIRCLE_SCALE : 1);
         Animated.timing(paletteAnim, {
@@ -237,7 +220,6 @@ export default function HomeScreen() {
     await endReconnecting();
     resetFlow("hold");
     setHomeState("normal");
-    setPostReconnectProgress(null);
   };
 
   const confirmClear = (message: string) => {
@@ -314,10 +296,6 @@ export default function HomeScreen() {
     inputRange: [0, 1],
     outputRange: [normalTheme.colors.primary, quietTheme.colors.primary]
   });
-
-  const postReconnectSubtext = postReconnectProgress
-    ? `Continue where you left off. ${postReconnectProgress.done} of ${postReconnectProgress.total} replies sent`
-    : "Continue where you left off";
 
   return (
     <AnimatedSafeAreaView
@@ -413,9 +391,7 @@ export default function HomeScreen() {
                     Continue reconnecting
                   </Text>
                   <Text style={[styles.circleSubtext, { color: currentTheme.colors.onPrimary }]}>
-                    {reconnectingProgress
-                      ? `${reconnectingProgress.done} of ${reconnectingProgress.total} reached`
-                      : "Pick up where you left off"}
+                    Pick up where you left off
                   </Text>
                 </Animated.View>
               </Animated.View>
@@ -438,7 +414,7 @@ export default function HomeScreen() {
                     Finish Reconnecting
                   </Text>
                   <Text style={[styles.circleSubtext, { color: currentTheme.colors.onPrimary }]}>
-                    {postReconnectSubtext}
+                    Continue where you left off
                   </Text>
                 </Animated.View>
               </Animated.View>

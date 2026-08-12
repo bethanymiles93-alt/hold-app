@@ -1,12 +1,11 @@
 import { useCallback, useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { SecondaryButton } from "@/components/SecondaryButton";
 import { CompactSendButton } from "@/components/CompactSendButton";
 import { DockedInputBar } from "@/components/DockedInputBar";
 import { DockedFieldPreview } from "@/components/DockedFieldPreview";
-import { SelectionCircle } from "@/components/SelectionCircle";
 import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
 import { PersonaliseAccordion } from "@/components/PersonaliseAccordion";
 import { theme, type ThemeColors } from "@/constants/theme";
@@ -61,7 +60,7 @@ function groupByCircle(people: ConversationPerson[]): CircleSection[] {
 }
 
 /** Every screen-owned docked-bar field, keyed by tag — mirrors create/people.tsx's pattern. Personalise's "Your reply" is handled separately (personaliseReplyTarget below), since its persistence is owned by each PersonaliseAccordion instance, not by the screen. */
-type ActiveField = `circle-message:${string}` | `individual-message:${string}` | "new-circle" | `template:${string}`;
+type ActiveField = `individual-message:${string}` | "new-circle" | `template:${string}`;
 
 interface PersonaliseReplyTarget {
   personId: string;
@@ -73,18 +72,26 @@ export default function LibraryScreen() {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [people, setPeople] = useState<ConversationPerson[]>([]);
-  const [templateTextByCircleId, setTemplateTextByCircleId] = useState<Record<string, string>>({});
 
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  const [sharedMessages, setSharedMessages] = useState<Record<string, string>>({});
-  const [excludedPersonIds, setExcludedPersonIds] = useState<Set<string>>(new Set());
-  const [individualMessages, setIndividualMessages] = useState<Record<string, string>>({});
-  const [personaliseSwapIds, setPersonaliseSwapIds] = useState<Set<string>>(new Set());
+  // Per-circle dropdown-arrow reveal — a Set, not a single value, since
+  // "All" (below) can expand every circle at once for scanning across
+  // everyone; an individual arrow tap only ever toggles its own circle in
+  // or out of the set. See docs/09-decision-log.md, 2026-08-12.
+  const [expandedCircleIds, setExpandedCircleIds] = useState<Set<string>>(new Set());
+  // Which one person's PersonaliseAccordion is open — a single value, same
+  // single-expand convention as everywhere else this pattern exists.
   const [expandedPersonaliseId, setExpandedPersonaliseId] = useState<string | null>(null);
   const [personaliseDrafts, setPersonaliseDrafts] = useState<Record<string, string>>({});
   const [personaliseStyles, setPersonaliseStyles] = useState<Record<string, ReturnStyle>>({});
   const [personaliseReplyTarget, setPersonaliseReplyTarget] = useState<PersonaliseReplyTarget | null>(null);
+
+  // Ungrouped people only now — circle-grouped people are reached via each
+  // circle's own dropdown arrow instead (2026-08-12). Still gates each
+  // ungrouped person's own expanded card below, and still feeds the
+  // 2-selected -> "Create a Circle for these people?" prompt.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [individualMessages, setIndividualMessages] = useState<Record<string, string>>({});
+  const [personaliseSwapIds, setPersonaliseSwapIds] = useState<Set<string>>(new Set());
 
   const [selectedOtherIds, setSelectedOtherIds] = useState<Set<string>>(new Set());
   const [circlePromptStage, setCirclePromptStage] = useState<"none" | "confirm" | "naming">("none");
@@ -113,10 +120,6 @@ export default function LibraryScreen() {
 
     const [savedTemplates, groups] = await Promise.all([getAllTemplates(), getGroups()]);
     const nameById = new Map(groups.map((group) => [group.id, group.name]));
-
-    const templateTextNext: Record<string, string> = {};
-    for (const template of savedTemplates) templateTextNext[template.circleId] = template.text;
-    setTemplateTextByCircleId(templateTextNext);
 
     const rows = savedTemplates
       .map((template) => {
@@ -153,10 +156,24 @@ export default function LibraryScreen() {
 
   const circleSections = useMemo(() => groupByCircle(people), [people]);
   const ungroupedPeople = useMemo(() => people.filter((person) => person.circleId === null), [people]);
-  const allIds = useMemo(
-    () => [...circleSections.map((section) => section.circleId), ...ungroupedPeople.map((person) => person.id)],
-    [circleSections, ungroupedPeople]
+
+  // One shared row, ordered to match each person's parent circle's
+  // left-to-right position in the circle row above — circleSections is
+  // already in that same order, so filtering+flatMapping it in place
+  // preserves it without needing a separate sort. See
+  // docs/09-decision-log.md, 2026-08-12.
+  const expandedPeople = useMemo(
+    () =>
+      circleSections
+        .filter((section) => expandedCircleIds.has(section.circleId))
+        .flatMap((section) => section.people),
+    [circleSections, expandedCircleIds]
   );
+  const expandedPersonalisePerson = expandedPersonaliseId
+    ? (expandedPeople.find((person) => person.id === expandedPersonaliseId) ?? null)
+    : null;
+
+  const allIds = useMemo(() => ungroupedPeople.map((person) => person.id), [ungroupedPeople]);
   const allSelected = allIds.length > 0 && allIds.every((id) => selectedIds.has(id));
 
   const toggleAll = () => {
@@ -175,24 +192,33 @@ export default function LibraryScreen() {
     });
   };
 
-  const toggleExpanded = (id: string) => {
-    setExpandedIds((current) => {
+  const toggleCircleExpanded = (circleId: string) => {
+    setExpandedCircleIds((current) => {
       const next = new Set(current);
-      if (next.has(id)) {
-        next.delete(id);
+      if (next.has(circleId)) {
+        next.delete(circleId);
+
+        // Collapsing removes this circle's people from the shared pill
+        // row — if the currently-open accordion belonged to one of them,
+        // close it too, rather than leaving it floating with no visible
+        // pill above it. Their draft is untouched either way (it lives in
+        // personaliseDrafts/replyStorageService, not here) — reopening the
+        // circle and tapping their pill again brings it straight back.
+        const section = circleSections.find((s) => s.circleId === circleId);
+        if (section?.people.some((person) => person.id === expandedPersonaliseId)) {
+          setExpandedPersonaliseId(null);
+        }
       } else {
-        next.add(id);
+        next.add(circleId);
       }
       return next;
     });
   };
 
-  const defaultMessageForCircle = (circleId: string) =>
-    sharedMessages[circleId] ?? templateTextByCircleId[circleId] ?? DEFAULT_QUICK_MESSAGE;
+  const togglePersonalisePerson = (personId: string) => {
+    setExpandedPersonaliseId((current) => (current === personId ? null : personId));
+  };
 
-  const activeCircleMessageId = activeField?.startsWith("circle-message:")
-    ? activeField.slice("circle-message:".length)
-    : null;
   const activeIndividualMessageId = activeField?.startsWith("individual-message:")
     ? activeField.slice("individual-message:".length)
     : null;
@@ -203,7 +229,6 @@ export default function LibraryScreen() {
   const activeTemplate = activeTemplateId ? templates.find((t) => t.circleId === activeTemplateId) : undefined;
 
   const activeFieldValue = (): string => {
-    if (activeCircleMessageId) return defaultMessageForCircle(activeCircleMessageId);
     if (activeIndividualMessageId) {
       // Ungrouped people default to the quick-message text; a circle's
       // excluded member defaults to empty — matches each field's own prior
@@ -217,9 +242,7 @@ export default function LibraryScreen() {
   };
 
   const setActiveFieldValue = (text: string) => {
-    if (activeCircleMessageId) {
-      setSharedMessages((current) => ({ ...current, [activeCircleMessageId]: text }));
-    } else if (activeIndividualMessageId) {
+    if (activeIndividualMessageId) {
       setIndividualMessages((current) => ({ ...current, [activeIndividualMessageId]: text }));
     } else if (activeField === "new-circle") {
       setNewOtherCircleName(text);
@@ -229,35 +252,10 @@ export default function LibraryScreen() {
   };
 
   const activeFieldLabel = (): string => {
-    if (activeCircleMessageId) {
-      const section = circleSections.find((s) => s.circleId === activeCircleMessageId);
-      return `Message to ${section?.circleName ?? "Circle"}`;
-    }
     if (activeIndividualPerson) return `Message for ${activeIndividualPerson.name}`;
     if (activeField === "new-circle") return "New Circle name";
     if (activeTemplate) return `Saved message for ${activeTemplate.circleName}`;
     return "Message";
-  };
-
-  const toggleExcludeMember = (section: CircleSection, person: ConversationPerson) => {
-    // A single-contact Circle never offers this — excluding the only person
-    // already has the same effect as not selecting the Circle at all.
-    if (section.people.length <= 1) return;
-
-    setExcludedPersonIds((current) => {
-      const next = new Set(current);
-      if (next.has(person.id)) {
-        next.delete(person.id);
-      } else {
-        next.add(person.id);
-        setIndividualMessages((currentMessages) =>
-          currentMessages[person.id] !== undefined
-            ? currentMessages
-            : { ...currentMessages, [person.id]: defaultMessageForCircle(section.circleId) }
-        );
-      }
-      return next;
-    });
   };
 
   const togglePersonaliseSwap = (personId: string) => {
@@ -270,57 +268,6 @@ export default function LibraryScreen() {
       }
       return next;
     });
-  };
-
-  const sendCircle = (section: CircleSection) => {
-    // Already-completed members are treated as handled — the shared box
-    // doesn't resend to them by default, though they're still visible (and
-    // individually re-toggleable) in the expanded member list.
-    const included = section.people.filter(
-      (person) => !excludedPersonIds.has(person.id) && !person.completed
-    );
-    const text = defaultMessageForCircle(section.circleId).trim();
-    const excludedMembers = section.people.filter((person) => excludedPersonIds.has(person.id));
-    const instantExcluded = excludedMembers.filter((person) => !personaliseSwapIds.has(person.id));
-
-    const recipientCount = included.length + instantExcluded.length;
-    if (recipientCount === 0) return;
-
-    Alert.alert(`Send to ${section.circleName}?`, `Reaches ${recipientCount} people.`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Send",
-        onPress: () =>
-          void (async () => {
-            if (included.length > 0 && text) {
-              try {
-                await sendOrShare(included.map((person) => person.phoneNumber), text);
-              } catch {
-                // Move on even if this compose sheet was dismissed.
-              }
-              await markQuickSent(included.map((person) => person.id));
-            }
-
-            for (const person of instantExcluded) {
-              const individualText = (individualMessages[person.id] ?? "").trim();
-              if (!individualText) continue;
-              try {
-                await sendOrShare([person.phoneNumber], individualText);
-              } catch {
-                // Move on to the next person even if this compose sheet was dismissed.
-              }
-              await markQuickSent([person.id]);
-            }
-
-            setExcludedPersonIds((current) => {
-              const next = new Set(current);
-              for (const person of section.people) next.delete(person.id);
-              return next;
-            });
-            await refresh();
-          })()
-      }
-    ]);
   };
 
   const sendIndividual = (person: ConversationPerson) => {
@@ -345,6 +292,12 @@ export default function LibraryScreen() {
     })();
   };
 
+  /**
+   * The one add-person entry point on this screen — "+" in the circle row
+   * (2026-08-12, replaces the old full-width "Add person" button, now
+   * redundant with "+" positioned first). Adds an ungrouped person; folding
+   * someone into a Circle is a separate, existing action (select 2+ below).
+   */
   const addNewPerson = () => {
     void (async () => {
       const picked = await pickContact();
@@ -429,22 +382,14 @@ export default function LibraryScreen() {
             placeholder={activeFieldLabel()}
             accessibilityLabel={activeFieldLabel()}
             aiAmend={
-              activeCircleMessageId
+              activeIndividualPerson
                 ? {
                     surface: "conversations-reply",
-                    context: {
-                      recipientLabel: circleSections.find((s) => s.circleId === activeCircleMessageId)
-                        ?.circleName
-                    }
+                    context: { recipientLabel: activeIndividualPerson.name }
                   }
-                : activeIndividualPerson
-                  ? {
-                      surface: "conversations-reply",
-                      context: { recipientLabel: activeIndividualPerson.name }
-                    }
-                  : activeTemplateId
-                    ? { surface: "template" }
-                    : undefined
+                : activeTemplateId
+                  ? { surface: "template" }
+                  : undefined
             }
           />
         ) : null
@@ -453,33 +398,62 @@ export default function LibraryScreen() {
       <Text style={styles.pageTitle}>Conversations</Text>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+        <AdaptiveCircleChip
+          label="+"
+          accessibilityLabel="Add person"
+          accessibilityRole="button"
+          outline
+          isSelected={false}
+          labelFontSize={28}
+          labelBold
+          onPress={addNewPerson}
+        />
+
         {allIds.length > 0 ? (
-          <AdaptiveCircleChip label="All" isSelected={allSelected} onPress={toggleAll} accessibilityRole="button" />
+          <AdaptiveCircleChip
+            label="All"
+            isSelected={allSelected}
+            labelBold
+            onPress={toggleAll}
+            accessibilityRole="button"
+          />
         ) : null}
+
         {circleSections.map((section) => {
-          const isSelected = selectedIds.has(section.circleId);
-          // Derived from existing durable per-person state (ConversationPerson.completed,
-          // set by markQuickSent), not a new persisted flag — every included person in this
-          // Circle already being marked complete is exactly "already sent this session."
-          const hasSentThisSession = section.people.length > 0 && section.people.every((person) => person.completed);
-          const sentLook = hasSentThisSession && !isSelected;
+          const isExpanded = expandedCircleIds.has(section.circleId);
 
           return (
-            <AdaptiveCircleChip
-              key={section.circleId}
-              label={sentLook ? `✓ ${section.circleName}` : section.circleName}
-              isSelected={isSelected}
-              hasSentThisSession={hasSentThisSession}
-              onPress={() => toggleId(section.circleId)}
-              accessibilityRole="button"
-              accessibilityLabel={
-                sentLook
-                  ? `${section.circleName}, already sent. Tap to send another message.`
-                  : section.circleName
-              }
-            />
+            <View key={section.circleId} style={styles.circleUnit}>
+              <AdaptiveCircleChip
+                label={section.circleName}
+                isSelected={isExpanded}
+                onPress={() => toggleCircleExpanded(section.circleId)}
+                accessibilityRole="button"
+                accessibilityLabel={`${section.circleName}, ${isExpanded ? "hide" : "show"} people`}
+              />
+              {/* Independent of the chip's own tap, same as Going Quiet's —
+                  both happen to do the same thing here (there's no separate
+                  "select for a shared send" meaning left to keep apart, see
+                  docs/09-decision-log.md, 2026-08-12), but the visual
+                  affordance stays consistent with the rest of the app. */}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${section.circleName}, ${isExpanded ? "hide" : "show"} people`}
+                accessibilityState={{ expanded: isExpanded }}
+                hitSlop={8}
+                onPress={() => toggleCircleExpanded(section.circleId)}
+                style={styles.arrowButton}
+              >
+                {({ pressed }) => (
+                  <View style={[styles.arrowBadge, pressed && styles.arrowPressed]}>
+                    <Text style={styles.arrowGlyph}>{isExpanded ? "▲" : "▼"}</Text>
+                  </View>
+                )}
+              </Pressable>
+            </View>
           );
         })}
+
         {ungroupedPeople.map((person) => {
           const isSelected = selectedIds.has(person.id);
           const sentLook = person.completed && !isSelected;
@@ -498,151 +472,69 @@ export default function LibraryScreen() {
         })}
       </ScrollView>
 
-      <View style={styles.cardList}>
-        {circleSections
-          .filter((section) => selectedIds.has(section.circleId))
-          .map((section) => {
-            const expanded = expandedIds.has(section.circleId);
-            const includedMembers = section.people.filter(
-              (person) => !excludedPersonIds.has(person.id) && !person.completed
-            );
-            const excludedMembers = section.people.filter((person) => excludedPersonIds.has(person.id));
-            const isSoleContact = section.people.length === 1;
+      {/* One shared row, not a pop-up per circle — continues the same
+          visual flow directly beneath the circle row above. A circle's
+          arrow adds/removes only that circle's own people; with more than
+          one circle expanded, people are ordered to match their parent
+          circle's left-to-right position above, not grouped or separated
+          visually by circle (2026-08-12, corrects this pass's own earlier,
+          per-circle-row draft). Standard chip size throughout — no
+          override — and sent-state (dark-green fill) is never locked, same
+          "reselect to message again" rule as every other sent chip in the
+          app. Drafts survive a circle being collapsed and reopened: they
+          live in personaliseDrafts (this screen) backed by
+          replyStorageService's own durable per-person storage inside
+          PersonaliseAccordion itself, never cleared by
+          toggleCircleExpanded — collapsing only changes who's currently
+          visible in the row, never the underlying draft. See
+          docs/09-decision-log.md, 2026-08-12. */}
+      {expandedPeople.length > 0 ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+          {expandedPeople.map((person) => {
+            const isOpen = expandedPersonaliseId === person.id;
+            const sentLook = person.completed && !isOpen;
 
             return (
-              <View key={section.circleId} style={styles.card}>
-                <View style={styles.cardHeader}>
-                  <Text style={styles.cardTitle}>{section.circleName}</Text>
-                  <Pressable accessibilityRole="button" onPress={() => toggleExpanded(section.circleId)}>
-                    <Text style={styles.linkText}>{expanded ? "Hide people" : "Show people"}</Text>
-                  </Pressable>
-                </View>
-
-                {expanded ? (
-                  <View style={styles.memberList}>
-                    {section.people.map((person) => (
-                      <View key={person.id} style={styles.memberRow}>
-                        <View style={styles.memberRowStart}>
-                          {isSoleContact ? null : (
-                            <SelectionCircle
-                              selected={!excludedPersonIds.has(person.id)}
-                              onPress={() => toggleExcludeMember(section, person)}
-                              accessibilityLabel={`${
-                                excludedPersonIds.has(person.id) ? "Excluded" : "Included"
-                              }: ${person.name}`}
-                            />
-                          )}
-                          <Text style={[styles.memberName, person.completed && styles.memberNameDone]}>
-                            {person.name}
-                          </Text>
-                        </View>
-                        <Pressable
-                          accessibilityRole="checkbox"
-                          accessibilityLabel={`Mark ${person.name} complete`}
-                          accessibilityState={{ checked: person.completed }}
-                          onPress={() => toggleCompletePerson(person)}
-                          hitSlop={8}
-                        >
-                          <View style={[styles.checkbox, person.completed && styles.checkboxChecked]} />
-                        </Pressable>
-                      </View>
-                    ))}
-                  </View>
-                ) : null}
-
-                <DockedFieldPreview
-                  value={defaultMessageForCircle(section.circleId)}
-                  placeholder={`Message to ${section.circleName}`}
-                  isActive={activeField === `circle-message:${section.circleId}`}
-                  onPress={() => setActiveField(`circle-message:${section.circleId}`)}
-                  accessibilityLabel={`Message to ${section.circleName}`}
-                />
-
-                {expanded && excludedMembers.length > 0 ? (
-                  <View style={styles.excludedList}>
-                    {excludedMembers.map((person) => (
-                      <View key={person.id} style={styles.excludedBlock}>
-                        <Text style={styles.memberName}>{person.name}</Text>
-
-                        {personaliseSwapIds.has(person.id) ? (
-                          <>
-                            <PersonaliseAccordion
-                              person={person}
-                              isOpen={expandedPersonaliseId === person.id}
-                              onToggle={() =>
-                                setExpandedPersonaliseId((current) =>
-                                  current === person.id ? null : person.id
-                                )
-                              }
-                              onSent={() => void refresh()}
-                              draft={personaliseDrafts[person.id] ?? ""}
-                              onChangeDraft={(text) =>
-                                setPersonaliseDrafts((current) => ({ ...current, [person.id]: text }))
-                              }
-                              style={personaliseStyles[person.id] ?? null}
-                              onChangeStyle={(style) =>
-                                setPersonaliseStyles((current) => ({ ...current, [person.id]: style }))
-                              }
-                              isReplyActive={personaliseReplyTarget?.personId === person.id}
-                              onActivateReply={(bundle) =>
-                                setPersonaliseReplyTarget({ personId: person.id, ...bundle })
-                              }
-                            />
-                            <Pressable
-                              accessibilityRole="button"
-                              onPress={() => togglePersonaliseSwap(person.id)}
-                            >
-                              <Text style={styles.linkText}>Use a quick message instead</Text>
-                            </Pressable>
-                          </>
-                        ) : (
-                          <>
-                            <DockedFieldPreview
-                              value={individualMessages[person.id] ?? ""}
-                              placeholder={`Message for ${person.name}`}
-                              isActive={activeField === `individual-message:${person.id}`}
-                              onPress={() => setActiveField(`individual-message:${person.id}`)}
-                              accessibilityLabel={`Message for ${person.name}`}
-                            />
-                            <View style={styles.excludedActions}>
-                              <CompactSendButton
-                                disabled={!(individualMessages[person.id] ?? "").trim()}
-                                accessibilityLabel={`Send to ${person.name}`}
-                                onPress={() => sendIndividual(person)}
-                              />
-                              <Pressable
-                                accessibilityRole="button"
-                                onPress={() => togglePersonaliseSwap(person.id)}
-                              >
-                                <Text style={styles.linkText}>Personalise</Text>
-                              </Pressable>
-                            </View>
-                          </>
-                        )}
-                      </View>
-                    ))}
-                  </View>
-                ) : null}
-
-                <View style={styles.sendRow}>
-                  <CompactSendButton
-                    label={
-                      includedMembers.length > 0
-                        ? `Send (${includedMembers.length} ${includedMembers.length === 1 ? "person" : "people"})`
-                        : undefined
-                    }
-                    accessibilityLabel={
-                      includedMembers.length > 0
-                        ? `Send to ${includedMembers.length} ${includedMembers.length === 1 ? "person" : "people"} in ${section.circleName}`
-                        : `Send to ${section.circleName}`
-                    }
-                    onPress={() => sendCircle(section)}
-                  />
-                </View>
-              </View>
+              <AdaptiveCircleChip
+                key={person.id}
+                label={sentLook ? `✓ ${person.name}` : person.name}
+                isSelected={isOpen}
+                hasSentThisSession={person.completed}
+                onPress={() => togglePersonalisePerson(person.id)}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  sentLook
+                    ? `${person.name}, already replied to. Tap to send another message.`
+                    : person.name
+                }
+              />
             );
           })}
+        </ScrollView>
+      ) : null}
 
+      {expandedPersonalisePerson ? (
+        <PersonaliseAccordion
+          person={expandedPersonalisePerson}
+          isOpen
+          onToggle={() => setExpandedPersonaliseId(null)}
+          onSent={() => void refresh()}
+          draft={personaliseDrafts[expandedPersonalisePerson.id] ?? ""}
+          onChangeDraft={(text) =>
+            setPersonaliseDrafts((current) => ({ ...current, [expandedPersonalisePerson.id]: text }))
+          }
+          style={personaliseStyles[expandedPersonalisePerson.id] ?? null}
+          onChangeStyle={(style) =>
+            setPersonaliseStyles((current) => ({ ...current, [expandedPersonalisePerson.id]: style }))
+          }
+          isReplyActive={personaliseReplyTarget?.personId === expandedPersonalisePerson.id}
+          onActivateReply={(bundle) =>
+            setPersonaliseReplyTarget({ personId: expandedPersonalisePerson.id, ...bundle })
+          }
+        />
+      ) : null}
+
+      <View style={styles.cardList}>
         {ungroupedPeople
           .filter((person) => selectedIds.has(person.id))
           .map((person) => {
@@ -749,8 +641,6 @@ export default function LibraryScreen() {
         </View>
       ) : null}
 
-      <SecondaryButton label="+ Add person" onPress={addNewPerson} />
-
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Templates</Text>
 
@@ -829,6 +719,37 @@ function createStyles(colors: ThemeColors) {
     alignItems: "center",
     gap: theme.spacing.sm
   },
+  // Wraps tightly to the chip's own rendered size — the dropdown arrow is
+  // positioned inside it, not beside it. Matches GroupPicker.tsx's own
+  // circleUnit/arrowButton treatment exactly. See docs/09-decision-log.md,
+  // 2026-08-12.
+  circleUnit: {
+    position: "relative",
+    alignSelf: "flex-start"
+  },
+  arrowButton: {
+    position: "absolute",
+    right: 6,
+    bottom: 8,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  arrowBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.12)"
+  },
+  arrowPressed: {
+    opacity: 0.6
+  },
+  arrowGlyph: {
+    color: colors.textMuted,
+    fontSize: 13,
+    fontWeight: "600"
+  },
   cardList: {
     gap: theme.spacing.lg
   },
@@ -857,46 +778,10 @@ function createStyles(colors: ThemeColors) {
     fontSize: 13,
     fontWeight: "600"
   },
-  memberList: {
-    gap: theme.spacing.xs
-  },
-  memberRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    minHeight: 36
-  },
-  memberRowStart: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.sm
-  },
-  memberName: {
-    color: colors.text,
-    fontSize: 15
-  },
-  memberNameDone: {
-    color: colors.textMuted,
-    textDecorationLine: "line-through"
-  },
-  excludedList: {
-    gap: theme.spacing.md,
-    marginLeft: 32,
-    paddingLeft: theme.spacing.sm,
-    borderLeftWidth: 1.5,
-    borderLeftColor: colors.border
-  },
-  excludedBlock: {
-    gap: theme.spacing.xs
-  },
   excludedActions: {
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing.md
-  },
-  sendRow: {
-    flexDirection: "row",
-    justifyContent: "flex-end"
   },
   checkbox: {
     width: 22,

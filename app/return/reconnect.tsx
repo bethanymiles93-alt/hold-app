@@ -49,9 +49,20 @@ export default function ReconnectScreen() {
   const [emailOff, setEmailOff] = useState(false);
   const [statusCleared, setStatusCleared] = useState(false);
   const [suggestedPrompt, setSuggestedPrompt] = useState<string | undefined>(undefined);
-  const [oooExpanded, setOooExpanded] = useState(false);
+  // Open by default specifically at this point in the flow (once every
+  // Circle/contact has been reached) — a deliberate correction (2026-08-12)
+  // to the earlier "collapsed by default" decision (docs/09-decision-log.md,
+  // 2026-08-11, "16. OOO/status-before-Transition sequencing"), scoped to
+  // Reconnect's own post-coverage-complete moment only. See
+  // docs/09-decision-log.md, 2026-08-12.
+  const [oooExpanded, setOooExpanded] = useState(true);
   const [messageFieldActive, setMessageFieldActive] = useState(false);
   const [showPersonalise, setShowPersonalise] = useState(false);
+  // Declining Personalise no longer finishes Reconnect (that's "Done" now,
+  // below) — it just collapses this inline choice, reopenable via the same
+  // dropdown-arrow "reveal on demand" pattern used elsewhere. See
+  // docs/09-decision-log.md, 2026-08-12.
+  const [notNowCollapsed, setNotNowCollapsed] = useState(false);
   const personalise = usePersonaliseCompletion();
   // Frozen the moment the docked bar opens for the message — reorder and
   // grey-out both key off this snapshot, not the live selection, so they
@@ -218,14 +229,14 @@ export default function ReconnectScreen() {
   };
 
   /**
-   * Ends Reconnect's own completion step — corrected (2026-08-11) to match
-   * Going Quiet's own finish(), which always lands on a calm completion
-   * screen (create/done.tsx) right after its OOO/Personalise decisions.
-   * Reconnect had no equivalent: this button used to go straight home,
-   * with return/done.tsx ("You're reconnected") only ever reachable via a
-   * completely different path (Library, once every Conversation is
-   * complete) — a real asymmetry, not a deliberate design choice. See
-   * docs/09-decision-log.md, 2026-08-11.
+   * Ends Reconnect's own completion step, reachable via "Done" — always
+   * available once at least one message has gone out, same as Going
+   * Quiet's own Done. Used to be triggered by "Not now" instead, but that
+   * button no longer finishes anything: since the post-coverage state was
+   * folded into this same screen instead of a separate page (2026-08-12),
+   * "Not now" just declines/collapses the inline Personalise choice, and
+   * leaving is its own separate, always-available action. See
+   * docs/09-decision-log.md, 2026-08-12.
    */
   const finishReconnecting = () => {
     router.replace("/return/done");
@@ -263,133 +274,22 @@ export default function ReconnectScreen() {
     return <Screen contentContainerStyle={styles.content} />;
   }
 
-  if (!coverage.complete) {
-    // Reorder + grey-out only while composing (composingActiveIds), same
-    // trigger as Going Quiet's own GroupPicker — never on a bare selection
-    // tap. See docs/09-decision-log.md, 2026-08-11.
-    const composingIds = composingActiveIds ? new Set(composingActiveIds) : null;
-    const orderPills = <T,>(items: T[], idOf: (item: T) => string): T[] => {
-      if (!composingIds) return items;
-      const active = items.filter((item) => composingIds.has(idOf(item)));
-      const rest = items.filter((item) => !composingIds.has(idOf(item)));
-      return [...active, ...rest];
-    };
+  // Reorder + grey-out only while composing (composingActiveIds), same
+  // trigger as Going Quiet's own GroupPicker — never on a bare selection
+  // tap. Once coverage.complete, messageFieldActive can never become true
+  // again (the message docked bar stops rendering below), so this always
+  // resolves to identity/no grey-out on its own. See
+  // docs/09-decision-log.md, 2026-08-11.
+  const composingIds = composingActiveIds ? new Set(composingActiveIds) : null;
+  const orderPills = <T,>(items: T[], idOf: (item: T) => string): T[] => {
+    if (!composingIds) return items;
+    const active = items.filter((item) => composingIds.has(idOf(item)));
+    const rest = items.filter((item) => !composingIds.has(idOf(item)));
+    return [...active, ...rest];
+  };
 
-    const circlePills = orderPills(period.audienceCircles ?? [], (circle) => circle.circleId);
-    const ungroupedPills = orderPills(period.audienceUngrouped ?? [], (contact) => contact.phoneNumber);
-
-    return (
-      <Screen
-        contentContainerStyle={styles.content}
-        dockedInput={
-          messageFieldActive ? (
-            <DockedInputBar
-              value={message}
-              onChangeText={changeMessage}
-              onDone={() => {
-                // Sends immediately — no intermediate "return to preview"
-                // step, matching Going Quiet's own fix. See
-                // docs/09-decision-log.md, 2026-08-11.
-                void send();
-                setMessageFieldActive(false);
-              }}
-              placeholder="Message to send"
-              accessibilityLabel="Message to send"
-              aiAmend={{ surface: "reconnect", initialPrompt: suggestedPrompt }}
-            />
-          ) : null
-        }
-      >
-        <View style={styles.top}>
-          <StepHeader body="Reach everyone at your own pace, a few at a time." />
-
-          <MemoryNoteSuggestion
-            onUseIt={(prompt) => {
-              setSuggestedPrompt(prompt);
-              setMessageFieldActive(true);
-            }}
-          />
-
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-            <AdaptiveCircleChip
-              label="All"
-              isSelected={allSelected}
-              onPress={toggleAll}
-              accessibilityRole="button"
-            />
-
-            {circlePills.map((circle) => {
-              const isSelected = selectedIds.has(circle.circleId);
-              const hasSentThisSession = coverage.contactedIds.includes(circle.circleId);
-              const sentLook = hasSentThisSession && !isSelected;
-              const isGreyedOut = composingIds !== null && !composingIds.has(circle.circleId);
-
-              return (
-                <View key={circle.circleId} style={isGreyedOut && styles.chipGreyed}>
-                  <AdaptiveCircleChip
-                    label={circle.circleName}
-                    isSelected={isSelected}
-                    hasSentThisSession={hasSentThisSession}
-                    onPress={() => toggleId(circle.circleId)}
-                    accessibilityRole="button"
-                    accessibilityLabel={
-                      sentLook
-                        ? `${circle.circleName}, already reached. Tap to send another message.`
-                        : circle.circleName
-                    }
-                  />
-                </View>
-              );
-            })}
-
-            {ungroupedPills.map((contact) => {
-              const isSelected = selectedIds.has(contact.phoneNumber);
-              const hasSentThisSession = coverage.contactedIds.includes(contact.phoneNumber);
-              const sentLook = hasSentThisSession && !isSelected;
-              const isGreyedOut = composingIds !== null && !composingIds.has(contact.phoneNumber);
-
-              return (
-                <View key={contact.phoneNumber} style={isGreyedOut && styles.chipGreyed}>
-                  <AdaptiveCircleChip
-                    label={contact.name}
-                    isSelected={isSelected}
-                    hasSentThisSession={hasSentThisSession}
-                    onPress={() => toggleId(contact.phoneNumber)}
-                    accessibilityRole="button"
-                    accessibilityLabel={
-                      sentLook ? `${contact.name}, already reached. Tap to send another message.` : contact.name
-                    }
-                  />
-                </View>
-              );
-            })}
-          </ScrollView>
-
-          <DockedFieldPreview
-            value={message}
-            placeholder="Message to send"
-            isActive={messageFieldActive}
-            onPress={() => setMessageFieldActive(true)}
-            accessibilityLabel="Message to send"
-          />
-        </View>
-
-        <View style={styles.sendRow}>
-          {/* Manual early exit only — finishing normally happens on its own
-              once every Circle/contact has been reached (coverage.complete
-              above), matching Going Quiet's own Done/auto-complete model.
-              See docs/09-decision-log.md, 2026-08-11. */}
-          {coverage.contactedIds.length > 0 ? (
-            <SecondaryButton label="Done" onPress={finishReconnecting} />
-          ) : null}
-          <CompactSendButton
-            disabled={selectedIds.size === 0 || !message.trim()}
-            onPress={() => void send()}
-          />
-        </View>
-      </Screen>
-    );
-  }
+  const circlePills = orderPills(period.audienceCircles ?? [], (circle) => circle.circleId);
+  const ungroupedPills = orderPills(period.audienceUngrouped ?? [], (contact) => contact.phoneNumber);
 
   const showOoo = period.emailOutOfOfficeEnabled || period.widerWorldStatusEnabled;
   const resolvedPendingCircleIds = period.resolvedPendingCircleIds ?? [];
@@ -399,11 +299,32 @@ export default function ReconnectScreen() {
       !resolvedPendingCircleIds.includes(circle.circleId)
   );
 
+  // One continuous screen throughout, not a page-swap once everyone's been
+  // reached (2026-08-12) — reaching full coverage used to render an
+  // entirely different Screen tree (new header, no circle row, no message
+  // box), which read on-device as navigating to a separate page even
+  // though no route change was involved. Now every section below is
+  // conditional in place instead. See docs/09-decision-log.md, 2026-08-12.
   return (
     <Screen
       contentContainerStyle={styles.content}
       dockedInput={
-        personalise.replyTarget ? (
+        !coverage.complete && messageFieldActive ? (
+          <DockedInputBar
+            value={message}
+            onChangeText={changeMessage}
+            onDone={() => {
+              // Sends immediately — no intermediate "return to preview"
+              // step, matching Going Quiet's own fix. See
+              // docs/09-decision-log.md, 2026-08-11.
+              void send();
+              setMessageFieldActive(false);
+            }}
+            placeholder="Message to send"
+            accessibilityLabel="Message to send"
+            aiAmend={{ surface: "reconnect", initialPrompt: suggestedPrompt }}
+          />
+        ) : personalise.replyTarget ? (
           <DockedInputBar
             value={personalise.drafts[personalise.replyTarget.personId] ?? ""}
             onChangeText={personalise.replyTarget.onChangeText}
@@ -419,40 +340,149 @@ export default function ReconnectScreen() {
       }
     >
       <View style={styles.top}>
-        <StepHeader body="Everyone's been reached." />
+        <StepHeader
+          body={coverage.complete ? "Everyone's been reached." : "Reach everyone at your own pace, a few at a time."}
+        />
 
-        {pendingCircles.map((circle) => {
-          const contact = circle.contacts[0];
-          if (!contact) return null;
+        {coverage.complete
+          ? pendingCircles.map((circle) => {
+              const contact = circle.contacts[0];
+              if (!contact) return null;
 
-          return (
-            <View key={circle.circleId} style={styles.pendingPromptRow}>
-              <Text style={styles.pendingPromptText}>
-                Add {contact.name} to {circle.circleName} permanently?
-              </Text>
-              <View style={styles.pendingPromptActions}>
-                <Pressable
+              return (
+                <View key={circle.circleId} style={styles.pendingPromptRow}>
+                  <Text style={styles.pendingPromptText}>
+                    Add {contact.name} to {circle.circleName} permanently?
+                  </Text>
+                  <View style={styles.pendingPromptActions}>
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => void discardPendingCircle(circle)}
+                      style={styles.smallPill}
+                    >
+                      <Text style={styles.smallPillText}>Not now</Text>
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => void confirmPendingCircle(circle)}
+                      style={styles.smallPill}
+                    >
+                      <Text style={styles.smallPillText}>Yes</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              );
+            })
+          : null}
+
+        {!coverage.complete ? (
+          <MemoryNoteSuggestion
+            onUseIt={(prompt) => {
+              setSuggestedPrompt(prompt);
+              setMessageFieldActive(true);
+            }}
+          />
+        ) : null}
+
+        {/* Stays visible once fully sent, not just while composing — the
+            person should still see who they messaged. See
+            docs/09-decision-log.md, 2026-08-12. */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+          <AdaptiveCircleChip
+            label="All"
+            isSelected={allSelected}
+            onPress={coverage.complete ? () => {} : toggleAll}
+            accessibilityRole="button"
+          />
+
+          {circlePills.map((circle) => {
+            const isSelected = selectedIds.has(circle.circleId);
+            const hasSentThisSession = coverage.contactedIds.includes(circle.circleId);
+            const sentLook = hasSentThisSession && !isSelected;
+            const isGreyedOut = composingIds !== null && !composingIds.has(circle.circleId);
+
+            return (
+              <View key={circle.circleId} style={isGreyedOut && styles.chipGreyed}>
+                <AdaptiveCircleChip
+                  label={circle.circleName}
+                  isSelected={isSelected}
+                  hasSentThisSession={hasSentThisSession}
+                  onPress={coverage.complete ? () => {} : () => toggleId(circle.circleId)}
                   accessibilityRole="button"
-                  onPress={() => void discardPendingCircle(circle)}
-                  style={styles.smallPill}
-                >
-                  <Text style={styles.smallPillText}>Not now</Text>
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => void confirmPendingCircle(circle)}
-                  style={styles.smallPill}
-                >
-                  <Text style={styles.smallPillText}>Yes</Text>
-                </Pressable>
+                  accessibilityLabel={
+                    sentLook
+                      ? `${circle.circleName}, already reached. Tap to send another message.`
+                      : circle.circleName
+                  }
+                />
               </View>
-            </View>
-          );
-        })}
+            );
+          })}
 
-        <Text style={styles.gatePrompt}>Want to reply to anyone properly?</Text>
+          {ungroupedPills.map((contact) => {
+            const isSelected = selectedIds.has(contact.phoneNumber);
+            const hasSentThisSession = coverage.contactedIds.includes(contact.phoneNumber);
+            const sentLook = hasSentThisSession && !isSelected;
+            const isGreyedOut = composingIds !== null && !composingIds.has(contact.phoneNumber);
 
-        {showOoo ? (
+            return (
+              <View key={contact.phoneNumber} style={isGreyedOut && styles.chipGreyed}>
+                <AdaptiveCircleChip
+                  label={contact.name}
+                  isSelected={isSelected}
+                  hasSentThisSession={hasSentThisSession}
+                  onPress={coverage.complete ? () => {} : () => toggleId(contact.phoneNumber)}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    sentLook ? `${contact.name}, already reached. Tap to send another message.` : contact.name
+                  }
+                />
+              </View>
+            );
+          })}
+        </ScrollView>
+
+        {!coverage.complete ? (
+          <DockedFieldPreview
+            value={message}
+            placeholder="Message to send"
+            isActive={messageFieldActive}
+            onPress={() => setMessageFieldActive(true)}
+            accessibilityLabel="Message to send"
+          />
+        ) : (
+          // Inline, in the space the text box vacated — nothing left to
+          // compose once everyone's been reached. "Not now" collapses this
+          // rather than dismissing it, so it can be reopened and
+          // reconsidered later, same reveal-on-demand pattern as OOO/status
+          // below. See docs/09-decision-log.md, 2026-08-12.
+          <View>
+            {notNowCollapsed ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ expanded: false }}
+                onPress={() => setNotNowCollapsed(false)}
+                style={styles.oooHeader}
+              >
+                <Text style={styles.oooHeaderText}>Reply to anyone properly?</Text>
+                <Text style={styles.oooChevron}>▼</Text>
+              </Pressable>
+            ) : (
+              <>
+                <Text style={styles.gatePrompt}>Want to reply to anyone properly?</Text>
+                <View style={styles.actions}>
+                  <SecondaryButton
+                    label={showPersonalise ? "Hide" : "Personalise"}
+                    onPress={() => (showPersonalise ? setShowPersonalise(false) : openPersonalise())}
+                  />
+                  <SecondaryButton label="Not now" onPress={() => setNotNowCollapsed(true)} />
+                </View>
+              </>
+            )}
+          </View>
+        )}
+
+        {coverage.complete && showOoo ? (
           <>
             <Pressable
               accessibilityRole="button"
@@ -506,12 +536,20 @@ export default function ReconnectScreen() {
         />
       ) : null}
 
-      <View style={styles.actions}>
-        <SecondaryButton
-          label={showPersonalise ? "Hide" : "Personalise"}
-          onPress={() => (showPersonalise ? setShowPersonalise(false) : openPersonalise())}
-        />
-        <SecondaryButton label="Not now" onPress={finishReconnecting} />
+      <View style={styles.sendRow}>
+        {/* Always available once at least one message has gone out — the
+            manual early-exit action pre-completion, and the only way to
+            actually finish/leave once complete, now that "Not now" no
+            longer does that. See docs/09-decision-log.md, 2026-08-12. */}
+        {coverage.contactedIds.length > 0 ? (
+          <SecondaryButton label="Done" onPress={finishReconnecting} />
+        ) : null}
+        {!coverage.complete ? (
+          <CompactSendButton
+            disabled={selectedIds.size === 0 || !message.trim()}
+            onPress={() => void send()}
+          />
+        ) : null}
       </View>
     </Screen>
   );
