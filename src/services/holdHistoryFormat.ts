@@ -13,6 +13,7 @@ const KNOWN_ACTIVITY_TYPES: Record<string, string> = {
 /** Turns a stored smsService.channelKey value into a short, honest label. */
 export function formatChannelLabel(channel: string): string {
   if (channel === "sms") return "Text message";
+  if (channel === "whatsapp") return "WhatsApp";
   if (channel === "shared") return "Shared";
 
   const activityType = channel.startsWith("shared:") ? channel.slice("shared:".length) : null;

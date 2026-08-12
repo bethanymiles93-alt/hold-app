@@ -84,13 +84,18 @@ export async function getGroup(id: string): Promise<CircleGroup | null> {
   return readGroup(id);
 }
 
-export async function createGroup(name: string, sendAsGroup = false): Promise<CircleGroup> {
+export async function createGroup(
+  name: string,
+  sendAsGroup = false,
+  needsNaming = false
+): Promise<CircleGroup> {
   const group: CircleGroup = {
     id: createId(),
     name,
     isCloseCircle: false,
     contacts: [],
-    sendAsGroup
+    sendAsGroup,
+    needsNaming
   };
 
   await writeGroup(group);
@@ -103,6 +108,24 @@ export async function setSendAsGroup(groupId: string, sendAsGroup: boolean): Pro
   if (!group) return null;
 
   const updated: CircleGroup = { ...group, sendAsGroup };
+  await writeGroup(updated);
+  return updated;
+}
+
+/**
+ * Renames a Circle — also always clears `needsNaming`, whether the new
+ * name is different or the person just re-confirmed the auto-generated
+ * placeholder as-is; both are a final acknowledgement, not something to
+ * keep prompting about. The one rename path in the whole app: Manage
+ * Circles, and Reconnect's own optional rename step for freshly-bundled
+ * Circles. See docs/09-decision-log.md, 2026-08-13.
+ */
+export async function renameGroup(groupId: string, name: string): Promise<CircleGroup | null> {
+  const group = await readGroup(groupId);
+  if (!group) return null;
+
+  const trimmed = name.trim();
+  const updated: CircleGroup = { ...group, name: trimmed || group.name, needsNaming: false };
   await writeGroup(updated);
   return updated;
 }

@@ -143,11 +143,55 @@ function mergeGoingQuietRecipients(
   return merged;
 }
 
-export function buildAudienceCircles(groups: CircleGroup[]): AudienceCircle[] {
+/**
+ * Real bug found and fixed (2026-08-13): a contact split into a new
+ * provisional Circle mid-Going-Quiet (splitRecipientsIntoNewCircle) was
+ * never actually removed from their ORIGINAL Circle's own `contacts` array
+ * — that array is deliberately never mutated, since `overrides` was always
+ * meant to be the source of truth for who's reassigned where. Going
+ * Quiet's own session-send already respected that correctly (via
+ * mergeGoingQuietRecipients' dedupe), but this function — which builds the
+ * PERSISTED audience Reconnect reads from — didn't apply the same
+ * exclusion, so the persisted record ended up with the same person listed
+ * under both Circles at once. Confirmed on-device: this produced a
+ * duplicate person id across two AudienceCircles in Reconnect's own pill
+ * row (a React "duplicate key" warning), and — since Reconnect's
+ * includedPersonIds is a single flat set keyed by phone number, not scoped
+ * per Circle — toggling the shared person via their ORIGINAL Circle's chip
+ * also flipped the NEW Circle's own "everyone included" read, which is
+ * what actually produced "selecting Amin also selects New Circle". `overrides`
+ * (contactId -> the Circle they were reassigned to) now excludes a contact
+ * from any Circle that isn't their assigned one, mirroring
+ * mergeGoingQuietRecipients' own precedence exactly. See
+ * docs/09-decision-log.md, 2026-08-13.
+ */
+export function buildAudienceCircles(
+  groups: CircleGroup[],
+  overrides: Record<string, string> = {},
+  excludedContactIds: ReadonlySet<string> = new Set()
+): AudienceCircle[] {
   return groups.map((group) => ({
     circleId: group.id,
     circleName: group.name,
-    contacts: group.contacts.map((contact) => ({ name: contact.name, phoneNumber: contact.phoneNumber })),
+    contacts: group.contacts
+      .filter((contact) => {
+        const targetCircleId = overrides[contact.id];
+        if (targetCircleId && targetCircleId !== group.id) return false;
+        // Real bug found and fixed (2026-08-13): this only ever checked
+        // `overrides` (reassignment to a different Circle) — a contact
+        // excluded via toggleRecipientIncluded (included: false) but
+        // never reassigned anywhere stayed fully present in the
+        // PERSISTED audience regardless, contradicting the documented
+        // "frozen onto the HoldPeriod record at send time" intent
+        // (docs/09-decision-log.md, the original "Persisted audience,
+        // not re-picked" entry). Excluded-and-not-reassigned now drops
+        // them from this Circle's persisted contacts entirely — they
+        // were only ever excluded for this one session/period, not
+        // removed from the real Circle itself, so they're included
+        // again by default next time. See docs/09-decision-log.md.
+        return !excludedContactIds.has(contact.id);
+      })
+      .map((contact) => ({ name: contact.name, phoneNumber: contact.phoneNumber })),
     sendAsGroup: group.sendAsGroup ?? false
   }));
 }

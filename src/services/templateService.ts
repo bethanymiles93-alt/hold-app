@@ -24,12 +24,21 @@ function recordKey(circleId: string): string {
 
 /**
  * The canonical key for a set of Circles selected together — sorted so the
- * same combination always keys the same way regardless of tap order, joined
- * with a separator that can't appear inside a Circle id (a
- * timestamp-plus-random string, see circleService.ts/createGroup).
+ * same combination always keys the same way regardless of tap order.
+ * Joined with "_", not "|" — real bug found 2026-08-13: SecureStore only
+ * accepts alphanumeric, ".", "-" and "_" in a key, and "|" isn't one of
+ * them, so every combinationRecordKey() built from this threw an uncaught
+ * "Invalid key" rejection for any 2+-Circle combination, silently halting
+ * whichever caller awaited it partway through (loadMessageForSelection's
+ * message/starting-points setup, and send()'s own post-send cleanup — see
+ * docs/09-decision-log.md). "_" is safe: neither real Circle ids
+ * (`${Date.now().toString(36)}-${Math.random()...}`, circleService.ts) nor
+ * provisional ones (`pending-${Date.now()}`) ever contain it, so it can't
+ * be confused for part of an id the way "-" already inside those ids
+ * would be.
  */
 export function combinationKey(circleIds: string[]): string {
-  return [...circleIds].sort().join("|");
+  return [...circleIds].sort().join("_");
 }
 
 async function readIndex(): Promise<string[]> {

@@ -1,5 +1,8 @@
 export type FlowMode = "hold" | "return";
 
+/** SMS (native compose) or WhatsApp (wa.me deep link) — see sendingPreferencesService.ts for the global default and smsService.ts for delivery. */
+export type SendingChannel = "sms" | "whatsapp";
+
 export type HoldIntent =
   | "quiet"
   | "unwell"
@@ -137,6 +140,18 @@ export interface CircleGroup {
    * 2026-08-11.
    */
   sendAsGroup?: boolean;
+  /**
+   * True for a Circle created from Going Quiet's ad-hoc bundling flow
+   * (removed people spun into a new Circle) — it exists fully-formed with
+   * an auto-generated placeholder name (initials of its members) from the
+   * moment it's created, never a yes/no "should this exist" question.
+   * Drives Reconnect's optional rename opportunity; cleared (false) the
+   * moment the person either renames it or explicitly leaves the
+   * placeholder as-is — either way is a final acknowledgement, not
+   * something to keep re-asking about. See docs/09-decision-log.md,
+   * 2026-08-13.
+   */
+  needsNaming?: boolean;
 }
 
 export type EmailProvider = "gmail" | "outlook";

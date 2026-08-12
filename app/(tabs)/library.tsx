@@ -10,6 +10,7 @@ import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
 import { PersonaliseAccordion } from "@/components/PersonaliseAccordion";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
+import { useComposingGestureLock } from "@/hooks/useComposingGestureLock";
 import { QUICK_RECONNECT_MESSAGES } from "@/constants/copy";
 import {
   addPerson,
@@ -97,6 +98,12 @@ export default function LibraryScreen() {
   const [circlePromptStage, setCirclePromptStage] = useState<"none" | "confirm" | "naming">("none");
   const [newOtherCircleName, setNewOtherCircleName] = useState("");
   const [activeField, setActiveField] = useState<ActiveField | null>(null);
+  // Hides the bottom tab bar (the only screen this applies to — Library is
+  // the sole tab root with an active composition surface) whenever any
+  // docked field here is focused, same shared mechanism Going Quiet/
+  // Reconnect use for their own swipe-back disable. See
+  // docs/09-decision-log.md, 2026-08-13.
+  useComposingGestureLock(activeField !== null || personaliseReplyTarget !== null);
 
   const [templates, setTemplates] = useState<TemplateRow[]>([]);
   const [templateDrafts, setTemplateDrafts] = useState<Record<string, string>>({});
@@ -397,7 +404,11 @@ export default function LibraryScreen() {
     >
       <Text style={styles.pageTitle}>Conversations</Text>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+      {/* "+" pinned outside the scroll (never scrolls away), "All" first
+          inside it — matches GroupPicker.tsx's own pinnedRow/newCircleStack
+          treatment exactly, an app-wide convention, not specific to this
+          screen (2026-08-13). See docs/09-decision-log.md. */}
+      <View style={styles.pinnedRow}>
         <AdaptiveCircleChip
           label="+"
           accessibilityLabel="Add person"
@@ -409,6 +420,12 @@ export default function LibraryScreen() {
           onPress={addNewPerson}
         />
 
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chipRow}
+          style={styles.pillScroll}
+        >
         {allIds.length > 0 ? (
           <AdaptiveCircleChip
             label="All"
@@ -470,7 +487,8 @@ export default function LibraryScreen() {
             />
           );
         })}
-      </ScrollView>
+        </ScrollView>
+      </View>
 
       {/* One shared row, not a pop-up per circle — continues the same
           visual flow directly beneath the circle row above. A circle's
@@ -718,6 +736,16 @@ function createStyles(colors: ThemeColors) {
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing.sm
+  },
+  // "+" pinned outside the scroll (never scrolls away), "All" first inside
+  // it — matches GroupPicker.tsx's own pinnedRow/newCircleStack treatment.
+  pinnedRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: theme.spacing.sm
+  },
+  pillScroll: {
+    flex: 1
   },
   // Wraps tightly to the chip's own rendered size — the dropdown arrow is
   // positioned inside it, not beside it. Matches GroupPicker.tsx's own

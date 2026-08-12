@@ -14,6 +14,7 @@ import { EmailOutOfOffice } from "@/components/EmailOutOfOffice";
 import { WiderWorldStatus } from "@/components/WiderWorldStatus";
 import { SafeguardingBanner } from "@/components/SafeguardingBanner";
 import { useSafeguardingCheck } from "@/hooks/useSafeguardingCheck";
+import { useComposingGestureLock } from "@/hooks/useComposingGestureLock";
 import { HOLD_INTENTS } from "@/constants/copy";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
@@ -29,6 +30,7 @@ import {
 import { activateOutOfOffice } from "@/services/emailAccountService";
 import { copyToClipboard } from "@/services/clipboardService";
 import { channelKey, sendToCircles } from "@/services/smsService";
+import { getDefaultSendingChannel } from "@/services/sendingPreferencesService";
 import { pickContact } from "@/services/contactPickerService";
 import { addContactToGroup, getGroup, getGroups } from "@/services/circleService";
 import {
@@ -54,6 +56,24 @@ type ActiveField =
 const DEFAULT_OOO_MESSAGE =
   "I’m currently away and will respond when I’m back. Thank you for understanding.";
 const DEFAULT_STATUS_LINE = "Taking some quiet time. Back soon.";
+
+/**
+ * "P & A" for two people, "P, A & J" for three or more, a bare initial for
+ * one — the auto-generated placeholder name for a bundled ad-hoc Circle
+ * (2026-08-13, replaces the earlier generic "New Circle"/"New Circle N").
+ * This is now the Circle's real, final name unless the person changes it
+ * later — polished and specific from the start, not a numbered stand-in.
+ * See docs/09-decision-log.md.
+ */
+function initialsPlaceholderName(people: { name: string }[]): string {
+  const initials = people
+    .map((person) => person.name.trim().charAt(0).toUpperCase())
+    .filter((initial) => initial.length > 0);
+
+  if (initials.length === 0) return "New Circle";
+  if (initials.length === 1) return initials[0] ?? "New Circle";
+  return `${initials.slice(0, -1).join(", ")} & ${initials[initials.length - 1]}`;
+}
 
 interface RemovedPerson {
   contactId: string;
@@ -89,7 +109,8 @@ export default function HoldPeopleScreen() {
     updateSelectedGroup,
     goingQuietRecipients,
     toggleRecipientIncluded,
-    splitRecipientsIntoNewCircle
+    splitRecipientsIntoNewCircle,
+    recipientCircleOverrides
   } = useHoldFlow();
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -147,6 +168,11 @@ export default function HoldPeopleScreen() {
   // Exactly one DockedInputBar serves every field on this screen — this is
   // which one, if any, currently owns it. See docs/09-decision-log.md, 2026-08-10.
   const [activeField, setActiveField] = useState<ActiveField | null>(null);
+  // Disables swipe-back whenever any field on this screen is actively
+  // focused — a second, easily-missed path to the same in-progress-
+  // message data-loss risk an accidental tap could cause. See
+  // docs/09-decision-log.md, 2026-08-13.
+  useComposingGestureLock(activeField !== null);
 
   const [emailEnabled, setEmailEnabled] = useState(false);
   const [emailAccounts, setEmailAccounts] = useState<EmailAccount[]>([]);
@@ -196,6 +222,17 @@ export default function HoldPeopleScreen() {
       return changed ? next : current;
     });
   }, [selectedGroups]);
+
+  // Every contactId currently excluded (goingQuietRecipients' own
+  // included: false) — passed into buildAudienceCircles so the persisted
+  // audience actually reflects who was excluded this session, not just
+  // who was reassigned elsewhere. Recomputed fresh each render since
+  // goingQuietRecipients itself is; not memoised, it's cheap and only
+  // read at send()/finish() time regardless. See docs/09-decision-log.md,
+  // 2026-08-13.
+  const excludedContactIds = new Set(
+    goingQuietRecipients.filter((recipient) => !recipient.included).map((recipient) => recipient.contactId)
+  );
 
   // Real bug found and fixed (2026-08-11): this used to fall back to
   // `selectedGroups` for provisional Circles not yet in `allGroups` — but
@@ -480,8 +517,7 @@ export default function HoldPeopleScreen() {
         : removedPeople.filter((person) => !person.claimed);
     if (targets.length === 0) return;
 
-    const provisionalCount = selectedGroups.filter((group) => group.id.startsWith(PENDING_CIRCLE_ID_PREFIX)).length;
-    const placeholderName = provisionalCount > 0 ? `New Circle ${provisionalCount + 1}` : "New Circle";
+    const placeholderName = initialsPlaceholderName(targets);
     const tempId = `${PENDING_CIRCLE_ID_PREFIX}${Date.now()}`;
     const newGroup: CircleGroup = {
       id: tempId,
@@ -555,7 +591,7 @@ export default function HoldPeopleScreen() {
 
     const periodId = period?.id ?? (await startHoldPeriod({
       recipients,
-      audienceCircles: buildAudienceCircles(selectedGroups)
+      audienceCircles: buildAudienceCircles(selectedGroups, recipientCircleOverrides, excludedContactIds)
     }));
 
     const recipientsByCircle = new Map<string, GoingQuietRecipient[]>();
@@ -575,7 +611,8 @@ export default function HoldPeopleScreen() {
       }))
       .filter((target) => target.numbers.length > 0);
 
-    const channelByCircle = await sendToCircles(deliveryTargets, text);
+    const defaultChannel = await getDefaultSendingChannel();
+    const channelByCircle = await sendToCircles(deliveryTargets, text, defaultChannel);
     for (const [circleId, channel] of channelByCircle) {
       await recordSendChannel(periodId, circleId, channelKey(channel));
     }
@@ -622,7 +659,7 @@ export default function HoldPeopleScreen() {
     // finish() runs, since send() clears it right after sending.
     await syncAudience({
       recipients,
-      audienceCircles: buildAudienceCircles(Array.from(queuedGroups.values()))
+      audienceCircles: buildAudienceCircles(Array.from(queuedGroups.values()), recipientCircleOverrides, excludedContactIds)
     });
 
     await recordPostSendChoices({

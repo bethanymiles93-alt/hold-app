@@ -106,6 +106,32 @@ export async function addToAudience(contact: { name: string; phoneNumber: string
 }
 
 /**
+ * Appends someone new to a specific period's audience, ungrouped — the
+ * Reconnect-screen equivalent of `addToAudience` above, which only ever
+ * targets the currently-OPEN period and so can't be reused here: by the
+ * time someone's on the Reconnect screen, that period is no longer open
+ * (`beginReconnecting` has already fired). Takes the period id directly
+ * rather than re-deriving it from a marker, since the caller already has
+ * it. See docs/09-decision-log.md, 2026-08-13.
+ */
+export async function addToReconnectingAudience(
+  periodId: string,
+  contact: { name: string; phoneNumber: string }
+): Promise<void> {
+  const period = await readRecord(periodId);
+  if (!period) return;
+
+  const circles = period.audienceCircles ?? [];
+  const ungrouped = period.audienceUngrouped ?? [];
+  const alreadyPresent =
+    circles.some((circle) => circle.contacts.some((existing) => existing.phoneNumber === contact.phoneNumber)) ||
+    ungrouped.some((existing) => existing.phoneNumber === contact.phoneNumber);
+  if (alreadyPresent) return;
+
+  await writeRecord({ ...period, audienceUngrouped: [...ungrouped, contact] });
+}
+
+/**
  * A specific Hold period by id, independent of OPEN_KEY/RECONNECTING_KEY — lets
  * Reconnect source its target period as soon as it's known (right when "Reconnect"
  * is tapped), before the durable reconnecting marker exists yet.
@@ -254,15 +280,69 @@ export async function markPendingCircleResolved(periodId: string, circleId: stri
   await writeRecord({ ...period, resolvedPendingCircleIds: [...existing, circleId] });
 }
 
-/** Appends a Circle id or ungrouped phone number to the period's contacted list — idempotent. */
-export async function markReconnectContacted(periodId: string, contactedId: string): Promise<void> {
+/**
+ * Swaps a still-pending audienceCircles entry for the now-real Circle it
+ * became (2026-08-13) — a bundled ad-hoc Circle is made real automatically,
+ * as soon as Reconnect loads, not behind a yes/no tap any more; this keeps
+ * the period's own record of it (its circleId, and its name once renamed)
+ * in sync with the real, persisted Circle going forward. Coverage tracking
+ * itself is untouched by this — it's keyed by phone number, not circleId,
+ * so the swap is purely a display-consistency fix, not a data-integrity
+ * one. Also marks it resolved in the same write, so refresh() doesn't
+ * reprocess it. See docs/09-decision-log.md.
+ */
+export async function resolvePendingCircleInPeriod(
+  periodId: string,
+  tempCircleId: string,
+  realCircle: { circleId: string; circleName: string }
+): Promise<void> {
+  const period = await readRecord(periodId);
+  if (!period) return;
+
+  const audienceCircles = (period.audienceCircles ?? []).map((circle) =>
+    circle.circleId === tempCircleId
+      ? { ...circle, circleId: realCircle.circleId, circleName: realCircle.circleName }
+      : circle
+  );
+  const resolved = period.resolvedPendingCircleIds ?? [];
+
+  await writeRecord({
+    ...period,
+    audienceCircles,
+    resolvedPendingCircleIds: resolved.includes(tempCircleId) ? resolved : [...resolved, tempCircleId]
+  });
+}
+
+/** Syncs a Circle's current name into this period's own audienceCircles snapshot — used after a rename, so the current Reconnect session's display updates without needing a fresh visit. */
+export async function renameCircleInPeriod(periodId: string, circleId: string, circleName: string): Promise<void> {
+  const period = await readRecord(periodId);
+  if (!period) return;
+
+  const audienceCircles = (period.audienceCircles ?? []).map((circle) =>
+    circle.circleId === circleId ? { ...circle, circleName } : circle
+  );
+
+  await writeRecord({ ...period, audienceCircles });
+}
+
+/**
+ * Appends a phone number to the period's contacted list — idempotent.
+ * Per-PERSON now, not per-Circle (2026-08-13, corrects the granularity
+ * this was built at): coverage/completion is derived from every individual
+ * circle member being reached, not the Circle as a whole, since Reconnect's
+ * pill-selection model can send to a subset of a Circle's members. A
+ * phone number is the one id every recipient already has, grouped or not
+ * — using it uniformly here avoids needing a second id scheme just for
+ * circle members. See docs/09-decision-log.md, 2026-08-13.
+ */
+export async function markReconnectContacted(periodId: string, phoneNumber: string): Promise<void> {
   const period = await readRecord(periodId);
   if (!period) return;
 
   const existing = period.reconnectContactedIds ?? [];
-  if (existing.includes(contactedId)) return;
+  if (existing.includes(phoneNumber)) return;
 
-  await writeRecord({ ...period, reconnectContactedIds: [...existing, contactedId] });
+  await writeRecord({ ...period, reconnectContactedIds: [...existing, phoneNumber] });
 }
 
 /** Clears the reconnecting marker once Reconnect has genuinely finished. */
@@ -276,10 +356,19 @@ export interface ReconnectCoverage {
   complete: boolean;
 }
 
-/** Pure: whether every Circle/ungrouped person in the period's audience has been reached. */
+/**
+ * Pure: whether every individual recipient in the period's audience has
+ * been reached — per-person granularity throughout (phone numbers), not
+ * per-Circle, since a Circle can now be partially reached (some members
+ * messaged, some not) under Reconnect's per-person pill selection. A
+ * person appearing in more than one Circle (or a Circle and the ungrouped
+ * list) is naturally deduped by `totalIds.every`, which only needs their
+ * number present once, not counted per appearance. See
+ * docs/09-decision-log.md, 2026-08-13.
+ */
 export function getReconnectCoverage(period: HoldPeriod): ReconnectCoverage {
   const totalIds = [
-    ...(period.audienceCircles ?? []).map((circle) => circle.circleId),
+    ...(period.audienceCircles ?? []).flatMap((circle) => circle.contacts.map((contact) => contact.phoneNumber)),
     ...(period.audienceUngrouped ?? []).map((contact) => contact.phoneNumber)
   ];
   const contactedIds = period.reconnectContactedIds ?? [];

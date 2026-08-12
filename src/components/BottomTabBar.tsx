@@ -22,7 +22,16 @@ interface TabBarState {
 }
 
 interface TabBarDescriptor {
-  options: { title?: string };
+  /**
+   * `hideTabBar`: set via useComposingGestureLock, from whichever tab
+   * screen currently has a docked text field actively focused (Library —
+   * the only tab screen with a composition surface at all). Checked below
+   * against the FOCUSED route specifically, not any/every route, so
+   * switching tabs while composing doesn't leave the bar hidden for a
+   * screen that was never actually composing. See docs/09-decision-log.md,
+   * 2026-08-13.
+   */
+  options: { title?: string; hideTabBar?: boolean };
 }
 
 interface TabPressEvent {
@@ -51,6 +60,10 @@ export function BottomTabBar({ state, descriptors, navigation }: BottomTabBarPro
   const insets = useSafeAreaInsets();
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
+
+  const focusedRoute = state.routes[state.index];
+  const focusedDescriptor = focusedRoute ? descriptors[focusedRoute.key] : undefined;
+  if (focusedDescriptor?.options.hideTabBar) return null;
 
   return (
     <View style={[styles.wrapper, { paddingBottom: insets.bottom || theme.spacing.sm }]}>

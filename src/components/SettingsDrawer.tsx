@@ -22,6 +22,7 @@ import { deleteAllConversations } from "@/services/conversationService";
 import { deleteAllHoldHistory } from "@/services/holdHistoryService";
 import { deleteAllReplies } from "@/services/replyStorageService";
 import { deleteAllCombinationTemplates, deleteAllTemplates } from "@/services/templateService";
+import { deleteAllReconnectCombinationTemplates, deleteAllReconnectTemplates } from "@/services/reconnectTemplateService";
 import { deleteAllDrafts } from "@/services/messageDraftService";
 import { setMemoryEnabled } from "@/services/aiMemoryService";
 import { setHoldPlusActive } from "@/services/holdPlusService";
@@ -119,7 +120,13 @@ export function SettingsDrawer() {
   });
 
   const goTo = (
-    path: "/settings/mission" | "/settings/privacy" | "/settings/research" | "/settings/hold-plus" | "/settings/circle"
+    path:
+      | "/settings/mission"
+      | "/settings/privacy"
+      | "/settings/research"
+      | "/settings/hold-plus"
+      | "/settings/circle"
+      | "/settings/sending-channel"
   ) => {
     close();
     router.push(path);
@@ -154,6 +161,8 @@ export function SettingsDrawer() {
                 deleteAllConversations(),
                 deleteAllTemplates(),
                 deleteAllCombinationTemplates(),
+                deleteAllReconnectTemplates(),
+                deleteAllReconnectCombinationTemplates(),
                 deleteAllDrafts(),
                 // setMemoryEnabled(false), not deleteAllMemoryNotes() directly — also
                 // clears the Layer-1 "Remember helpful details" toggle itself, not
@@ -206,6 +215,7 @@ export function SettingsDrawer() {
         >
           <View style={styles.group}>
             <NavRow label="Your Circles" onPress={() => goTo("/settings/circle")} />
+            <NavRow label="Sending channel" onPress={() => goTo("/settings/sending-channel")} />
             <ComingLaterRow label="Notifications" />
             <ComingLaterRow label="Language" />
             <ComingLaterRow label="Connected Accounts" />
