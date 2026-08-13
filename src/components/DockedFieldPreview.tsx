@@ -84,9 +84,20 @@ export function DockedFieldPreview({
         onPress={onPress}
         style={[styles.box, isActive && styles.boxActive, style]}
       >
-        <Text style={hasValue ? styles.valueText : styles.placeholderText}>
-          {hasValue ? value : placeholder}
-        </Text>
+        {/* Caps at ~5 lines then scrolls internally (2026-08-13 fix) —
+            previously had no height constraint at all, so long saved
+            text just grew unbounded, pushing the rest of the screen
+            (and the "Edit" affordance) out of easy reach with no way to
+            scroll back to it. This is a genuinely simpler fix than
+            DockedInputBar's own scroll problem: plain static text, no
+            active editing, no green-highlight overlay to keep in sync —
+            a normal ScrollView is sufficient, the person can freely
+            drag-scroll it with a finger. */}
+        <ScrollView style={styles.textScroll} nestedScrollEnabled>
+          <Text style={hasValue ? styles.valueText : styles.placeholderText}>
+            {hasValue ? value : placeholder}
+          </Text>
+        </ScrollView>
         {hasValue && !isActive ? <Text style={styles.editLabel}>Edit</Text> : null}
       </Pressable>
     </View>
@@ -106,6 +117,10 @@ function createStyles(colors: ThemeColors) {
     },
     boxActive: {
       borderColor: colors.primary
+    },
+    // 5 lines at valueText's own 25pt line-height, then scrolls.
+    textScroll: {
+      maxHeight: 125
     },
     valueText: {
       color: colors.text,

@@ -69,6 +69,23 @@ interface DockedInputBarProps {
    * docs/09-decision-log.md.
    */
   template?: { text: string };
+  /**
+   * Mirrors the screen's own "Save to Library"/"Saved" control (left of
+   * Template, matching DockedFieldPreview's inline box layout) so it's
+   * reachable while actively typing, not only from the closed preview —
+   * 2026-08-13, added after on-device testing found it present on the
+   * inline box but missing entirely once the bar was open. `isSaved`
+   * mirrors the caller's own saved-state check (e.g. `message ===
+   * savedDefaultText`); labels default to Going Quiet's own wording,
+   * override for a screen with different copy (Reconnect: "Save"/"Save
+   * as template", "✓ Saved").
+   */
+  saveDefault?: {
+    isSaved: boolean;
+    onSave: () => void;
+    unsavedLabel?: string;
+    savedLabel?: string;
+  };
 }
 
 /**
@@ -110,12 +127,13 @@ export function DockedInputBar({
   accessibilityLabel,
   aiAmend,
   suggestions,
-  template
+  template,
+  saveDefault
 }: DockedInputBarProps) {
   const { colors, isDark } = useAppTheme("normal");
   const styles = createStyles(colors, isDark);
   const highlight = useHighlightedInsertions(value, onChangeText);
-  const overlayScrollRef = useRef<ScrollView>(null);
+  const inputScrollRef = useRef<ScrollView>(null);
   const amend = useDockedAiAmend(
     aiAmend?.surface,
     aiAmend?.context,
@@ -146,6 +164,16 @@ export function DockedInputBar({
   const templateBlock = templateBlockId ? highlight.findBlock(templateBlockId) : undefined;
   const hasEverInsertedTemplate = templateBlockId !== null;
 
+  // Typing its own onChangeText handler schedules this same call directly
+  // (see the input's onChangeText below) — factored out so Template/pill
+  // taps, which go through highlight.insertBlock/removeBlock directly
+  // rather than that handler, still keep the newly-inserted text in view
+  // instead of leaving it correctly in the data but scrolled out of
+  // sight below the 5-line window. See docs/09-decision-log.md, 2026-08-13.
+  const scrollToEndSoon = () => {
+    requestAnimationFrame(() => inputScrollRef.current?.scrollToEnd({ animated: false }));
+  };
+
   const onTemplatePress = () => {
     if (!template) return;
 
@@ -154,6 +182,7 @@ export function DockedInputBar({
       setTemplateBlockId(null);
     } else if (!hasEverInsertedTemplate) {
       setTemplateBlockId(highlight.insertBlock(template.text));
+      scrollToEndSoon();
     }
     // hasEverInsertedTemplate && !templateBlock: reverted-by-edit, button is disabled, no-op.
   };
@@ -164,6 +193,7 @@ export function DockedInputBar({
       highlight.removeBlock(existing);
     } else {
       highlight.insertBlock(phrase);
+      scrollToEndSoon();
     }
   };
 
@@ -291,52 +321,64 @@ export function DockedInputBar({
                 transparent so only the overlay's colours actually show,
                 while the cursor (`cursorColor`) and all real touch/IME/
                 selection behaviour stay on the genuine input.
-                Scroll-sync (2026-08-13 fix): confirmed on-device that a
-                plain, non-scrolling Text overlay drifted from the real
-                (invisible) TextInput's own internal scroll offset once
-                content grew past one screenful — the real input scrolled
-                to follow the cursor, the overlay didn't, so what's
-                visible stopped matching what's actually typed. Fixed by
-                wrapping the overlay in its own ScrollView (scrollEnabled
-                false — it never receives touches directly, only ever
-                programmatically scrolled) and mirroring the real
-                TextInput's onScroll offset onto it via a ref, so both
-                layers always show the same slice of content. See
-                docs/09-decision-log.md. */}
+                Scroll architecture rewritten 2026-08-13, second attempt —
+                the first fix (a separate overlay ScrollView mirroring the
+                real TextInput's onScroll offset) was confirmed broken
+                on-device: content got visibly corrupted/overlapping right
+                at the scroll boundary, not just late. Root cause: RN's
+                onScroll doesn't fire reliably (or fires late) for a
+                multiline TextInput's own *auto*-scroll-to-cursor while
+                typing, as opposed to a manual drag — a documented gap,
+                not something a retry of the same relay would fix.
+                Replaced the two-scroller-kept-in-sync design with one
+                shared ScrollView: the TextInput now has NO maxHeight of
+                its own (grows to its full natural height, unbounded,
+                same as any other text), and both it and the overlay sit
+                as ordinary children inside one outer ScrollView capped at
+                ~5 lines — they move together by construction, since
+                there is only one scroll position now, not two to keep
+                aligned. `scrollToEnd()` (via the shared `scrollToEndSoon`
+                helper) fires after every change — typed, or a Template/
+                pill insertion, which go through `highlight.insertBlock`
+                directly rather than this handler and would otherwise
+                leave newly-inserted text correctly in the data but
+                scrolled out of view — deferred one frame so it reads the
+                TextInput's already-updated height rather than the stale
+                one, correctly keeping the latest content in view while
+                composing forward. Known, accepted limitation: this
+                doesn't specially handle tapping to position the cursor
+                mid-text and expecting the view to jump there — it always
+                settles back to the end. See docs/09-decision-log.md. */}
             <View style={styles.inputStack}>
-              {/* Native placeholder rendering is untouched — placeholderTextColor
-                  is independent of the real TextInput's own (transparent)
-                  text colour below, so it still shows normally when value
-                  is empty; nothing to duplicate in the overlay. */}
-              <ScrollView
-                ref={overlayScrollRef}
-                style={styles.inputOverlay}
-                scrollEnabled={false}
-                pointerEvents="none"
-                showsVerticalScrollIndicator={false}
-              >
-                <Text style={styles.input}>
-                  {highlight.segments.map((segment, index) => (
-                    <Text key={index} style={segment.green ? styles.greenText : undefined}>
-                      {segment.text}
-                    </Text>
-                  ))}
-                </Text>
+              <ScrollView ref={inputScrollRef} showsVerticalScrollIndicator={false}>
+                <View style={styles.inputInner}>
+                  {/* Native placeholder rendering is untouched — placeholderTextColor
+                      is independent of the real TextInput's own (transparent)
+                      text colour below, so it still shows normally when value
+                      is empty; nothing to duplicate in the overlay. */}
+                  <Text style={[styles.input, styles.inputOverlay]} pointerEvents="none">
+                    {highlight.segments.map((segment, index) => (
+                      <Text key={index} style={segment.green ? styles.greenText : undefined}>
+                        {segment.text}
+                      </Text>
+                    ))}
+                  </Text>
+                  <TextInput
+                    accessibilityLabel={accessibilityLabel}
+                    autoFocus
+                    multiline
+                    onChangeText={(text) => {
+                      highlight.handleChangeText(text);
+                      scrollToEndSoon();
+                    }}
+                    placeholder={placeholder}
+                    placeholderTextColor={colors.textMuted}
+                    cursorColor={colors.text}
+                    style={[styles.input, styles.inputTransparent]}
+                    value={value}
+                  />
+                </View>
               </ScrollView>
-              <TextInput
-                accessibilityLabel={accessibilityLabel}
-                autoFocus
-                multiline
-                onChangeText={highlight.handleChangeText}
-                onScroll={(e) => {
-                  overlayScrollRef.current?.scrollTo({ y: e.nativeEvent.contentOffset.y, animated: false });
-                }}
-                placeholder={placeholder}
-                placeholderTextColor={colors.textMuted}
-                cursorColor={colors.text}
-                style={[styles.input, styles.inputTransparent]}
-                value={value}
-              />
             </View>
 
             <DictationMicButton onResult={appendDictated} />
@@ -353,40 +395,63 @@ export function DockedInputBar({
           </View>
         </View>
 
-        {/* Template button, directly beneath the message box, part of this
-            same bar — NOT a separate row stacked above the keyboard with
-            the pills/suggestions (2026-08-13 fix: it originally sat up
-            there, and on-device it read as a standalone floating banner,
-            not part of the input). Present only where a caller has a
-            saved default to offer. */}
-        {template ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={hasEverInsertedTemplate ? "Remove template" : "Template"}
-            accessibilityState={{ disabled: hasEverInsertedTemplate && !templateBlock }}
-            disabled={hasEverInsertedTemplate && !templateBlock}
-            onPress={onTemplatePress}
-            hitSlop={8}
-            style={({ pressed }) => [
-              styles.templateRow,
-              hasEverInsertedTemplate && !templateBlock && styles.templateRowDisabled,
-              pressed && styles.pressed
-            ]}
-          >
-            <Ionicons
-              name={hasEverInsertedTemplate ? "book" : "book-outline"}
-              size={16}
-              color={hasEverInsertedTemplate && !templateBlock ? colors.textMuted : colors.link}
-            />
-            <Text
-              style={[
-                styles.templateText,
-                hasEverInsertedTemplate && !templateBlock ? styles.templateTextDisabled : null
-              ]}
-            >
-              {hasEverInsertedTemplate ? "Remove template" : "Template"}
-            </Text>
-          </Pressable>
+        {/* Save (left) / Template (right), directly beneath the message
+            box, part of this same bar — NOT a separate row stacked above
+            the keyboard with the pills/suggestions (2026-08-13 fix: it
+            originally sat up there, and on-device it read as a
+            standalone floating banner, not part of the input). Mirrors
+            DockedFieldPreview's own Save-left/Template-right layout
+            (2026-08-13: Save was confirmed present on the closed inline
+            box but missing entirely once the bar was open) — always both
+            rendered when present, via justifyContent: "space-between",
+            same reasoning as the inline box's own fix: a single item in
+            an unconstrained row shouldn't be left to drift to whichever
+            side it happens to default to. */}
+        {template || saveDefault ? (
+          <View style={styles.footerRow}>
+            {saveDefault ? (
+              saveDefault.isSaved ? (
+                <View style={styles.savedPill} accessibilityRole="text">
+                  <Text style={styles.savedPillText}>{`✓ ${saveDefault.savedLabel ?? "Saved to Library"}`}</Text>
+                </View>
+              ) : (
+                <Pressable accessibilityRole="button" onPress={saveDefault.onSave} hitSlop={8}>
+                  <Text style={styles.templateText}>{saveDefault.unsavedLabel ?? "Save to Library"}</Text>
+                </Pressable>
+              )
+            ) : (
+              <View />
+            )}
+            {template ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={hasEverInsertedTemplate ? "Remove template" : "Template"}
+                accessibilityState={{ disabled: hasEverInsertedTemplate && !templateBlock }}
+                disabled={hasEverInsertedTemplate && !templateBlock}
+                onPress={onTemplatePress}
+                hitSlop={8}
+                style={({ pressed }) => [
+                  styles.templateRow,
+                  hasEverInsertedTemplate && !templateBlock && styles.templateRowDisabled,
+                  pressed && styles.pressed
+                ]}
+              >
+                <Ionicons
+                  name={hasEverInsertedTemplate ? "book" : "book-outline"}
+                  size={16}
+                  color={hasEverInsertedTemplate && !templateBlock ? colors.textMuted : colors.link}
+                />
+                <Text
+                  style={[
+                    styles.templateText,
+                    hasEverInsertedTemplate && !templateBlock ? styles.templateTextDisabled : null
+                  ]}
+                >
+                  {hasEverInsertedTemplate ? "Remove template" : "Template"}
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
         ) : null}
       </SafeAreaView>
     </KeyboardStickyView>
@@ -472,9 +537,12 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       paddingTop: theme.spacing.sm,
       paddingBottom: theme.spacing.xs
     },
+    // No maxHeight here (2026-08-13 scroll rewrite) — neither the overlay
+    // nor the real TextInput are height-constrained individually anymore;
+    // both grow to their full natural height and the capping/scrolling
+    // happens once, at inputStack below, via a single shared ScrollView.
     input: {
       flex: 1,
-      maxHeight: 108,
       minHeight: 32,
       paddingHorizontal: theme.spacing.xs,
       paddingVertical: theme.spacing.xs,
@@ -493,23 +561,27 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       fontSize: 16,
       lineHeight: 21
     },
-    // Absolutely-positioned children (the overlay Text below) don't
-    // contribute to a parent's own computed height in RN's layout model —
-    // this container's height ends up driven entirely by the real
-    // TextInput, its one normal-flow child, which is exactly what's
-    // wanted: the overlay should always end up the same size as the real
-    // input since both render the same text at the same style, growing
-    // together as content wraps.
+    // Caps the whole input at ~5 lines (21pt line-height × 5), then
+    // scrolls — the single shared ScrollView that replaced the two-
+    // scroller sync attempt. See the long comment at the call site.
     inputStack: {
       flex: 1,
+      maxHeight: 105
+    },
+    // Wraps the overlay + real TextInput together as ordinary (non-
+    // absolutely-positioned-relative-to-the-scroll-cap) siblings inside
+    // the ScrollView's own content — position: relative only so the
+    // overlay (absolute within *this*) can stack directly on top of the
+    // TextInput, not so this View itself gets clipped; the ScrollView
+    // one level up is what actually caps/scrolls.
+    inputInner: {
       position: "relative"
     },
-    // top+bottom together (not just top) give this ScrollView a
-    // determinate height to clip/scroll within, matching whatever height
-    // the real TextInput sibling ends up at (see inputStack's own
-    // comment) — without `bottom`, an absolute-positioned ScrollView has
-    // no bound to scroll inside, and just renders all its content
-    // unclipped like a plain View would.
+    // top+bottom together give this absolutely-positioned overlay a
+    // determinate height matching inputInner's own — driven by the real
+    // TextInput, its one normal-flow sibling, which is exactly what's
+    // wanted: the overlay always ends up the same size as the real input
+    // since both render the same text at the same style.
     inputOverlay: {
       position: "absolute",
       top: 0,
@@ -526,12 +598,32 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     greenText: {
       color: colors.primary
     },
+    // justifyContent: "space-between", matching DockedFieldPreview's own
+    // identical fix — Save always lands left, Template always lands
+    // right, regardless of which single one happens to be present.
+    footerRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingBottom: theme.spacing.xs
+    },
+    savedPill: {
+      minHeight: 28,
+      borderRadius: theme.radius.pill,
+      paddingHorizontal: theme.spacing.sm,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.surfaceStrong
+    },
+    savedPillText: {
+      color: colors.textMuted,
+      fontSize: 13,
+      fontWeight: "600"
+    },
     templateRow: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 4,
-      alignSelf: "flex-start",
-      paddingBottom: theme.spacing.xs
+      gap: 4
     },
     templateRowDisabled: {
       opacity: 0.5

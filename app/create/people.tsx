@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { router, useFocusEffect } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
 import { GroupPicker, PENDING_CIRCLE_ID_PREFIX } from "@/components/GroupPicker";
@@ -708,6 +709,11 @@ export default function HoldPeopleScreen() {
             template={
               activeField === "group-message" && savedDefaultText !== null ? { text: savedDefaultText } : undefined
             }
+            saveDefault={
+              activeField === "group-message" && isSingleCircle
+                ? { isSaved, onSave: () => void saveSingleCircleDefault() }
+                : undefined
+            }
           />
         ) : null
       }
@@ -837,7 +843,17 @@ export default function HoldPeopleScreen() {
               {/* "Change template" (setForceShowChips) cut entirely,
                   2026-08-13 — superseded by sentence pills, which solve
                   the same "I doubt my default wording" need more simply.
-                  See docs/09-decision-log.md. */}
+                  See docs/09-decision-log.md.
+                  Save to Library (left) / Template (right), 2026-08-13
+                  fix — Save was unintentionally reading as right-aligned
+                  on-device with only one child in this row; explicit
+                  justifyContent: "space-between" with both items always
+                  present now guarantees the correct side regardless.
+                  Template here is a plain insert (like this box's own
+                  pill row above it) — the green-highlight/revert-on-edit
+                  version lives in DockedInputBar once the bar is
+                  actually open; this box has no such tracking, matching
+                  how its pills already behave. */}
               <View style={styles.messageControls}>
                 {isSingleCircle ? (
                   isSaved ? (
@@ -849,6 +865,21 @@ export default function HoldPeopleScreen() {
                       <Text style={styles.linkText}>Save to Library</Text>
                     </Pressable>
                   )
+                ) : (
+                  <View />
+                )}
+                {savedDefaultText !== null ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Template"
+                    onPress={() =>
+                      setMessage((current) => (current.trim() ? `${current}\n${savedDefaultText}` : savedDefaultText))
+                    }
+                    style={styles.templateInlineButton}
+                  >
+                    <Ionicons name="book-outline" size={16} color={colors.link} />
+                    <Text style={styles.linkText}>Template</Text>
+                  </Pressable>
                 ) : null}
               </View>
 
@@ -1026,10 +1057,20 @@ function createStyles(colors: ThemeColors) {
     messageBlock: {
       gap: theme.spacing.xs
     },
+    // justifyContent: "space-between", not just a row with gap — Save to
+    // Library (left) and Template (right) both always need to land on
+    // their own explicit side regardless of which one happens to be
+    // absent, not drift based on which single child happens to be
+    // present. See docs/09-decision-log.md, 2026-08-13.
     messageControls: {
       flexDirection: "row",
       alignItems: "center",
-      gap: theme.spacing.lg
+      justifyContent: "space-between"
+    },
+    templateInlineButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4
     },
     linkText: {
       color: colors.link,

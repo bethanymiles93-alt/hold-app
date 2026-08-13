@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect, useNavigation } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
@@ -652,6 +653,16 @@ export default function ReconnectScreen() {
             accessibilityLabel="Message to send"
             aiAmend={{ surface: "reconnect", initialPrompt: suggestedPrompt }}
             template={savedDefaultText !== null ? { text: savedDefaultText } : undefined}
+            saveDefault={
+              contributingCircleIds.length > 0
+                ? {
+                    isSaved,
+                    onSave: () => void saveCurrentAsTemplate(),
+                    unsavedLabel: isSingleCircle ? "Save" : "Save as template",
+                    savedLabel: "Saved"
+                  }
+                : undefined
+            }
           />
         ) : personalise.replyTarget ? (
           <DockedInputBar
@@ -842,7 +853,14 @@ export default function ReconnectScreen() {
                 onInsertPill={(text) => changeMessage(message.trim() ? `${message}\n${text}` : text)}
               />
               {/* "Change template" cut entirely, 2026-08-13 — superseded
-                  by sentence pills. See docs/09-decision-log.md. */}
+                  by sentence pills. See docs/09-decision-log.md.
+                  Save/Saved (left) / Template (right), 2026-08-13 fix —
+                  explicit justifyContent: "space-between", matching
+                  people.tsx's identical fix, so Save always lands on its
+                  own side regardless of which single item is present.
+                  Template here is a plain insert, matching this box's
+                  own pill row above it — the green-highlight version
+                  lives in DockedInputBar once the bar is open. */}
               <View style={styles.messageControls}>
                 {contributingCircleIds.length > 0 ? (
                   isSaved ? (
@@ -854,6 +872,19 @@ export default function ReconnectScreen() {
                       <Text style={styles.linkText}>{isSingleCircle ? "Save" : "Save as template"}</Text>
                     </Pressable>
                   )
+                ) : (
+                  <View />
+                )}
+                {savedDefaultText !== null ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Template"
+                    onPress={() => changeMessage(message.trim() ? `${message}\n${savedDefaultText}` : savedDefaultText)}
+                    style={styles.templateInlineButton}
+                  >
+                    <Ionicons name="book-outline" size={16} color={colors.link} />
+                    <Text style={styles.linkText}>Template</Text>
+                  </Pressable>
                 ) : null}
               </View>
             </View>
@@ -1059,7 +1090,12 @@ function createStyles(colors: ThemeColors) {
     messageControls: {
       flexDirection: "row",
       alignItems: "center",
-      gap: theme.spacing.lg
+      justifyContent: "space-between"
+    },
+    templateInlineButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4
     },
     linkText: {
       color: colors.link,
