@@ -16,6 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { HoldMark } from "@/components/HoldMark";
 import { SecondaryButton } from "@/components/SecondaryButton";
 import { HeaderSettingsButton } from "@/components/HeaderSettingsButton";
+import { TakingTimeUpdateDrawer } from "@/components/TakingTimeUpdateDrawer";
 import { theme } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { useHoldFlow } from "@/context/HoldFlowContext";
@@ -74,6 +75,7 @@ export default function HomeScreen() {
   const quietTheme = useAppTheme("quiet");
   const [openPeriod, setOpenPeriod] = useState<HoldPeriod | null>(null);
   const [homeState, setHomeState] = useState<HomeState>("loading");
+  const [showUpdateDrawer, setShowUpdateDrawer] = useState(false);
 
   // BottomTabBar sits alongside the screens in the tab navigator, not
   // inside this component's own tree, so it has no way to know which
@@ -326,6 +328,7 @@ export default function HomeScreen() {
   });
 
   return (
+    <>
     <AnimatedSafeAreaView
       style={[styles.safe, { backgroundColor: animatedBackground }]}
       edges={["top", "bottom", "left", "right"]}
@@ -485,10 +488,7 @@ export default function HomeScreen() {
           {homeState === "taking-time" ? (
             <View style={styles.takingTimeActions}>
               {openPeriod && !isSameCalendarDay(openPeriod.startedAt, Date.now()) ? (
-                <SecondaryButton
-                  label="Send an update"
-                  onPress={() => router.push("/return/update")}
-                />
+                <SecondaryButton label="Send an update" onPress={() => setShowUpdateDrawer(true)} />
               ) : null}
               <Pressable accessibilityRole="button" onPress={addToGoingQuiet}>
                 <Text style={[styles.alreadySortedText, { color: currentTheme.colors.link }]}>
@@ -514,6 +514,15 @@ export default function HomeScreen() {
         </View>
       </ScrollView>
     </AnimatedSafeAreaView>
+    {openPeriod ? (
+      <TakingTimeUpdateDrawer
+        visible={showUpdateDrawer}
+        onClose={() => setShowUpdateDrawer(false)}
+        period={openPeriod}
+        onSent={() => void getOpenHoldPeriod().then(setOpenPeriod)}
+      />
+    ) : null}
+    </>
   );
 }
 

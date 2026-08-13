@@ -66,7 +66,6 @@ export default function RootLayout() {
                 options={{ headerShown: false, gestureEnabled: false, animationDuration: 450 }}
               />
               <Stack.Screen name="return/reconnect" options={{ title: "Reconnect" }} />
-              <Stack.Screen name="return/update" options={{ title: "Send an update" }} />
               <Stack.Screen name="return/done" options={{ headerShown: false, gestureEnabled: false }} />
               <Stack.Screen name="settings/mission" options={{ title: "Our Mission" }} />
               <Stack.Screen name="settings/privacy" options={{ title: "Privacy Policy" }} />
