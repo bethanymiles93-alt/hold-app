@@ -529,7 +529,12 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       flexDirection: "row",
       alignItems: "flex-start",
       minHeight: 44,
-      maxHeight: 132,
+      // Raised from 132 alongside inputStack's own 105→147 (5→7 lines,
+      // 2026-08-13) — this outer cap has to comfortably clear
+      // inputStack's own maxHeight plus this pill's and the input's own
+      // padding (≈28pt combined), or the 7th line gets clipped by this
+      // container regardless of inputStack's own height being correct.
+      maxHeight: 190,
       borderRadius: theme.radius.pill,
       backgroundColor: pillFill,
       paddingLeft: theme.spacing.md,
@@ -561,12 +566,18 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       fontSize: 16,
       lineHeight: 21
     },
-    // Caps the whole input at ~5 lines (21pt line-height × 5), then
-    // scrolls — the single shared ScrollView that replaced the two-
-    // scroller sync attempt. See the long comment at the call site.
+    // Caps the whole input at ~7 lines (21pt line-height × 7, up from 5
+    // per direct instruction, 2026-08-13), then scrolls — the single
+    // shared ScrollView that replaced the two-scroller sync attempt. See
+    // the long comment at the call site. Manual drag-scroll through the
+    // full typed history works unconditionally (scrollEnabled is never
+    // set false) — auto-follow-to-end only fires from onChangeText/
+    // scrollToEndSoon, not from the ScrollView itself, so a manual scroll
+    // away from the bottom is never fought while the person isn't
+    // actively typing.
     inputStack: {
       flex: 1,
-      maxHeight: 105
+      maxHeight: 147
     },
     // Wraps the overlay + real TextInput together as ordinary (non-
     // absolutely-positioned-relative-to-the-scroll-cap) siblings inside
@@ -650,10 +661,15 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     // ovals/bars, matching the app's true-circle/pill sizing discipline
     // elsewhere (AdaptiveCircleChip). See docs/09-decision-log.md,
     // 2026-08-13.
+    // theme.radius.sm (gentle, matching this bar's own corner rounding),
+    // not theme.radius.pill (999, full stadium) — 2026-08-13 fix: the
+    // full pill radius was visibly clipping content inside these
+    // specifically. Scoped to sentence-suggestion pills only, not
+    // AdaptiveCircleChip's Circle-selection pills/chips elsewhere.
     phrasePill: {
       borderWidth: 1,
       borderColor: colors.border,
-      borderRadius: theme.radius.pill,
+      borderRadius: theme.radius.sm,
       paddingHorizontal: theme.spacing.sm,
       paddingVertical: 4
     },
