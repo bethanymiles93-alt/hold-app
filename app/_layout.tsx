@@ -6,8 +6,10 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { HeaderSettingsButton } from "@/components/HeaderSettingsButton";
 import { SettingsBackButton } from "@/components/SettingsBackButton";
 import { SettingsDrawer } from "@/components/SettingsDrawer";
+import { BottomTabBar } from "@/components/BottomTabBar";
 import { HoldFlowProvider } from "@/context/HoldFlowContext";
 import { QuietPaletteProvider } from "@/context/QuietPaletteContext";
+import { ComposingProvider } from "@/context/ComposingContext";
 import { SettingsDrawerProvider } from "@/context/SettingsDrawerContext";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { clearStaleFriendMessagesOnLaunch } from "@/services/replyStorageService";
@@ -27,6 +29,7 @@ export default function RootLayout() {
       <KeyboardProvider>
         <HoldFlowProvider>
           <QuietPaletteProvider>
+          <ComposingProvider>
           <SettingsDrawerProvider>
             <StatusBar style={isDark ? "light" : "dark"} />
             <Stack
@@ -71,8 +74,18 @@ export default function RootLayout() {
               <Stack.Screen name="settings/sending-channel" options={{ title: "Sending channel" }} />
               <Stack.Screen name="settings/circle/index" options={{ title: "Your Circles" }} />
             </Stack>
+            {/* Sibling to the Stack, not inside it — a root-level overlay so
+                it can show over any screen regardless of which navigator
+                owns it (Settings and Going Quiet/Reconnect/Transition are
+                all pushed root-stack screens, outside the Tabs group
+                entirely). Rendered before SettingsDrawer so an open drawer
+                visually covers it, matching the existing z-order between
+                screen content and the drawer. See docs/09-decision-log.md,
+                2026-08-13. */}
+            <BottomTabBar />
             <SettingsDrawer />
           </SettingsDrawerProvider>
+          </ComposingProvider>
           </QuietPaletteProvider>
         </HoldFlowProvider>
       </KeyboardProvider>

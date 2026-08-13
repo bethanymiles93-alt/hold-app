@@ -34,6 +34,7 @@ import { pickContact } from "@/services/contactPickerService";
 import { sendOrShare } from "@/services/smsService";
 import { ADD_TO_GOING_QUIET_MESSAGE } from "@/constants/copy";
 import { HAS_SEEN_WELCOME_KEY } from "@/constants/storageKeys";
+import { NAV_BAR_RESERVED_HEIGHT } from "@/utils/navTier";
 import type { HoldPeriod } from "@/types/hold";
 
 const AnimatedSafeAreaView = Animated.createAnimatedComponent(SafeAreaView);
@@ -530,7 +531,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: theme.spacing.lg,
     paddingTop: theme.spacing.xxl,
-    paddingBottom: theme.spacing.lg
+    // Home is always Tier 2 (see src/utils/navTier.ts) — the floating nav
+    // bar always shows here (unless composing, which Home has no concept
+    // of), so this always needs the reserved space, unlike Screen.tsx's
+    // conditional version shared between both tiers.
+    paddingBottom: theme.spacing.lg + NAV_BAR_RESERVED_HEIGHT
   },
   brand: {
     flexDirection: "row",

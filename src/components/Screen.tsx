@@ -9,9 +9,11 @@ import {
   TouchableWithoutFeedback,
   type ViewStyle
 } from "react-native";
+import { usePathname } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
+import { isTier1Route, NAV_BAR_RESERVED_HEIGHT } from "@/utils/navTier";
 
 interface ScreenProps extends PropsWithChildren {
   contentContainerStyle?: StyleProp<ViewStyle>;
@@ -41,6 +43,15 @@ interface ScreenProps extends PropsWithChildren {
 export function Screen({ children, contentContainerStyle, footer, dockedInput }: ScreenProps) {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const pathname = usePathname();
+  // The floating nav bar (2026-08-13) moved out of the Tabs navigator to a
+  // root-level overlay, which lost the automatic bottom-space reservation
+  // a navigator-managed tab bar gives its sibling screens for free — this
+  // puts it back, but only on the Tier 2 routes where the bar can actually
+  // show; Tier 1 screens (Going Quiet, Reconnect, Transition) never show
+  // it at all and shouldn't gain unexplained bottom whitespace because of
+  // it. See src/utils/navTier.ts and docs/09-decision-log.md.
+  const reserveNavBarSpace = !isTier1Route(pathname);
 
   return (
     // `dockedInput` (a KeyboardStickyView) renders here, OUTSIDE the
@@ -80,11 +91,19 @@ export function Screen({ children, contentContainerStyle, footer, dockedInput }:
               keyboardShouldPersistTaps="handled"
               automaticallyAdjustKeyboardInsets
               contentInsetAdjustmentBehavior="automatic"
-              contentContainerStyle={[styles.content, contentContainerStyle]}
+              contentContainerStyle={[
+                styles.content,
+                contentContainerStyle,
+                reserveNavBarSpace && !footer ? { paddingBottom: NAV_BAR_RESERVED_HEIGHT } : null
+              ]}
             >
               {children}
             </ScrollView>
-            {footer ? <View style={styles.footer}>{footer}</View> : null}
+            {footer ? (
+              <View style={[styles.footer, reserveNavBarSpace ? { paddingBottom: NAV_BAR_RESERVED_HEIGHT } : null]}>
+                {footer}
+              </View>
+            ) : null}
           </View>
         </TouchableWithoutFeedback>
       </SafeAreaView>
