@@ -119,11 +119,15 @@ export function SettingsDrawer() {
     outputRange: [1, 0]
   });
 
+  const goToResearch = () => {
+    close();
+    router.push({ pathname: "/(tabs)/library", params: { tab: "research" } });
+  };
+
   const goTo = (
     path:
       | "/settings/mission"
       | "/settings/privacy"
-      | "/settings/research"
       | "/settings/hold-plus"
       | "/settings/circle"
       | "/settings/sending-channel"
@@ -223,7 +227,7 @@ export function SettingsDrawer() {
 
           <View style={[styles.group, styles.groupSpaced]}>
             <NavRow label="Our Mission" onPress={() => goTo("/settings/mission")} />
-            <NavRow label="Research" onPress={() => goTo("/settings/research")} />
+            <NavRow label="Research" onPress={goToResearch} />
             <NavRow label="Hold+" onPress={() => goTo("/settings/hold-plus")} />
           </View>
 

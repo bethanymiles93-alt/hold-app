@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { Screen } from "@/components/Screen";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 
@@ -35,12 +34,18 @@ const RESEARCH_SECTIONS = [
   }
 ];
 
-export default function ResearchScreen() {
+/**
+ * Shared between Library's Research tab (primary entry point) and the
+ * Settings drawer's Research row (secondary — redirects into the same tab
+ * rather than keeping its own screen/copy of this content). One Research
+ * page, two entry points. See docs/09-decision-log.md, 2026-08-13.
+ */
+export function ResearchContent() {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
-    <Screen>
+    <View style={styles.container}>
       <Text style={styles.intro}>
         The evidence base behind how Hold is designed and how it speaks, surfaced honestly rather
         than left as internal documentation only.
@@ -54,19 +59,21 @@ export default function ResearchScreen() {
           </View>
         ))}
       </View>
-    </Screen>
+    </View>
   );
 }
 
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
+    container: {
+      gap: theme.spacing.xl
+    },
     intro: {
       color: colors.textMuted,
       fontSize: 17,
       lineHeight: 26
     },
     sections: {
-      marginTop: theme.spacing.xl,
       gap: theme.spacing.md
     },
     section: {

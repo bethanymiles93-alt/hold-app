@@ -281,7 +281,7 @@ export default function CircleIndexScreen() {
           <Pressable
             accessibilityRole="link"
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            onPress={() => router.push("/settings/research")}
+            onPress={() => router.push({ pathname: "/(tabs)/library", params: { tab: "research" } })}
           >
             <Text style={styles.coreSectionSource}>Where this comes from</Text>
           </Pressable>
