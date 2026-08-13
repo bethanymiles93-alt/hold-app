@@ -17,12 +17,13 @@ import { HoldMark } from "@/components/HoldMark";
 import { SecondaryButton } from "@/components/SecondaryButton";
 import { HeaderSettingsButton } from "@/components/HeaderSettingsButton";
 import { TakingTimeUpdateDrawer } from "@/components/TakingTimeUpdateDrawer";
+import { AddToGoingQuietDrawer } from "@/components/AddToGoingQuietDrawer";
 import { theme } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { useHoldFlow } from "@/context/HoldFlowContext";
 import { useQuietPalette } from "@/context/QuietPaletteContext";
 import {
-  addToAudience,
+  addCircleToAudience,
   endOpenHoldPeriod,
   endReconnecting,
   getOpenHoldPeriod,
@@ -33,10 +34,11 @@ import { completeAll, getProgress as getConversationProgress } from "@/services/
 import { formatShortDate, isSameCalendarDay } from "@/services/holdHistoryFormat";
 import { pickContact } from "@/services/contactPickerService";
 import { sendOrShare } from "@/services/smsService";
+import { createGroup, addContactToGroup, getGroup, initialsPlaceholderName } from "@/services/circleService";
 import { ADD_TO_GOING_QUIET_MESSAGE } from "@/constants/copy";
 import { HAS_SEEN_WELCOME_KEY } from "@/constants/storageKeys";
 import { NAV_BAR_RESERVED_HEIGHT } from "@/utils/navTier";
-import type { HoldPeriod } from "@/types/hold";
+import type { CircleGroup, HoldPeriod } from "@/types/hold";
 
 const AnimatedSafeAreaView = Animated.createAnimatedComponent(SafeAreaView);
 
@@ -76,6 +78,13 @@ export default function HomeScreen() {
   const [openPeriod, setOpenPeriod] = useState<HoldPeriod | null>(null);
   const [homeState, setHomeState] = useState<HomeState>("loading");
   const [showUpdateDrawer, setShowUpdateDrawer] = useState(false);
+  const [showAddToGoingQuietDrawer, setShowAddToGoingQuietDrawer] = useState(false);
+  // Circles created via "Add to Going Quiet" this session — Home stays
+  // mounted across tab switches, so this persists across the drawer being
+  // closed and reopened, matching "alongside any others added this
+  // session." Resets on a fresh app launch (component state, not
+  // persisted) — that's the natural boundary of "this session."
+  const [addToGoingQuietCircles, setAddToGoingQuietCircles] = useState<CircleGroup[]>([]);
 
   // BottomTabBar sits alongside the screens in the tab navigator, not
   // inside this component's own tree, so it has no way to know which
@@ -225,20 +234,82 @@ export default function HomeScreen() {
     start("hold");
   };
 
+  // Every contact added this way becomes their own new Circle first — same
+  // "+ New Circle" convention Going Quiet's own screen uses, not an
+  // ungrouped entry (2026-08-13: there's no "individual, non-Circle"
+  // category anywhere in this app). Circle creation alone doesn't add them
+  // to the tracked audience yet — the drawer's own Send is what does that
+  // (addCircleToAudience), matching "sending here adds to the ongoing
+  // tracked audience" from the spec. See docs/09-decision-log.md.
+  const createCircleFromPickedContact = async (): Promise<CircleGroup | null> => {
+    const picked = await pickContact();
+    if (!picked) return null;
+
+    const name = initialsPlaceholderName([{ name: picked.name }]);
+    const group = await createGroup(name);
+    await addContactToGroup(group.id, { name: picked.name, phoneNumber: picked.phoneNumber });
+    return getGroup(group.id);
+  };
+
   const addToGoingQuiet = () => {
+    void (async () => {
+      // Mandatory: the contact picker opens first, before anything else —
+      // no drawer appears at all if it's cancelled.
+      const group = await createCircleFromPickedContact();
+      if (!group) return;
+
+      setAddToGoingQuietCircles((current) => [...current, group]);
+      setShowAddToGoingQuietDrawer(true);
+    })();
+  };
+
+  const addAnotherToGoingQuiet = () => {
+    void (async () => {
+      const group = await createCircleFromPickedContact();
+      if (!group) return;
+      setAddToGoingQuietCircles((current) => [...current, group]);
+    })();
+  };
+
+  const addPersonToGoingQuietCircle = (circleId: string) => {
     void (async () => {
       const picked = await pickContact();
       if (!picked) return;
 
+      await addContactToGroup(circleId, { name: picked.name, phoneNumber: picked.phoneNumber });
+      const refreshed = await getGroup(circleId);
+      if (!refreshed) return;
+      setAddToGoingQuietCircles((current) => current.map((circle) => (circle.id === circleId ? refreshed : circle)));
+    })();
+  };
+
+  const sendAddToGoingQuiet = async (
+    selectedCircleIds: Set<string>,
+    excludedPersonIds: Set<string>,
+    message: string
+  ) => {
+    const selectedCircles = addToGoingQuietCircles.filter((circle) => selectedCircleIds.has(circle.id));
+    const numbers = selectedCircles
+      .flatMap((circle) => circle.contacts)
+      .filter((contact) => !excludedPersonIds.has(contact.phoneNumber))
+      .map((contact) => contact.phoneNumber);
+
+    if (numbers.length > 0) {
       try {
-        await sendOrShare([picked.phoneNumber], ADD_TO_GOING_QUIET_MESSAGE);
+        await sendOrShare(numbers, message);
       } catch {
         // Still add them even if the compose sheet was cancelled — better to keep
         // track of them than lose the moment over a dismissed native sheet.
       }
+    }
 
-      await addToAudience(picked);
-    })();
+    for (const circle of selectedCircles) {
+      await addCircleToAudience({
+        circleId: circle.id,
+        circleName: circle.name,
+        contacts: circle.contacts.map((contact) => ({ name: contact.name, phoneNumber: contact.phoneNumber }))
+      });
+    }
   };
 
   const doClearPostReconnect = async () => {
@@ -522,6 +593,15 @@ export default function HomeScreen() {
         onSent={() => void getOpenHoldPeriod().then(setOpenPeriod)}
       />
     ) : null}
+    <AddToGoingQuietDrawer
+      visible={showAddToGoingQuietDrawer}
+      onClose={() => setShowAddToGoingQuietDrawer(false)}
+      circles={addToGoingQuietCircles}
+      onAddAnother={addAnotherToGoingQuiet}
+      onAddPersonToCircle={addPersonToGoingQuietCircle}
+      onSend={sendAddToGoingQuiet}
+      defaultMessage={ADD_TO_GOING_QUIET_MESSAGE}
+    />
     </>
   );
 }

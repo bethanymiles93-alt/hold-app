@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { router, useFocusEffect } from "expo-router";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { router, useFocusEffect, useNavigation } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
 import { SecondaryButton } from "@/components/SecondaryButton";
@@ -14,7 +14,6 @@ import { PENDING_CIRCLE_ID_PREFIX } from "@/components/GroupPicker";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { usePersonaliseCompletion } from "@/hooks/usePersonaliseCompletion";
-import { useComposingGestureLock } from "@/hooks/useComposingGestureLock";
 import { useHoldFlow } from "@/context/HoldFlowContext";
 import {
   addToReconnectingAudience,
@@ -65,13 +64,15 @@ export default function ReconnectScreen() {
   const [emailOff, setEmailOff] = useState(false);
   const [statusCleared, setStatusCleared] = useState(false);
   const [suggestedPrompt, setSuggestedPrompt] = useState<string | undefined>(undefined);
-  // Open by default specifically at this point in the flow (once every
-  // Circle/contact has been reached) — a deliberate correction (2026-08-12)
-  // to the earlier "collapsed by default" decision (docs/09-decision-log.md,
-  // 2026-08-11, "16. OOO/status-before-Transition sequencing"), scoped to
-  // Reconnect's own post-coverage-complete moment only. See
-  // docs/09-decision-log.md, 2026-08-12.
-  const [oooExpanded, setOooExpanded] = useState(true);
+  // Collapsed by default — 2026-08-13 confirmed correction, superseding
+  // the 2026-08-12 entry that had flipped this to expanded for this exact
+  // moment. Explicitly re-confirmed, not a silent re-reversal: an open
+  // section every time someone returns to a resumed Reconnect read as too
+  // much clutter; genuinely unresolved Wider World state is now instead
+  // surfaced once, at the point of leaving (see the beforeRemove nudge
+  // below), not by defaulting this open on every visit. See
+  // docs/09-decision-log.md.
+  const [oooExpanded, setOooExpanded] = useState(false);
   const [messageFieldActive, setMessageFieldActive] = useState(false);
   const [showPersonalise, setShowPersonalise] = useState(false);
   // Declining Personalise no longer finishes Reconnect (that's "Done" now,
@@ -120,14 +121,6 @@ export default function ReconnectScreen() {
   const [needsNamingGroups, setNeedsNamingGroups] = useState<CircleGroup[]>([]);
   const [renamingGroupId, setRenamingGroupId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
-
-  // Disables swipe-back whenever any docked field on this screen is
-  // actively focused (the message box, the rename field, or a Personalise
-  // reply) — same shared mechanism as Going Quiet/Library, not a separate
-  // one. See docs/09-decision-log.md, 2026-08-13.
-  useComposingGestureLock(
-    renamingGroupId !== null || messageFieldActive || personalise.replyTarget !== null
-  );
 
   const refresh = useCallback(async () => {
     // Prefer the durable marker (force-quit-resume, or any visit after the first
@@ -196,6 +189,47 @@ export default function ReconnectScreen() {
     setMessage(text);
     void saveDraft(RECONNECT_DRAFT_KEY, text);
   };
+
+  // One-time gentle check at the point of leaving, not a default-open
+  // section on every visit (2026-08-13, confirming/correcting the
+  // 2026-08-12 default-expanded decision above) — "unresolved" is OOO
+  // still on and not yet turned off, or the wider-world status still
+  // active and not yet cleared. `beforeRemove` fires for any way of
+  // leaving (back button; the swipe gesture itself is unconditionally
+  // disabled on this screen now, so this is effectively the back-button
+  // path), lets the leave be paused with e.preventDefault(), and — if the
+  // person still chooses to leave — replayed via navigation.dispatch(
+  // e.data.action) rather than re-implementing the original navigation.
+  // Flagged: "status platform in the takedown checklist" (as specified)
+  // doesn't exist in the current build — there's one combined wider-world
+  // status toggle, not a per-platform checklist (that's `04-nav-bar-wider-
+  // world.md`'s Section 6, task #120, explicitly scheduled to build
+  // last) — checked against the single toggle that does exist as the best
+  // current approximation. See docs/09-decision-log.md.
+  const navigation = useNavigation();
+
+  useEffect(() => {
+    return navigation.addListener("beforeRemove", (e) => {
+      if (!period) return;
+
+      const oooUnresolved = period.emailOutOfOfficeEnabled && !emailOff;
+      const statusUnresolved = period.widerWorldStatusEnabled && !statusCleared;
+      if (!oooUnresolved && !statusUnresolved) return;
+
+      e.preventDefault();
+      Alert.alert("Want to loop in/update the Wider World before you go?", undefined, [
+        {
+          text: "Leave anyway",
+          style: "cancel",
+          onPress: () => navigation.dispatch(e.data.action)
+        },
+        {
+          text: "Open Wider World",
+          onPress: () => setOooExpanded(true)
+        }
+      ]);
+    });
+  }, [navigation, period, emailOff, statusCleared]);
 
   const coverage = period ? getReconnectCoverage(period) : null;
 
@@ -309,12 +343,14 @@ export default function ReconnectScreen() {
 
   /**
    * Adds a new ungrouped person to this period's audience mid-Reconnect —
-   * `addToAudience` (used elsewhere for the same "someone new reached out"
-   * case) only ever targets the currently-OPEN period, which this no
-   * longer is by the time Reconnect is on screen, hence the dedicated
-   * `addToReconnectingAudience`. refresh() re-seeds includedPersonIds
-   * afterward, which already includes the new (not-yet-contacted) person —
-   * no separate include step needed.
+   * a dedicated `addToReconnectingAudience` rather than Home's own
+   * Circle-of-one "Add to Going Quiet" flow, since this no longer has the
+   * currently-OPEN period that flow requires by the time Reconnect is on
+   * screen. Still ungrouped, not a Circle-of-one — a real, flagged
+   * inconsistency with the confirmed Circle-of-one design, left as-is
+   * here (see docs/09-decision-log.md, 2026-08-13). refresh() re-seeds
+   * includedPersonIds afterward, which already includes the new
+   * (not-yet-contacted) person — no separate include step needed.
    */
   const addPersonToAudience = () => {
     void (async () => {

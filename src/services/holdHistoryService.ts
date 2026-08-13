@@ -77,12 +77,19 @@ export async function recordSendChannel(periodId: string, id: string, channel: s
 }
 
 /**
- * Appends someone new to the currently-open period's audience — the "Add to Going
- * Quiet" edge case (a new contact messages while the user is away). No-ops if there's
- * no open period. Added to the ungrouped bucket, same convention Conversations uses
- * for its own "+ Add person" — not part of an original Circle.
+ * Appends a whole Circle to the currently-open period's tracked audience —
+ * the "Add to Going Quiet" drawer's send-time counterpart to `addToAudience`
+ * above, for a Circle rather than an ungrouped contact (2026-08-13: every
+ * person added via this specific flow becomes their own Circle of one, not
+ * an ungrouped entry, matching Going Quiet's own "+ New Circle" convention
+ * — a deliberate change for this one flow; `addToAudience` and
+ * `addToReconnectingAudience` are untouched and still add ungrouped,
+ * flagged as a real inconsistency rather than silently also changed). A
+ * no-op if there's no open period, or if this exact Circle id is already
+ * present (re-sending to an already-added Circle shouldn't duplicate it).
+ * See docs/09-decision-log.md.
  */
-export async function addToAudience(contact: { name: string; phoneNumber: string }): Promise<void> {
+export async function addCircleToAudience(circle: AudienceCircle): Promise<void> {
   const openId = await SecureStore.getItemAsync(OPEN_KEY);
   if (!openId) return;
 
@@ -90,19 +97,13 @@ export async function addToAudience(contact: { name: string; phoneNumber: string
   if (!period) return;
 
   const circles = period.audienceCircles ?? [];
-  const ungrouped = period.audienceUngrouped ?? [];
-  const alreadyPresent =
-    circles.some((circle) => circle.contacts.some((existing) => existing.phoneNumber === contact.phoneNumber)) ||
-    ungrouped.some((existing) => existing.phoneNumber === contact.phoneNumber);
-  if (alreadyPresent) return;
+  if (circles.some((existing) => existing.circleId === circle.circleId)) return;
 
-  const updated: HoldPeriod = {
+  await writeRecord({
     ...period,
-    recipients: [...period.recipients, contact.name],
-    audienceUngrouped: [...ungrouped, contact]
-  };
-
-  await writeRecord(updated);
+    recipients: [...period.recipients, ...circle.contacts.map((contact) => contact.name)],
+    audienceCircles: [...circles, circle]
+  });
 }
 
 /**

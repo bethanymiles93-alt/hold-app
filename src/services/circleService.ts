@@ -16,6 +16,26 @@ function createId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+/**
+ * Auto-generated placeholder name from initials — "P" for one person, "P &
+ * A" for two, "P, A & J" for three+. Shared between `create/people.tsx`'s
+ * own bundled-Circle naming (2026-08-13) and "Add to Going Quiet"'s
+ * single-person Circle creation, which uses the one-person case
+ * (`initials[0]`) directly — every contact added there becomes its own
+ * Circle of one, auto-named this same way, confirmed as existing design
+ * rather than a gap: there's no separate "individual, non-Circle" category
+ * anywhere in this app. See docs/09-decision-log.md.
+ */
+export function initialsPlaceholderName(people: { name: string }[]): string {
+  const initials = people
+    .map((person) => person.name.trim().charAt(0).toUpperCase())
+    .filter((initial) => initial.length > 0);
+
+  if (initials.length === 0) return "New Circle";
+  if (initials.length === 1) return initials[0] ?? "New Circle";
+  return `${initials.slice(0, -1).join(", ")} & ${initials[initials.length - 1]}`;
+}
+
 async function readIndex(): Promise<string[]> {
   const raw = await SecureStore.getItemAsync(INDEX_KEY);
   return raw ? (JSON.parse(raw) as string[]) : [];

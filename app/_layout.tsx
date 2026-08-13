@@ -59,13 +59,21 @@ export default function RootLayout() {
             >
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
               <Stack.Screen name="welcome" options={{ headerShown: false, gestureEnabled: false }} />
-              <Stack.Screen name="create/people" options={{ title: "Going Quiet" }} />
+              {/* gestureEnabled: false unconditionally, not composition-gated
+                  (2026-08-13) — matches the nav bar's own Tier 1 "hidden
+                  throughout, no exceptions" framing for these same active-
+                  flow screens; an inconsistent swipe-back would undercut
+                  the same accidental-exit protection. The explicit back
+                  button (SettingsBackButton, headerLeft above) is
+                  untouched — this only removes the gestural path. See
+                  docs/09-decision-log.md. */}
+              <Stack.Screen name="create/people" options={{ title: "Going Quiet", gestureEnabled: false }} />
               <Stack.Screen name="create/done" options={{ headerShown: false, gestureEnabled: false }} />
               <Stack.Screen
                 name="return/transition"
                 options={{ headerShown: false, gestureEnabled: false, animationDuration: 450 }}
               />
-              <Stack.Screen name="return/reconnect" options={{ title: "Reconnect" }} />
+              <Stack.Screen name="return/reconnect" options={{ title: "Reconnect", gestureEnabled: false }} />
               <Stack.Screen name="return/done" options={{ headerShown: false, gestureEnabled: false }} />
               <Stack.Screen name="settings/mission" options={{ title: "Our Mission" }} />
               <Stack.Screen name="settings/privacy" options={{ title: "Privacy Policy" }} />

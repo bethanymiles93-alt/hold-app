@@ -14,7 +14,6 @@ import { EmailOutOfOffice } from "@/components/EmailOutOfOffice";
 import { WiderWorldStatus } from "@/components/WiderWorldStatus";
 import { SafeguardingBanner } from "@/components/SafeguardingBanner";
 import { useSafeguardingCheck } from "@/hooks/useSafeguardingCheck";
-import { useComposingGestureLock } from "@/hooks/useComposingGestureLock";
 import { HOLD_INTENTS } from "@/constants/copy";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
@@ -32,7 +31,7 @@ import { copyToClipboard } from "@/services/clipboardService";
 import { channelKey, sendToCircles } from "@/services/smsService";
 import { getDefaultSendingChannel } from "@/services/sendingPreferencesService";
 import { pickContact } from "@/services/contactPickerService";
-import { addContactToGroup, getGroup, getGroups } from "@/services/circleService";
+import { addContactToGroup, getGroup, getGroups, initialsPlaceholderName } from "@/services/circleService";
 import {
   getCircleTemplate,
   getCombinationTemplate,
@@ -65,16 +64,6 @@ const DEFAULT_STATUS_LINE = "Taking some quiet time. Back soon.";
  * later — polished and specific from the start, not a numbered stand-in.
  * See docs/09-decision-log.md.
  */
-function initialsPlaceholderName(people: { name: string }[]): string {
-  const initials = people
-    .map((person) => person.name.trim().charAt(0).toUpperCase())
-    .filter((initial) => initial.length > 0);
-
-  if (initials.length === 0) return "New Circle";
-  if (initials.length === 1) return initials[0] ?? "New Circle";
-  return `${initials.slice(0, -1).join(", ")} & ${initials[initials.length - 1]}`;
-}
-
 interface RemovedPerson {
   contactId: string;
   name: string;
@@ -168,11 +157,6 @@ export default function HoldPeopleScreen() {
   // Exactly one DockedInputBar serves every field on this screen — this is
   // which one, if any, currently owns it. See docs/09-decision-log.md, 2026-08-10.
   const [activeField, setActiveField] = useState<ActiveField | null>(null);
-  // Disables swipe-back whenever any field on this screen is actively
-  // focused — a second, easily-missed path to the same in-progress-
-  // message data-loss risk an accidental tap could cause. See
-  // docs/09-decision-log.md, 2026-08-13.
-  useComposingGestureLock(activeField !== null);
 
   const [emailEnabled, setEmailEnabled] = useState(false);
   const [emailAccounts, setEmailAccounts] = useState<EmailAccount[]>([]);
