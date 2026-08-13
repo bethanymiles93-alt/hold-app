@@ -705,6 +705,9 @@ export default function HoldPeopleScreen() {
                     ? { surface: "wider-world-status" }
                     : undefined
             }
+            template={
+              activeField === "group-message" && savedDefaultText !== null ? { text: savedDefaultText } : undefined
+            }
           />
         ) : null
       }
@@ -829,11 +832,13 @@ export default function HoldPeopleScreen() {
                 isActive={activeField === "group-message"}
                 onPress={() => setActiveField("group-message")}
                 accessibilityLabel={`Message to ${joinedGroupNames}`}
+                onInsertPill={(text) => setMessage((current) => (current.trim() ? `${current}\n${text}` : text))}
               />
+              {/* "Change template" (setForceShowChips) cut entirely,
+                  2026-08-13 — superseded by sentence pills, which solve
+                  the same "I doubt my default wording" need more simply.
+                  See docs/09-decision-log.md. */}
               <View style={styles.messageControls}>
-                <Pressable accessibilityRole="button" onPress={() => setForceShowChips(true)}>
-                  <Text style={styles.linkText}>Change template</Text>
-                </Pressable>
                 {isSingleCircle ? (
                   isSaved ? (
                     <View style={styles.savedPill} accessibilityRole="text">

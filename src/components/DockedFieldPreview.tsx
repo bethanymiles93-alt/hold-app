@@ -1,6 +1,8 @@
-import { Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from "react-native";
+import { useEffect, useState } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
+import { getSuggestedPhrases } from "@/services/suggestedPhrasesService";
 
 interface DockedFieldPreviewProps {
   value: string;
@@ -10,6 +12,22 @@ interface DockedFieldPreviewProps {
   isActive: boolean;
   accessibilityLabel?: string;
   style?: StyleProp<ViewStyle>;
+  /**
+   * Sentence-suggestion pills above this preview box — a DIFFERENT
+   * component from DockedInputBar and does NOT inherit its own pill row
+   * automatically, per direct instruction to add this explicitly rather
+   * than assume it's covered. Tapping a pill calls `onInsertPill`, then
+   * this component's own `onPress` (activating the docked bar) — the
+   * screen decides how to seed its own message state. This is a plain
+   * insertion at this layer, not green-tracked: DockedInputBar (where the
+   * green-highlight/revert-on-edit mechanic actually lives) isn't mounted
+   * yet at the moment this is tapped, since the field isn't active until
+   * `onPress` fires. Once the bar opens, its own pill row offers full
+   * green-tracked insertion for anything tapped from there on. Omit to
+   * render no pill row (e.g. a non-message-shaped field). See
+   * docs/09-decision-log.md, 2026-08-13.
+   */
+  onInsertPill?: (text: string) => void;
 }
 
 /**
@@ -27,24 +45,51 @@ export function DockedFieldPreview({
   onPress,
   isActive,
   accessibilityLabel,
-  style
+  style,
+  onInsertPill
 }: DockedFieldPreviewProps) {
   const { colors } = useAppTheme("normal");
   const styles = createStyles(colors);
   const hasValue = value.trim().length > 0;
+  const [phrases, setPhrases] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!onInsertPill) return;
+    void getSuggestedPhrases().then(setPhrases);
+  }, [onInsertPill]);
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel ?? (hasValue ? `Edit: ${value}` : placeholder)}
-      onPress={onPress}
-      style={[styles.box, isActive && styles.boxActive, style]}
-    >
-      <Text style={hasValue ? styles.valueText : styles.placeholderText}>
-        {hasValue ? value : placeholder}
-      </Text>
-      {hasValue && !isActive ? <Text style={styles.editLabel}>Edit</Text> : null}
-    </Pressable>
+    <View>
+      {onInsertPill && phrases.length > 0 ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.phraseRow}>
+          {phrases.map((phrase) => (
+            <Pressable
+              key={phrase}
+              accessibilityRole="button"
+              accessibilityLabel={phrase}
+              onPress={() => {
+                onInsertPill(phrase);
+                onPress();
+              }}
+              style={({ pressed }) => [styles.phrasePill, pressed && styles.pressed]}
+            >
+              <Text style={styles.phrasePillText}>{phrase}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      ) : null}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel ?? (hasValue ? `Edit: ${value}` : placeholder)}
+        onPress={onPress}
+        style={[styles.box, isActive && styles.boxActive, style]}
+      >
+        <Text style={hasValue ? styles.valueText : styles.placeholderText}>
+          {hasValue ? value : placeholder}
+        </Text>
+        {hasValue && !isActive ? <Text style={styles.editLabel}>Edit</Text> : null}
+      </Pressable>
+    </View>
   );
 }
 
@@ -77,6 +122,32 @@ function createStyles(colors: ThemeColors) {
       color: colors.link,
       fontSize: 13,
       fontWeight: "600"
+    },
+    phraseRow: {
+      flexDirection: "row",
+      gap: theme.spacing.xs,
+      paddingBottom: theme.spacing.xs
+    },
+    // Tight around the text, matching the app's true-circle/pill sizing
+    // discipline elsewhere (AdaptiveCircleChip) — no excess padding
+    // stretching these into ovals/bars.
+    phrasePill: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: theme.radius.pill,
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: 4
+    },
+    // fontSize 17 — the app-wide established body/accessible text size,
+    // matching this component's own valueText/placeholderText, not the
+    // smaller 14 used for chip labels elsewhere. See docs/09-decision-log.md.
+    phrasePillText: {
+      color: colors.text,
+      fontSize: 17,
+      fontWeight: "600"
+    },
+    pressed: {
+      opacity: 0.7
     }
   });
 }

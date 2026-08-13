@@ -1,13 +1,16 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
-import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect } from "expo-router";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { useDockedAiAmend } from "@/hooks/useDockedAiAmend";
+import { useHighlightedInsertions } from "@/hooks/useHighlightedInsertions";
 import { DictationMicButton } from "@/components/DictationMicButton";
 import { mixColors } from "@/utils/colorMix";
+import { getSuggestedPhrases } from "@/services/suggestedPhrasesService";
 import type { AiDraftContext, AiSurface } from "@/services/aiProxyClient";
 
 // Reasoned approximations of the stock iOS keyboard's own backdrop colour —
@@ -53,6 +56,19 @@ interface DockedInputBarProps {
    * Circle chips they're meant to help create).
    */
   suggestions?: { label: string; onPress: () => void }[];
+  /**
+   * A Circle's own saved default message — present only where a caller
+   * has one to offer (Going Quiet, Reconnect, Send an Update). Powers the
+   * "Template"/"Remove template" button (2026-08-13): inserting is
+   * non-destructive (alongside/below existing text, not a replace) and
+   * renders green until edited, matching sentence-pill insertion exactly
+   * — both go through the same `useHighlightedInsertions` mechanic.
+   * Supersedes the separate "Change Template" control some screens used
+   * to have (cut entirely, per direct instruction — sentence pills now
+   * solve the same "I doubt my default wording" need). See
+   * docs/09-decision-log.md.
+   */
+  template?: { text: string };
 }
 
 /**
@@ -93,10 +109,12 @@ export function DockedInputBar({
   placeholder,
   accessibilityLabel,
   aiAmend,
-  suggestions
+  suggestions,
+  template
 }: DockedInputBarProps) {
   const { colors, isDark } = useAppTheme("normal");
   const styles = createStyles(colors, isDark);
+  const highlight = useHighlightedInsertions(value, onChangeText);
   const amend = useDockedAiAmend(
     aiAmend?.surface,
     aiAmend?.context,
@@ -106,6 +124,47 @@ export function DockedInputBar({
   );
 
   const dismiss = onDismiss ?? onDone;
+
+  const [phrases, setPhrases] = useState<string[]>([]);
+
+  useFocusEffect(
+    // Self-sourced, not a prop — the whole point is that this appears
+    // above the docked bar app-wide with no per-screen wiring needed.
+    // See docs/09-decision-log.md, 2026-08-13.
+    () => {
+      void getSuggestedPhrases().then(setPhrases);
+    }
+  );
+
+  // Persists across a revert-by-edit (the button stays "Remove template",
+  // now disabled) — only cleared by a successful explicit removal while
+  // still green, which is the one case that should offer "Template"
+  // again. See the docs/09-decision-log.md write-up for the full state
+  // table this implements.
+  const [templateBlockId, setTemplateBlockId] = useState<string | null>(null);
+  const templateBlock = templateBlockId ? highlight.findBlock(templateBlockId) : undefined;
+  const hasEverInsertedTemplate = templateBlockId !== null;
+
+  const onTemplatePress = () => {
+    if (!template) return;
+
+    if (hasEverInsertedTemplate && templateBlock) {
+      highlight.removeBlock(templateBlock);
+      setTemplateBlockId(null);
+    } else if (!hasEverInsertedTemplate) {
+      setTemplateBlockId(highlight.insertBlock(template.text));
+    }
+    // hasEverInsertedTemplate && !templateBlock: reverted-by-edit, button is disabled, no-op.
+  };
+
+  const onPillPress = (phrase: string) => {
+    const existing = highlight.ranges.find((range) => value.slice(range.start, range.end) === phrase);
+    if (existing) {
+      highlight.removeBlock(existing);
+    } else {
+      highlight.insertBlock(phrase);
+    }
+  };
 
   // Tap-outside already dismisses the keyboard app-wide (Screen.tsx's own
   // TouchableWithoutFeedback) — this makes that same gesture also close the
@@ -156,6 +215,62 @@ export function DockedInputBar({
           <Text style={styles.errorText}>Couldn't reach AI right now — try again.</Text>
         ) : null}
 
+        {template ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={hasEverInsertedTemplate ? "Remove template" : "Template"}
+            accessibilityState={{ disabled: hasEverInsertedTemplate && !templateBlock }}
+            disabled={hasEverInsertedTemplate && !templateBlock}
+            onPress={onTemplatePress}
+            hitSlop={8}
+            style={({ pressed }) => [
+              styles.templateRow,
+              hasEverInsertedTemplate && !templateBlock && styles.templateRowDisabled,
+              pressed && styles.pressed
+            ]}
+          >
+            <Ionicons
+              name={hasEverInsertedTemplate ? "book" : "book-outline"}
+              size={16}
+              color={hasEverInsertedTemplate && !templateBlock ? colors.textMuted : colors.link}
+            />
+            <Text
+              style={[
+                styles.templateText,
+                hasEverInsertedTemplate && !templateBlock ? styles.templateTextDisabled : null
+              ]}
+            >
+              {hasEverInsertedTemplate ? "Remove template" : "Template"}
+            </Text>
+          </Pressable>
+        ) : null}
+
+        {/* Sentence-suggestion pills — app-wide via this one shared
+            component, no per-screen wiring needed (2026-08-13). Tight
+            sizing around their own text, matching the app's true-circle/
+            pill discipline elsewhere, not stretched ovals. Insertion uses
+            the same green-highlight/revert-on-edit mechanic as Template
+            above — tapping an already-inserted-and-still-green pill again
+            removes it cleanly. See docs/09-decision-log.md. */}
+        {phrases.length > 0 ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.phraseRow}>
+            {phrases.map((phrase) => {
+              const isInserted = highlight.ranges.some((range) => value.slice(range.start, range.end) === phrase);
+              return (
+                <Pressable
+                  key={phrase}
+                  accessibilityRole="button"
+                  accessibilityLabel={phrase}
+                  onPress={() => onPillPress(phrase)}
+                  style={({ pressed }) => [styles.phrasePill, isInserted && styles.phrasePillActive, pressed && styles.pressed]}
+                >
+                  <Text style={[styles.phrasePillText, isInserted && styles.phrasePillTextActive]}>{phrase}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        ) : null}
+
         {suggestions && suggestions.length > 0 && !value.trim() ? (
           <View style={styles.suggestionsRow}>
             {suggestions.map((suggestion, index) => (
@@ -193,16 +308,49 @@ export function DockedInputBar({
               </Pressable>
             ) : null}
 
-            <TextInput
-              accessibilityLabel={accessibilityLabel}
-              autoFocus
-              multiline
-              onChangeText={onChangeText}
-              placeholder={placeholder}
-              placeholderTextColor={colors.textMuted}
-              style={styles.input}
-              value={value}
-            />
+            {/* Green-highlight rendering (2026-08-13): RN's TextInput has
+                no rich-text mode — no way to colour part of an editable
+                value while it stays one real, focusable, IME-correct
+                input. This is the standard workaround: a non-interactive
+                Text underneath, styled identically to the real input
+                (same font/size/line-height/padding, spread from the same
+                `styles.input`), rendering the value with green spans;
+                the real TextInput sits on top with its own glyphs made
+                transparent so only the overlay's colours actually show,
+                while the cursor (`cursorColor`) and all real touch/IME/
+                selection behaviour stay on the genuine input. Depends on
+                both layers wrapping identically, which depends on them
+                sharing literally the same box model — flagged for
+                on-device verification, not something this environment can
+                confirm renders correctly (font metrics, multiline
+                wrapping, and platform text-rendering quirks are exactly
+                the kind of thing that can drift between two separately-
+                rendered Text/TextInput elements even with matching
+                styles). See docs/09-decision-log.md. */}
+            <View style={styles.inputStack}>
+              {/* Native placeholder rendering is untouched — placeholderTextColor
+                  is independent of the real TextInput's own (transparent)
+                  text colour below, so it still shows normally when value
+                  is empty; nothing to duplicate in the overlay. */}
+              <Text style={[styles.input, styles.inputOverlay]} pointerEvents="none">
+                {highlight.segments.map((segment, index) => (
+                  <Text key={index} style={segment.green ? styles.greenText : undefined}>
+                    {segment.text}
+                  </Text>
+                ))}
+              </Text>
+              <TextInput
+                accessibilityLabel={accessibilityLabel}
+                autoFocus
+                multiline
+                onChangeText={highlight.handleChangeText}
+                placeholder={placeholder}
+                placeholderTextColor={colors.textMuted}
+                cursorColor={colors.text}
+                style={[styles.input, styles.inputTransparent]}
+                value={value}
+              />
+            </View>
 
             <DictationMicButton onResult={appendDictated} />
 
@@ -321,6 +469,83 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       color: colors.text,
       fontSize: 16,
       lineHeight: 21
+    },
+    // Absolutely-positioned children (the overlay Text below) don't
+    // contribute to a parent's own computed height in RN's layout model —
+    // this container's height ends up driven entirely by the real
+    // TextInput, its one normal-flow child, which is exactly what's
+    // wanted: the overlay should always end up the same size as the real
+    // input since both render the same text at the same style, growing
+    // together as content wraps.
+    inputStack: {
+      flex: 1,
+      position: "relative"
+    },
+    inputOverlay: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0
+    },
+    // Only the real input's own colour is overridden — everything else
+    // (padding, font, line-height) stays shared with the overlay via the
+    // same base `input` style, which is what keeps the two aligned.
+    inputTransparent: {
+      color: "transparent"
+    },
+    greenText: {
+      color: colors.primary
+    },
+    templateRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      alignSelf: "flex-start",
+      paddingBottom: theme.spacing.xs
+    },
+    templateRowDisabled: {
+      opacity: 0.5
+    },
+    // fontSize 17, not the smaller 14 used for chip labels elsewhere — the
+    // app-wide established body/accessible text size, matching
+    // DockedFieldPreview's own valueText/placeholderText (the same kind
+    // of message-content text), per direct instruction not to assume a
+    // smaller size is inherited correctly here. See docs/09-decision-log.md.
+    templateText: {
+      color: colors.link,
+      fontSize: 17,
+      fontWeight: "600"
+    },
+    templateTextDisabled: {
+      color: colors.textMuted
+    },
+    phraseRow: {
+      flexDirection: "row",
+      gap: theme.spacing.xs,
+      paddingBottom: theme.spacing.xs
+    },
+    // Tight around the text — no extra padding stretching these into
+    // ovals/bars, matching the app's true-circle/pill sizing discipline
+    // elsewhere (AdaptiveCircleChip). See docs/09-decision-log.md,
+    // 2026-08-13.
+    phrasePill: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: theme.radius.pill,
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: 4
+    },
+    phrasePillActive: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary
+    },
+    phrasePillText: {
+      color: colors.text,
+      fontSize: 17,
+      fontWeight: "600"
+    },
+    phrasePillTextActive: {
+      color: colors.onPrimary
     },
     // Sized to sit comfortably inside the pill alongside the mic/send
     // icons — visually more compact than the 44pt tap-target floor, so

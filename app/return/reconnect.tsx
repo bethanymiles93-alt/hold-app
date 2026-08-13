@@ -283,11 +283,6 @@ export default function ReconnectScreen() {
     setSavedDefaultText(message);
   };
 
-  const changeTemplate = () => {
-    setMessage(DEFAULT_RECONNECT_MESSAGE);
-    openMessageField();
-  };
-
   /** First qualifying trigger this round only — see the state comment above. */
   const lockPillSelection = () => {
     setPillLockedIds((current) => current ?? Array.from(includedPersonIds));
@@ -656,6 +651,7 @@ export default function ReconnectScreen() {
             placeholder="Message to send"
             accessibilityLabel="Message to send"
             aiAmend={{ surface: "reconnect", initialPrompt: suggestedPrompt }}
+            template={savedDefaultText !== null ? { text: savedDefaultText } : undefined}
           />
         ) : personalise.replyTarget ? (
           <DockedInputBar
@@ -843,11 +839,11 @@ export default function ReconnectScreen() {
                 isActive={messageFieldActive}
                 onPress={openMessageField}
                 accessibilityLabel="Message to send"
+                onInsertPill={(text) => changeMessage(message.trim() ? `${message}\n${text}` : text)}
               />
+              {/* "Change template" cut entirely, 2026-08-13 — superseded
+                  by sentence pills. See docs/09-decision-log.md. */}
               <View style={styles.messageControls}>
-                <Pressable accessibilityRole="button" onPress={changeTemplate}>
-                  <Text style={styles.linkText}>Change template</Text>
-                </Pressable>
                 {contributingCircleIds.length > 0 ? (
                   isSaved ? (
                     <View style={styles.savedPill} accessibilityRole="text">
