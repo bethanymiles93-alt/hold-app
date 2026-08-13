@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
@@ -115,6 +115,7 @@ export function DockedInputBar({
   const { colors, isDark } = useAppTheme("normal");
   const styles = createStyles(colors, isDark);
   const highlight = useHighlightedInsertions(value, onChangeText);
+  const overlayScrollRef = useRef<ScrollView>(null);
   const amend = useDockedAiAmend(
     aiAmend?.surface,
     aiAmend?.context,
@@ -215,43 +216,14 @@ export function DockedInputBar({
           <Text style={styles.errorText}>Couldn't reach AI right now — try again.</Text>
         ) : null}
 
-        {template ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={hasEverInsertedTemplate ? "Remove template" : "Template"}
-            accessibilityState={{ disabled: hasEverInsertedTemplate && !templateBlock }}
-            disabled={hasEverInsertedTemplate && !templateBlock}
-            onPress={onTemplatePress}
-            hitSlop={8}
-            style={({ pressed }) => [
-              styles.templateRow,
-              hasEverInsertedTemplate && !templateBlock && styles.templateRowDisabled,
-              pressed && styles.pressed
-            ]}
-          >
-            <Ionicons
-              name={hasEverInsertedTemplate ? "book" : "book-outline"}
-              size={16}
-              color={hasEverInsertedTemplate && !templateBlock ? colors.textMuted : colors.link}
-            />
-            <Text
-              style={[
-                styles.templateText,
-                hasEverInsertedTemplate && !templateBlock ? styles.templateTextDisabled : null
-              ]}
-            >
-              {hasEverInsertedTemplate ? "Remove template" : "Template"}
-            </Text>
-          </Pressable>
-        ) : null}
-
         {/* Sentence-suggestion pills — app-wide via this one shared
             component, no per-screen wiring needed (2026-08-13). Tight
             sizing around their own text, matching the app's true-circle/
             pill discipline elsewhere, not stretched ovals. Insertion uses
-            the same green-highlight/revert-on-edit mechanic as Template
-            above — tapping an already-inserted-and-still-green pill again
-            removes it cleanly. See docs/09-decision-log.md. */}
+            the same green-highlight/revert-on-edit mechanic as the
+            Template button below the message box — tapping an already-
+            inserted-and-still-green pill again removes it cleanly. See
+            docs/09-decision-log.md. */}
         {phrases.length > 0 ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.phraseRow}>
             {phrases.map((phrase) => {
@@ -318,32 +290,47 @@ export function DockedInputBar({
                 the real TextInput sits on top with its own glyphs made
                 transparent so only the overlay's colours actually show,
                 while the cursor (`cursorColor`) and all real touch/IME/
-                selection behaviour stay on the genuine input. Depends on
-                both layers wrapping identically, which depends on them
-                sharing literally the same box model — flagged for
-                on-device verification, not something this environment can
-                confirm renders correctly (font metrics, multiline
-                wrapping, and platform text-rendering quirks are exactly
-                the kind of thing that can drift between two separately-
-                rendered Text/TextInput elements even with matching
-                styles). See docs/09-decision-log.md. */}
+                selection behaviour stay on the genuine input.
+                Scroll-sync (2026-08-13 fix): confirmed on-device that a
+                plain, non-scrolling Text overlay drifted from the real
+                (invisible) TextInput's own internal scroll offset once
+                content grew past one screenful — the real input scrolled
+                to follow the cursor, the overlay didn't, so what's
+                visible stopped matching what's actually typed. Fixed by
+                wrapping the overlay in its own ScrollView (scrollEnabled
+                false — it never receives touches directly, only ever
+                programmatically scrolled) and mirroring the real
+                TextInput's onScroll offset onto it via a ref, so both
+                layers always show the same slice of content. See
+                docs/09-decision-log.md. */}
             <View style={styles.inputStack}>
               {/* Native placeholder rendering is untouched — placeholderTextColor
                   is independent of the real TextInput's own (transparent)
                   text colour below, so it still shows normally when value
                   is empty; nothing to duplicate in the overlay. */}
-              <Text style={[styles.input, styles.inputOverlay]} pointerEvents="none">
-                {highlight.segments.map((segment, index) => (
-                  <Text key={index} style={segment.green ? styles.greenText : undefined}>
-                    {segment.text}
-                  </Text>
-                ))}
-              </Text>
+              <ScrollView
+                ref={overlayScrollRef}
+                style={styles.inputOverlay}
+                scrollEnabled={false}
+                pointerEvents="none"
+                showsVerticalScrollIndicator={false}
+              >
+                <Text style={styles.input}>
+                  {highlight.segments.map((segment, index) => (
+                    <Text key={index} style={segment.green ? styles.greenText : undefined}>
+                      {segment.text}
+                    </Text>
+                  ))}
+                </Text>
+              </ScrollView>
               <TextInput
                 accessibilityLabel={accessibilityLabel}
                 autoFocus
                 multiline
                 onChangeText={highlight.handleChangeText}
+                onScroll={(e) => {
+                  overlayScrollRef.current?.scrollTo({ y: e.nativeEvent.contentOffset.y, animated: false });
+                }}
                 placeholder={placeholder}
                 placeholderTextColor={colors.textMuted}
                 cursorColor={colors.text}
@@ -365,6 +352,42 @@ export function DockedInputBar({
             </Pressable>
           </View>
         </View>
+
+        {/* Template button, directly beneath the message box, part of this
+            same bar — NOT a separate row stacked above the keyboard with
+            the pills/suggestions (2026-08-13 fix: it originally sat up
+            there, and on-device it read as a standalone floating banner,
+            not part of the input). Present only where a caller has a
+            saved default to offer. */}
+        {template ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={hasEverInsertedTemplate ? "Remove template" : "Template"}
+            accessibilityState={{ disabled: hasEverInsertedTemplate && !templateBlock }}
+            disabled={hasEverInsertedTemplate && !templateBlock}
+            onPress={onTemplatePress}
+            hitSlop={8}
+            style={({ pressed }) => [
+              styles.templateRow,
+              hasEverInsertedTemplate && !templateBlock && styles.templateRowDisabled,
+              pressed && styles.pressed
+            ]}
+          >
+            <Ionicons
+              name={hasEverInsertedTemplate ? "book" : "book-outline"}
+              size={16}
+              color={hasEverInsertedTemplate && !templateBlock ? colors.textMuted : colors.link}
+            />
+            <Text
+              style={[
+                styles.templateText,
+                hasEverInsertedTemplate && !templateBlock ? styles.templateTextDisabled : null
+              ]}
+            >
+              {hasEverInsertedTemplate ? "Remove template" : "Template"}
+            </Text>
+          </Pressable>
+        ) : null}
       </SafeAreaView>
     </KeyboardStickyView>
   );
@@ -481,11 +504,18 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       flex: 1,
       position: "relative"
     },
+    // top+bottom together (not just top) give this ScrollView a
+    // determinate height to clip/scroll within, matching whatever height
+    // the real TextInput sibling ends up at (see inputStack's own
+    // comment) — without `bottom`, an absolute-positioned ScrollView has
+    // no bound to scroll inside, and just renders all its content
+    // unclipped like a plain View would.
     inputOverlay: {
       position: "absolute",
       top: 0,
       left: 0,
-      right: 0
+      right: 0,
+      bottom: 0
     },
     // Only the real input's own colour is overridden — everything else
     // (padding, font, line-height) stays shared with the overlay via the
