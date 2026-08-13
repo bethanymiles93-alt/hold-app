@@ -19,6 +19,7 @@ import { HeaderSettingsButton } from "@/components/HeaderSettingsButton";
 import { theme } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { useHoldFlow } from "@/context/HoldFlowContext";
+import { useQuietPalette } from "@/context/QuietPaletteContext";
 import {
   addToAudience,
   endOpenHoldPeriod,
@@ -67,10 +68,20 @@ type HomeState = "loading" | "normal" | "taking-time" | "reconnecting" | "post-r
 
 export default function HomeScreen() {
   const { resetFlow, setAudience } = useHoldFlow();
+  const { setIsQuiet } = useQuietPalette();
   const normalTheme = useAppTheme("normal");
   const quietTheme = useAppTheme("quiet");
   const [openPeriod, setOpenPeriod] = useState<HoldPeriod | null>(null);
   const [homeState, setHomeState] = useState<HomeState>("loading");
+
+  // BottomTabBar sits alongside the screens in the tab navigator, not
+  // inside this component's own tree, so it has no way to know which
+  // palette Home is currently resting in on its own — this is the one
+  // place that fact gets written to the shared context it reads from. See
+  // docs/09-decision-log.md, 2026-08-13.
+  useEffect(() => {
+    setIsQuiet(homeState === "taking-time");
+  }, [homeState, setIsQuiet]);
   const [isAnimating, setIsAnimating] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
 
@@ -186,7 +197,14 @@ export default function HomeScreen() {
   };
 
   const finishReconnecting = () => {
-    router.push("/library");
+    // Was "/library" — a real bug, not a naming choice: it dead-ended in
+    // general Library browsing with no way back into Reconnect's own
+    // remaining steps (OOO/status gate, Done, the Transition screen).
+    // reconnect.tsx re-derives its own state from durable storage on
+    // focus, so resuming the actual flow here is both correct and
+    // sufficient, matching continueReconnecting's sibling case above. See
+    // docs/09-decision-log.md, 2026-08-13.
+    router.push("/return/reconnect");
   };
 
   const startNewQuietSession = () => {

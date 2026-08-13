@@ -7,6 +7,7 @@ import { HeaderSettingsButton } from "@/components/HeaderSettingsButton";
 import { SettingsBackButton } from "@/components/SettingsBackButton";
 import { SettingsDrawer } from "@/components/SettingsDrawer";
 import { HoldFlowProvider } from "@/context/HoldFlowContext";
+import { QuietPaletteProvider } from "@/context/QuietPaletteContext";
 import { SettingsDrawerProvider } from "@/context/SettingsDrawerContext";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { clearStaleFriendMessagesOnLaunch } from "@/services/replyStorageService";
@@ -25,6 +26,7 @@ export default function RootLayout() {
           as high as the tree allows. */}
       <KeyboardProvider>
         <HoldFlowProvider>
+          <QuietPaletteProvider>
           <SettingsDrawerProvider>
             <StatusBar style={isDark ? "light" : "dark"} />
             <Stack
@@ -65,13 +67,13 @@ export default function RootLayout() {
               <Stack.Screen name="return/done" options={{ headerShown: false, gestureEnabled: false }} />
               <Stack.Screen name="settings/mission" options={{ title: "Our Mission" }} />
               <Stack.Screen name="settings/privacy" options={{ title: "Privacy Policy" }} />
-              <Stack.Screen name="settings/research" options={{ title: "Research" }} />
               <Stack.Screen name="settings/hold-plus" options={{ title: "Hold+" }} />
               <Stack.Screen name="settings/sending-channel" options={{ title: "Sending channel" }} />
               <Stack.Screen name="settings/circle/index" options={{ title: "Your Circles" }} />
             </Stack>
             <SettingsDrawer />
           </SettingsDrawerProvider>
+          </QuietPaletteProvider>
         </HoldFlowProvider>
       </KeyboardProvider>
     </SafeAreaProvider>
