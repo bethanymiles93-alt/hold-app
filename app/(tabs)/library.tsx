@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { SecondaryButton } from "@/components/SecondaryButton";
 import { CompactSendButton } from "@/components/CompactSendButton";
@@ -8,9 +8,10 @@ import { DockedInputBar } from "@/components/DockedInputBar";
 import { DockedFieldPreview } from "@/components/DockedFieldPreview";
 import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
 import { PersonaliseAccordion } from "@/components/PersonaliseAccordion";
+import { ResearchContent } from "@/components/ResearchContent";
+import { SuggestedPhrasesEditor } from "@/components/SuggestedPhrasesEditor";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
-import { useComposingGestureLock } from "@/hooks/useComposingGestureLock";
 import { QUICK_RECONNECT_MESSAGES } from "@/constants/copy";
 import {
   addPerson,
@@ -69,9 +70,22 @@ interface PersonaliseReplyTarget {
   friendMessage: string;
 }
 
+type LibraryTab = "conversations" | "templates" | "research";
+
 export default function LibraryScreen() {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
+  // Segmented tab structure (2026-08-13) — Conversations/Templates/Research,
+  // Conversations default. Research moved here from its own Settings screen
+  // (removed); the Settings drawer's Research row now links into this tab
+  // instead of maintaining a second copy of the content — see
+  // ResearchContent.tsx. Initial tab honours ?tab=research so the drawer
+  // link and the "Where this comes from" link (settings/circle/index.tsx)
+  // land directly on the right pane. See docs/09-decision-log.md.
+  const { tab: initialTabParam } = useLocalSearchParams<{ tab?: string }>();
+  const [activeTab, setActiveTab] = useState<LibraryTab>(
+    initialTabParam === "research" || initialTabParam === "templates" ? initialTabParam : "conversations"
+  );
   const [people, setPeople] = useState<ConversationPerson[]>([]);
 
   // Per-circle dropdown-arrow reveal — a Set, not a single value, since
@@ -98,12 +112,14 @@ export default function LibraryScreen() {
   const [circlePromptStage, setCirclePromptStage] = useState<"none" | "confirm" | "naming">("none");
   const [newOtherCircleName, setNewOtherCircleName] = useState("");
   const [activeField, setActiveField] = useState<ActiveField | null>(null);
-  // Hides the bottom tab bar (the only screen this applies to — Library is
-  // the sole tab root with an active composition surface) whenever any
-  // docked field here is focused, same shared mechanism Going Quiet/
-  // Reconnect use for their own swipe-back disable. See
-  // docs/09-decision-log.md, 2026-08-13.
-  useComposingGestureLock(activeField !== null || personaliseReplyTarget !== null);
+  // Library never shows the bottom tab bar, in any state, on any of its
+  // three tabs — a Back button (top-left, see _layout.tsx) takes its
+  // place. Enforced via navTier's TIER_1_PREFIXES ("/library" included
+  // there, reconciled 2026-08-13) rather than a per-screen hook call, now
+  // that BottomTabBar is a root-level overlay reading route + ComposingContext
+  // directly, not per-screen navigation options — useComposingGestureLock's
+  // hideTabBar mechanism no longer does anything, so the call is removed
+  // rather than left in as inert. See docs/09-decision-log.md, 2026-08-13.
 
   const [templates, setTemplates] = useState<TemplateRow[]>([]);
   const [templateDrafts, setTemplateDrafts] = useState<Record<string, string>>({});
@@ -351,17 +367,6 @@ export default function LibraryScreen() {
     await refresh();
   };
 
-  if (people.length === 0) {
-    return (
-      <Screen contentContainerStyle={styles.content}>
-        <Text style={styles.pageTitle}>Conversations</Text>
-        <Text style={styles.empty}>
-          Nothing here yet. When you need help replying to someone, this is where you’ll find it.
-        </Text>
-      </Screen>
-    );
-  }
-
   return (
     <Screen
       contentContainerStyle={styles.content}
@@ -402,8 +407,52 @@ export default function LibraryScreen() {
         ) : null
       }
     >
-      <Text style={styles.pageTitle}>Conversations</Text>
+      {/* Segmented Conversations/Templates/Research control, Conversations
+          default — replaces the old plain "Conversations" page title. See
+          docs/09-decision-log.md, 2026-08-13. */}
+      <View style={styles.toggle}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ selected: activeTab === "conversations" }}
+          onPress={() => setActiveTab("conversations")}
+          style={[styles.toggleButton, activeTab === "conversations" && styles.toggleActive]}
+        >
+          <Text style={[styles.toggleLabel, activeTab === "conversations" && styles.toggleLabelActive]}>
+            Conversations
+          </Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ selected: activeTab === "templates" }}
+          onPress={() => setActiveTab("templates")}
+          style={[styles.toggleButton, activeTab === "templates" && styles.toggleActive]}
+        >
+          <Text style={[styles.toggleLabel, activeTab === "templates" && styles.toggleLabelActive]}>
+            Templates
+          </Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ selected: activeTab === "research" }}
+          onPress={() => setActiveTab("research")}
+          style={[styles.toggleButton, activeTab === "research" && styles.toggleActive]}
+        >
+          <Text style={[styles.toggleLabel, activeTab === "research" && styles.toggleLabelActive]}>
+            Research
+          </Text>
+        </Pressable>
+      </View>
 
+      {activeTab === "research" ? <ResearchContent /> : null}
+
+      {activeTab === "conversations" && people.length === 0 ? (
+        <Text style={styles.empty}>
+          Nothing here yet. When you need help replying to someone, this is where you’ll find it.
+        </Text>
+      ) : null}
+
+      {activeTab !== "conversations" ? null : (
+      <>
       {/* "+" pinned outside the scroll (never scrolls away), "All" first
           inside it — matches GroupPicker.tsx's own pinnedRow/newCircleStack
           treatment exactly, an app-wide convention, not specific to this
@@ -658,10 +707,18 @@ export default function LibraryScreen() {
           />
         </View>
       ) : null}
+      </>
+      )}
 
+      {activeTab === "templates" ? (
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Templates</Text>
-
+        {/* Two labelled sections within this one existing tab, not a new
+            tab (2026-08-13) — "Your saved messages" is the pre-existing
+            per-circle default list, unchanged in function, just organised
+            under this heading now; "Suggested phrases" is new, where the
+            app-wide sentence-pill content lives and is user-editable. See
+            docs/09-decision-log.md. */}
+        <Text style={styles.sectionHeading}>Your saved messages</Text>
         {templates.length === 0 ? (
           <Text style={styles.helper}>
             Saved messages appear here once you save one from Going Quiet.
@@ -690,7 +747,11 @@ export default function LibraryScreen() {
             })}
           </View>
         )}
+
+        <Text style={[styles.sectionHeading, styles.sectionHeadingSpaced]}>Suggested phrases</Text>
+        <SuggestedPhrasesEditor />
       </View>
+      ) : null}
     </Screen>
   );
 }
@@ -700,10 +761,30 @@ function createStyles(colors: ThemeColors) {
   content: {
     gap: theme.spacing.lg
   },
-  pageTitle: {
-    color: colors.text,
-    fontSize: 22,
+  toggle: {
+    flexDirection: "row",
+    gap: theme.spacing.sm
+  },
+  toggleButton: {
+    flex: 1,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: theme.radius.md,
+    borderWidth: 1.5,
+    borderColor: colors.border
+  },
+  toggleActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.surfaceStrong
+  },
+  toggleLabel: {
+    color: colors.textMuted,
+    fontSize: 15,
     fontWeight: "600"
+  },
+  toggleLabelActive: {
+    color: colors.text
   },
   empty: {
     color: colors.textMuted,
@@ -711,15 +792,15 @@ function createStyles(colors: ThemeColors) {
     lineHeight: 24
   },
   section: {
-    gap: theme.spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: theme.spacing.md
+    gap: theme.spacing.md
   },
-  sectionTitle: {
+  sectionHeading: {
     color: colors.text,
-    fontSize: 17,
-    fontWeight: "600"
+    fontSize: 20,
+    fontWeight: "700"
+  },
+  sectionHeadingSpaced: {
+    marginTop: theme.spacing.xl
   },
   helper: {
     color: colors.textMuted,
