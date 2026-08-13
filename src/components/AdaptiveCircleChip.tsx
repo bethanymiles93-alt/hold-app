@@ -15,6 +15,17 @@ interface AdaptiveCircleChipProps {
   isSelected: boolean;
   /** Whether a message has already been sent to this Circle/person this session — see the priority order below. */
   hasSentThisSession?: boolean;
+  /**
+   * A third, distinct fill — paler than the default sage — for "not yet
+   * reached" alongside chips that ARE `hasSentThisSession` in the same row
+   * (Reconnect's resumed-completion circle row: sent Circles green, a
+   * Circle added to the audience afterward and not yet reached paler, at
+   * the row's end). Lowest priority of the three — `isSelected` and
+   * `hasSentThisSession` both still win over it. Distinct from the plain
+   * default look used everywhere a send hasn't started yet at all, where
+   * this is never set. See docs/09-decision-log.md, 2026-08-13.
+   */
+  notYetSent?: boolean;
   onPress: () => void;
   /** Bordered/transparent treatment instead of a filled circle/pill — e.g. the "+" New Circle button. */
   outline?: boolean;
@@ -90,6 +101,7 @@ export function AdaptiveCircleChip({
   label,
   isSelected,
   hasSentThisSession = false,
+  notYetSent = false,
   onPress,
   outline = false,
   accessibilityRole = "checkbox",
@@ -126,15 +138,25 @@ export function AdaptiveCircleChip({
       };
 
   // Sent look only shows when not currently selected — isSelected always
-  // wins, per the priority order above.
+  // wins, per the priority order above. notYetSent is the lowest priority
+  // of the three, and mutually exclusive with hasSentThisSession in practice.
   const showSentFill = !isSelected && hasSentThisSession;
+  const showNotYetSentFill = !isSelected && !hasSentThisSession && notYetSent;
 
-  const variantStyle = showSentFill ? styles.chipSent : outline ? styles.chipOutline : styles.chipSecondary;
+  const variantStyle = showSentFill
+    ? styles.chipSent
+    : showNotYetSentFill
+      ? styles.chipNotYetSent
+      : outline
+        ? styles.chipOutline
+        : styles.chipSecondary;
   const labelVariantStyle = showSentFill
     ? styles.labelTextSent
-    : outline
-      ? styles.labelTextOutline
-      : styles.labelTextSecondary;
+    : showNotYetSentFill
+      ? styles.labelTextNotYetSent
+      : outline
+        ? styles.labelTextOutline
+        : styles.labelTextSecondary;
 
   // Outline chips ("+") have no ring path of their own by default — the
   // standard chipSelected ring only ever applied to filled chips. Without
@@ -197,6 +219,14 @@ function createStyles(colors: ThemeColors) {
     chipSent: {
       backgroundColor: colors.primary
     },
+    // A third, distinct shade — paler than chipSecondary's default sage,
+    // not a tint of chipSent's dark green. Alpha over surfaceStrong rather
+    // than a hand-picked hex so it stays correct across the light/dark and
+    // normal/quiet palettes without four more colour constants. See
+    // docs/09-decision-log.md, 2026-08-13.
+    chipNotYetSent: {
+      backgroundColor: `${colors.surfaceStrong}66`
+    },
     chipSelected: {
       borderWidth: 2,
       borderColor: colors.text
@@ -229,6 +259,9 @@ function createStyles(colors: ThemeColors) {
       color: colors.primary
     },
     labelTextSent: {
+      color: colors.textMuted
+    },
+    labelTextNotYetSent: {
       color: colors.textMuted
     }
   });

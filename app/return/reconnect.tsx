@@ -564,6 +564,29 @@ export default function ReconnectScreen() {
   // once nothing's currently included. See docs/09-decision-log.md.
   const hasComposeTargets = includedPersonIds.size > 0;
 
+  // Once everyone's been reached, a Circle can still legitimately show as
+  // not-yet-sent here — added to the audience afterward (e.g. via "Add to
+  // Going Quiet"), never actually messaged this round. Sent Circles float
+  // to the front, not-yet-sent ones to the end, matching the resumed
+  // "Finish Reconnecting" spec; left in natural order otherwise, since
+  // sent/not-yet-sent isn't a meaningful distinction to call out while
+  // sending is still actively in progress. Not memoized, matching every
+  // other derived value in this post-guard section (pillPeople, etc.) —
+  // this whole block already re-runs in full every render. See
+  // docs/09-decision-log.md, 2026-08-13.
+  const orderedAudienceCircles = (() => {
+    if (!coverage.complete) return audienceCircles;
+
+    const sent: typeof audienceCircles = [];
+    const notYetSentCircles: typeof audienceCircles = [];
+    for (const circle of audienceCircles) {
+      const isSent =
+        circle.contacts.length > 0 && circle.contacts.every((contact) => coverage.contactedIds.includes(contact.phoneNumber));
+      (isSent ? sent : notYetSentCircles).push(circle);
+    }
+    return [...sent, ...notYetSentCircles];
+  })();
+
   // One continuous screen throughout, not a page-swap once everyone's been
   // reached (2026-08-12) — reaching full coverage used to render an
   // entirely different Screen tree (new header, no circle row, no message
@@ -663,7 +686,7 @@ export default function ReconnectScreen() {
                 />
               ) : null}
 
-              {audienceCircles.map((circle) => {
+              {orderedAudienceCircles.map((circle) => {
                 const isExpanded = expandedCircleIds.has(circle.circleId);
                 const allIncluded =
                   circle.contacts.length > 0 &&
@@ -678,6 +701,7 @@ export default function ReconnectScreen() {
                       label={circle.circleName}
                       isSelected={allIncluded}
                       hasSentThisSession={hasSentThisSession}
+                      notYetSent={coverage.complete && !hasSentThisSession}
                       onPress={() => toggleCircleChip(circle)}
                       accessibilityRole="button"
                       accessibilityLabel={

@@ -149,9 +149,18 @@ export default function HomeScreen() {
             resolvedState = "reconnecting";
           } else {
             const conversationProgress = await getConversationProgress().catch(() => null);
+            const personaliseDone = !conversationProgress || conversationProgress.completed >= conversationProgress.total;
 
-            if (conversationProgress && conversationProgress.completed < conversationProgress.total) {
+            if (!personaliseDone) {
               resolvedState = "post-reconnect";
+            } else if (reconnectingPeriod) {
+              // Coverage was already complete and Personalise has now also
+              // caught up (either here or via a later Library visit) — the
+              // marker's only remaining job was letting reconnect.tsx
+              // re-derive state for "Finish Reconnecting"; nothing left to
+              // resume, so retire it now rather than leaving it set
+              // indefinitely. See docs/09-decision-log.md, 2026-08-13.
+              await endReconnecting();
             }
           }
         }
