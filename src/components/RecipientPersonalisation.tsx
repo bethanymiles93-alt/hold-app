@@ -1,8 +1,8 @@
 import { useMemo } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
-import { SelectionCircle } from "@/components/SelectionCircle";
+import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
 import type { GoingQuietRecipient } from "@/types/hold";
 
 interface RecipientPersonalisationProps {
@@ -23,14 +23,15 @@ interface RecipientPersonalisationProps {
 
 /**
  * One Circle's member list, on demand (behind its own dropdown arrow — see
- * GroupPicker.tsx). A selection circle per person: solid when included in
- * the current group message, tap to exclude — which now removes them from
- * this list outright rather than revealing a second-level sub-row, since
- * excluded people live in the screen-level removed-people list instead
- * (2026-08-11).
+ * GroupPicker.tsx). Pinned "+" beside a horizontal row of AdaptiveCircleChip
+ * pills, one per included person — matching the same pill-row convention
+ * Reconnect and Library use for their own per-person rows. Tapping a pill
+ * excludes that person, which removes them from this list outright rather
+ * than revealing a second-level sub-row, since excluded people live in the
+ * screen-level removed-people list instead (2026-08-11).
  *
- * A Circle with only one contact never shows the selection control at all
- * — excluding your only recipient already has the same effect as not
+ * A Circle with only one contact never shows a removable pill at all —
+ * excluding your only recipient already has the same effect as not
  * selecting the Circle in the first place (that's GroupPicker's own chip),
  * so a second way to reach the same outcome here would just be confusing.
  */
@@ -47,36 +48,40 @@ export function RecipientPersonalisation({
 
   return (
     <View style={styles.container}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Add person"
-        hitSlop={8}
-        onPress={onAddPerson}
-        style={styles.addRow}
-      >
-        {({ pressed }) => (
-          <View style={[styles.addGlyphCircle, pressed && styles.addGlyphPressed]}>
-            <Text style={styles.addGlyphText}>+</Text>
-          </View>
-        )}
-      </Pressable>
+      <View style={styles.pinnedRow}>
+        <AdaptiveCircleChip
+          label="+"
+          accessibilityLabel="Add person"
+          accessibilityRole="button"
+          outline
+          isSelected={false}
+          labelFontSize={28}
+          labelBold
+          onPress={onAddPerson}
+        />
 
-      <View style={styles.mainList}>
-        {visible.map((recipient) =>
-          isSoleContact ? (
-            <View key={recipient.contactId} style={styles.mainRow}>
-              <Text style={styles.name}>{recipient.name}</Text>
-            </View>
-          ) : (
-            <View key={recipient.contactId} style={styles.mainRow}>
-              <SelectionCircle
-                selected={recipient.included}
+        {isSoleContact ? (
+          <View style={styles.soleContactRow}>
+            <Text style={styles.name}>{visible[0]?.name}</Text>
+          </View>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.chipRow}
+            style={styles.pillScroll}
+          >
+            {visible.map((recipient) => (
+              <AdaptiveCircleChip
+                key={recipient.contactId}
+                label={recipient.name}
+                isSelected
                 onPress={() => onToggleIncluded(recipient.contactId)}
+                accessibilityRole="button"
                 accessibilityLabel={`${recipient.name}, included. Tap to remove.`}
               />
-              <Text style={styles.name}>{recipient.name}</Text>
-            </View>
-          )
+            ))}
+          </ScrollView>
         )}
       </View>
     </View>
@@ -88,40 +93,23 @@ function createStyles(colors: ThemeColors) {
     container: {
       gap: theme.spacing.sm
     },
-    // Deliberately reads as a control, not a name row — a bordered circular
-    // "+" badge rather than plain text, so it can't be mistaken for a
-    // person while scanning the list. See docs/09-decision-log.md, 2026-08-11.
-    addRow: {
+    pinnedRow: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: theme.spacing.sm
+    },
+    pillScroll: {
+      flex: 1
+    },
+    chipRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm
+    },
+    soleContactRow: {
       flexDirection: "row",
       alignItems: "center",
       minHeight: 44
-    },
-    addGlyphCircle: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      borderWidth: 1.5,
-      borderColor: colors.primary,
-      alignItems: "center",
-      justifyContent: "center"
-    },
-    addGlyphPressed: {
-      opacity: 0.6
-    },
-    addGlyphText: {
-      color: colors.primary,
-      fontSize: 20,
-      fontWeight: "700",
-      lineHeight: 22
-    },
-    mainList: {
-      gap: theme.spacing.xs
-    },
-    mainRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.sm,
-      minHeight: 36
     },
     name: {
       color: colors.text,
