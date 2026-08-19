@@ -1,5 +1,5 @@
 import * as SecureStore from "expo-secure-store";
-import type { AudienceCircle, HoldPeriod } from "@/types/hold";
+import type { AudienceCircle, HoldPeriod, ReconnectStep } from "@/types/hold";
 
 const INDEX_KEY = "hold.history.index";
 const OPEN_KEY = "hold.history.open";
@@ -344,6 +344,26 @@ export async function markReconnectContacted(periodId: string, phoneNumber: stri
   if (existing.includes(phoneNumber)) return;
 
   await writeRecord({ ...period, reconnectContactedIds: [...existing, phoneNumber] });
+}
+
+/**
+ * Records that a Reconnect step was reached this period — idempotent,
+ * takes an explicit periodId (this fires from both the instant-message
+ * send and, separately, a Personalise reply completing, potentially well
+ * after the period's own OPEN_KEY has moved on). Written the moment each
+ * step happens, not only summarised once at the end, so a force-quit
+ * mid-flow doesn't lose it. Reconnect History stays one entry per Hold
+ * period — this only ever appends to that same period's own record, never
+ * creates a second one. See docs/09-decision-log.md, 2026-08-19.
+ */
+export async function recordReconnectStepReached(periodId: string, step: ReconnectStep): Promise<void> {
+  const period = await readRecord(periodId);
+  if (!period) return;
+
+  const existing = period.reconnectStepsReached ?? [];
+  if (existing.includes(step)) return;
+
+  await writeRecord({ ...period, reconnectStepsReached: [...existing, step] });
 }
 
 /** Clears the reconnecting marker once Reconnect has genuinely finished. */

@@ -88,6 +88,17 @@ export interface StoredReply {
   sentAt?: number | null;
 }
 
+/**
+ * Which Reconnect steps a period reached this session — logged onto the
+ * period's own record (Reconnect History stays one entry per Hold period,
+ * deliberately, not one per message like Conversations) rather than
+ * derived after the fact from conversationService's global, non-period-
+ * scoped store, which can't be relied on retroactively (a later period's
+ * seedFromAudience resets a person's own completed state). See
+ * docs/09-decision-log.md, 2026-08-19.
+ */
+export type ReconnectStep = "instant_message_sent" | "personalise_completed";
+
 export interface HoldPeriod {
   id: string;
   startedAt: number;
@@ -117,6 +128,8 @@ export interface HoldPeriod {
    * "shared:<iOS activityType>" when the OS reports one).
    */
   sendChannels?: Record<string, string>;
+  /** Which Reconnect steps this period reached this session — see ReconnectStep. Written incrementally as each step happens, not just a final summary, so it survives a force-quit mid-flow. */
+  reconnectStepsReached?: ReconnectStep[];
 }
 
 export interface CircleContact {

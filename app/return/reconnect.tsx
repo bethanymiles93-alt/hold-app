@@ -23,6 +23,7 @@ import {
   getReconnectCoverage,
   getReconnectingPeriod,
   markReconnectContacted,
+  recordReconnectStepReached,
   recordSendChannel,
   renameCircleInPeriod,
   resolvePendingCircleInPeriod
@@ -427,6 +428,7 @@ export default function ReconnectScreen() {
     for (const phoneNumber of sentNumbers) {
       await markReconnectContacted(period.id, phoneNumber);
     }
+    await recordReconnectStepReached(period.id, "instant_message_sent");
 
     // Keep Library/Conversations' own per-person sentAt truthfully in sync,
     // so PersonaliseAccordion can honestly show already-contacted vs not.
@@ -996,7 +998,10 @@ export default function ReconnectScreen() {
             people={personalise.people}
             expandedId={personalise.expandedId}
             onToggle={personalise.toggle}
-            onSent={() => void refresh()}
+            onSent={() => {
+              if (period) void recordReconnectStepReached(period.id, "personalise_completed");
+              void refresh();
+            }}
             drafts={personalise.drafts}
             onChangeDraft={personalise.onChangeDraft}
             styles={personalise.styles}

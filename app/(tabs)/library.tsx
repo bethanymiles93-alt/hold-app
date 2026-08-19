@@ -107,6 +107,17 @@ export default function LibraryScreen() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [individualMessages, setIndividualMessages] = useState<Record<string, string>>({});
   const [personaliseSwapIds, setPersonaliseSwapIds] = useState<Set<string>>(new Set());
+  /**
+   * Permission-to-stop line, shown after every send while clearing a
+   * backlog (Quick message or Personalise) — not count-gated, and
+   * deliberately not an encouragement-to-continue message ("great, one
+   * more!" is explicitly wrong, per the guilt-spiral research's own
+   * "never praise for basic communication" rule). One shared flag rather
+   * than per-card state: it's about the act of sending, not which card
+   * was tapped, and the next send simply re-shows it. See
+   * docs/09-decision-log.md, 2026-08-19.
+   */
+  const [stopPermissionShown, setStopPermissionShown] = useState(false);
 
   const [selectedOtherIds, setSelectedOtherIds] = useState<Set<string>>(new Set());
   const [circlePromptStage, setCirclePromptStage] = useState<"none" | "confirm" | "naming">("none");
@@ -305,6 +316,7 @@ export default function LibraryScreen() {
       }
       await markQuickSent([person.id]);
       await refresh();
+      setStopPermissionShown(true);
     })();
   };
 
@@ -453,6 +465,12 @@ export default function LibraryScreen() {
 
       {activeTab !== "conversations" ? null : (
       <>
+      {/* Permission-to-stop, not encouragement-to-continue — shown after
+          every send while clearing a backlog, not count-gated. See
+          docs/09-decision-log.md, 2026-08-19. */}
+      {stopPermissionShown ? (
+        <Text style={styles.stopPermission}>You can stop here. What's sent is enough for today.</Text>
+      ) : null}
       {/* "+" pinned outside the scroll (never scrolls away), "All" first
           inside it — matches GroupPicker.tsx's own pinnedRow/newCircleStack
           treatment exactly, an app-wide convention, not specific to this
@@ -587,7 +605,10 @@ export default function LibraryScreen() {
           person={expandedPersonalisePerson}
           isOpen
           onToggle={() => setExpandedPersonaliseId(null)}
-          onSent={() => void refresh()}
+          onSent={() => {
+            void refresh();
+            setStopPermissionShown(true);
+          }}
           draft={personaliseDrafts[expandedPersonalisePerson.id] ?? ""}
           onChangeDraft={(text) =>
             setPersonaliseDrafts((current) => ({ ...current, [expandedPersonalisePerson.id]: text }))
@@ -641,7 +662,10 @@ export default function LibraryScreen() {
                       onToggle={() =>
                         setExpandedPersonaliseId((current) => (current === person.id ? null : person.id))
                       }
-                      onSent={() => void refresh()}
+                      onSent={() => {
+                        void refresh();
+                        setStopPermissionShown(true);
+                      }}
                       draft={personaliseDrafts[person.id] ?? ""}
                       onChangeDraft={(text) =>
                         setPersonaliseDrafts((current) => ({ ...current, [person.id]: text }))
@@ -792,6 +816,12 @@ function createStyles(colors: ThemeColors) {
     color: colors.textMuted,
     fontSize: 16,
     lineHeight: 24
+  },
+  stopPermission: {
+    color: colors.textMuted,
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: theme.spacing.sm
   },
   section: {
     gap: theme.spacing.md
