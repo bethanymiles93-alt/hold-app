@@ -269,7 +269,37 @@ export default function HoldPeopleScreen() {
   const showChips = forceShowChips || (savedDefaultText === null && !message.trim());
   const safeguardingTriggered = useSafeguardingCheck(message);
 
-  const expandedGroup = expandedCircleId ? selectedGroups.find((g) => g.id === expandedCircleId) : undefined;
+  // The dropdown arrow is independent of selection (2026-08-14) — a Circle
+  // can be previewed without being part of the current send, so this falls
+  // back to `allGroups` (the full list, already fetched for the queue check
+  // above) rather than only ever finding a currently-selected Circle.
+  const expandedGroup = expandedCircleId
+    ? (selectedGroups.find((g) => g.id === expandedCircleId) ?? allGroups.find((g) => g.id === expandedCircleId))
+    : undefined;
+  const isExpandedGroupSelected = expandedGroup
+    ? selectedGroups.some((g) => g.id === expandedGroup.id)
+    : false;
+  // `goingQuietRecipients` only ever has entries for a currently-selected
+  // Circle's members (it's built from `selectedGroups`) — an unselected
+  // Circle being previewed has no entries there at all, so this falls back
+  // to the Circle's own raw `contacts`, synthesised into the same shape,
+  // read-only (see RecipientPersonalisation's own `readOnly` prop: there's
+  // no meaningful "exclude" action for someone not part of any active send).
+  const expandedGroupRecipients: GoingQuietRecipient[] = !expandedGroup
+    ? []
+    : isExpandedGroupSelected
+      ? goingQuietRecipients.filter((recipient) => recipient.circleId === expandedGroup.id)
+      : expandedGroup.contacts.map((contact) => ({
+          contactId: contact.id,
+          name: contact.name,
+          phoneNumber: contact.phoneNumber,
+          circleId: expandedGroup.id,
+          circleName: expandedGroup.name,
+          included: true,
+          individuallyRemoved: false,
+          instantMessage: "",
+          routeToPersonalise: false
+        }));
 
   const activeOooAccountMessageId = activeField?.startsWith("ooo-account-message:")
     ? activeField.slice("ooo-account-message:".length)
@@ -788,9 +818,10 @@ export default function HoldPeopleScreen() {
         <View style={styles.circleSection}>
           <Text style={styles.sectionLabel}>{expandedGroup.name}</Text>
           <RecipientPersonalisation
-            recipients={goingQuietRecipients.filter((recipient) => recipient.circleId === expandedGroup.id)}
+            recipients={expandedGroupRecipients}
             onToggleIncluded={(contactId) => handleRemoveRecipient(contactId, expandedGroup)}
             onAddPerson={() => void handleAddPerson(expandedGroup)}
+            readOnly={!isExpandedGroupSelected}
           />
         </View>
       ) : null}
@@ -844,30 +875,34 @@ export default function HoldPeopleScreen() {
                   2026-08-13 — superseded by sentence pills, which solve
                   the same "I doubt my default wording" need more simply.
                   See docs/09-decision-log.md.
-                  Save to Library (left) / Template (right), 2026-08-13
-                  fix — Save was unintentionally reading as right-aligned
-                  on-device with only one child in this row; explicit
-                  justifyContent: "space-between" with both items always
-                  present now guarantees the correct side regardless.
-                  Template here is a plain insert (like this box's own
-                  pill row above it) — the green-highlight/revert-on-edit
-                  version lives in DockedInputBar once the bar is
-                  actually open; this box has no such tracking, matching
-                  how its pills already behave. */}
+                  Template — Send — Save, one row, 2026-08-19: Send moved
+                  in from its own separate row below (confirmed layout,
+                  proposed before building per direct instruction — Send
+                  is irreversible, unlike Template/Save which are freely
+                  reversible/repeatable, so it must stay visually distinct
+                  even sharing the row). Template/Save stay plain text
+                  links; Send is CompactSendButton, already the app's one
+                  filled/primary-coloured send treatment, unchanged —
+                  reusing it here rather than inventing a second "this is
+                  the important one" visual language. justifyContent:
+                  "space-between" naturally lands exactly 3 children as
+                  start/center/end, which is what puts Send visually
+                  central without needing a different layout strategy;
+                  Template/Save's own slots stay empty-View-when-absent,
+                  same reasoning as before, so Send doesn't drift off-
+                  centre depending on which of the other two exist. Only
+                  rendered once there's a message box (this branch);
+                  during intent-picking, `message` is always empty
+                  (`showChips` is only ever true then), so Send wasn't
+                  meaningfully actionable there before either — same
+                  `disabled` gate as before, just no longer separately
+                  visible-but-disabled during that phase. Template here is
+                  a plain insert (like this box's own pill row above it) —
+                  the green-highlight/revert-on-edit version lives in
+                  DockedInputBar once the bar is actually open; this box
+                  has no such tracking, matching how its pills already
+                  behave. */}
               <View style={styles.messageControls}>
-                {isSingleCircle ? (
-                  isSaved ? (
-                    <View style={styles.savedPill} accessibilityRole="text">
-                      <Text style={styles.savedPillText}>✓ Saved to Library</Text>
-                    </View>
-                  ) : (
-                    <Pressable accessibilityRole="button" onPress={() => void saveSingleCircleDefault()}>
-                      <Text style={styles.linkText}>Save to Library</Text>
-                    </Pressable>
-                  )
-                ) : (
-                  <View />
-                )}
                 {savedDefaultText !== null ? (
                   <Pressable
                     accessibilityRole="button"
@@ -880,23 +915,38 @@ export default function HoldPeopleScreen() {
                     <Ionicons name="book-outline" size={16} color={colors.link} />
                     <Text style={styles.linkText}>Template</Text>
                   </Pressable>
-                ) : null}
+                ) : (
+                  <View />
+                )}
+                <CompactSendButton
+                  disabled={!message.trim()}
+                  accessibilityLabel={`Send to ${joinedGroupNames}`}
+                  onPress={() => void send()}
+                />
+                {isSingleCircle ? (
+                  isSaved ? (
+                    <View style={styles.savedPill} accessibilityRole="text">
+                      <Text style={styles.savedPillText}>✓ Saved</Text>
+                    </View>
+                  ) : (
+                    <Pressable accessibilityRole="button" onPress={() => void saveSingleCircleDefault()}>
+                      <Text style={styles.linkText}>Save</Text>
+                    </Pressable>
+                  )
+                ) : (
+                  <View />
+                )}
               </View>
 
               <SafeguardingBanner visible={safeguardingTriggered} />
             </View>
           )}
 
-          {/* Done sits beside Send, not as its own oversized banner —
-              2026-08-11, see docs/09-decision-log.md. */}
-          <View style={styles.sendRow}>
-            {doneButton}
-            <CompactSendButton
-              disabled={!message.trim()}
-              accessibilityLabel={`Send to ${joinedGroupNames}`}
-              onPress={() => void send()}
-            />
-          </View>
+          {/* Done — a genuinely separate concept from Send (early exit vs.
+              the compose row's own primary action), kept on its own row
+              rather than folded into Template/Send/Save. Only ever
+              renders once something's actually been sent this session. */}
+          {doneButton ? <View style={styles.sendRow}>{doneButton}</View> : null}
         </>
       ) : justSentText !== null ? (
         <View style={styles.messageBlock}>

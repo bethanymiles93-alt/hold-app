@@ -793,8 +793,8 @@ export default function ReconnectScreen() {
               accessibilityLabel="Add person"
               accessibilityRole="button"
               outline
+              compact
               isSelected={false}
-              labelFontSize={28}
               labelBold
               onPress={addPersonToAudience}
             />
@@ -807,6 +807,7 @@ export default function ReconnectScreen() {
               {pillPeople.length > 0 ? (
                 <AdaptiveCircleChip
                   label="All"
+                  compact
                   isSelected={allVisibleIncluded}
                   labelBold
                   onPress={toggleAllVisible}
@@ -824,6 +825,7 @@ export default function ReconnectScreen() {
                   <View key={person.key} style={isGreyedOut && styles.chipGreyed}>
                     <AdaptiveCircleChip
                       label={sentLook ? `✓ ${person.name}` : person.name}
+                      compact
                       isSelected={isIncluded}
                       hasSentThisSession={hasSentThisSession}
                       onPress={() => togglePersonIncluded(person.id)}

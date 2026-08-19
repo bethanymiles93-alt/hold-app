@@ -19,6 +19,17 @@ interface RecipientPersonalisationProps {
   onToggleIncluded: (contactId: string) => void;
   /** "+" row, pinned first — opens the contact picker to add a new member to this Circle, reusing the same mechanism Settings' Manage Circles already uses. See docs/09-decision-log.md, 2026-08-11. */
   onAddPerson: () => void;
+  /**
+   * True when this Circle isn't currently selected for the message — the
+   * dropdown arrow that reveals this list is independent of selection
+   * (2026-08-14), so a Circle can be previewed without being part of the
+   * current send. There's no meaningful "exclude" action for a person who
+   * isn't part of any active send yet, so pills render as plain,
+   * non-interactive name labels in that case; "+" still works regardless,
+   * since adding a member to a Circle has no such ambiguity. See
+   * docs/09-decision-log.md, 2026-08-14.
+   */
+  readOnly?: boolean;
 }
 
 /**
@@ -38,7 +49,8 @@ interface RecipientPersonalisationProps {
 export function RecipientPersonalisation({
   recipients,
   onToggleIncluded,
-  onAddPerson
+  onAddPerson,
+  readOnly = false
 }: RecipientPersonalisationProps) {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -54,8 +66,8 @@ export function RecipientPersonalisation({
           accessibilityLabel="Add person"
           accessibilityRole="button"
           outline
+          compact
           isSelected={false}
-          labelFontSize={28}
           labelBold
           onPress={onAddPerson}
         />
@@ -71,16 +83,29 @@ export function RecipientPersonalisation({
             contentContainerStyle={styles.chipRow}
             style={styles.pillScroll}
           >
-            {visible.map((recipient) => (
-              <AdaptiveCircleChip
-                key={recipient.contactId}
-                label={recipient.name}
-                isSelected
-                onPress={() => onToggleIncluded(recipient.contactId)}
-                accessibilityRole="button"
-                accessibilityLabel={`${recipient.name}, included. Tap to remove.`}
-              />
-            ))}
+            {visible.map((recipient) =>
+              readOnly ? (
+                <AdaptiveCircleChip
+                  key={recipient.contactId}
+                  label={recipient.name}
+                  compact
+                  isSelected
+                  onPress={() => {}}
+                  accessibilityRole="text"
+                  accessibilityLabel={recipient.name}
+                />
+              ) : (
+                <AdaptiveCircleChip
+                  key={recipient.contactId}
+                  label={recipient.name}
+                  compact
+                  isSelected
+                  onPress={() => onToggleIncluded(recipient.contactId)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${recipient.name}, included. Tap to remove.`}
+                />
+              )
+            )}
           </ScrollView>
         )}
       </View>

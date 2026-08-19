@@ -395,33 +395,21 @@ export function DockedInputBar({
           </View>
         </View>
 
-        {/* Save (left) / Template (right), directly beneath the message
+        {/* Template (left) / Save (right), directly beneath the message
             box, part of this same bar — NOT a separate row stacked above
             the keyboard with the pills/suggestions (2026-08-13 fix: it
             originally sat up there, and on-device it read as a
             standalone floating banner, not part of the input). Mirrors
-            DockedFieldPreview's own Save-left/Template-right layout
-            (2026-08-13: Save was confirmed present on the closed inline
-            box but missing entirely once the bar was open) — always both
-            rendered when present, via justifyContent: "space-between",
-            same reasoning as the inline box's own fix: a single item in
-            an unconstrained row shouldn't be left to drift to whichever
-            side it happens to default to. */}
+            DockedFieldPreview's own Template-left/Save-right layout
+            (2026-08-14: reversed from the prior Save-left/Template-right
+            order per direct instruction, default label shortened from
+            "Save to Library" to "Save") — always both slots rendered when
+            either is present, via justifyContent: "space-between", same
+            reasoning as the inline box's own fix: a single item in an
+            unconstrained row shouldn't be left to drift to whichever side
+            it happens to default to. */}
         {template || saveDefault ? (
           <View style={styles.footerRow}>
-            {saveDefault ? (
-              saveDefault.isSaved ? (
-                <View style={styles.savedPill} accessibilityRole="text">
-                  <Text style={styles.savedPillText}>{`✓ ${saveDefault.savedLabel ?? "Saved to Library"}`}</Text>
-                </View>
-              ) : (
-                <Pressable accessibilityRole="button" onPress={saveDefault.onSave} hitSlop={8}>
-                  <Text style={styles.templateText}>{saveDefault.unsavedLabel ?? "Save to Library"}</Text>
-                </Pressable>
-              )
-            ) : (
-              <View />
-            )}
             {template ? (
               <Pressable
                 accessibilityRole="button"
@@ -450,7 +438,22 @@ export function DockedInputBar({
                   {hasEverInsertedTemplate ? "Remove template" : "Template"}
                 </Text>
               </Pressable>
-            ) : null}
+            ) : (
+              <View />
+            )}
+            {saveDefault ? (
+              saveDefault.isSaved ? (
+                <View style={styles.savedPill} accessibilityRole="text">
+                  <Text style={styles.savedPillText}>{`✓ ${saveDefault.savedLabel ?? "Saved"}`}</Text>
+                </View>
+              ) : (
+                <Pressable accessibilityRole="button" onPress={saveDefault.onSave} hitSlop={8}>
+                  <Text style={styles.templateText}>{saveDefault.unsavedLabel ?? "Save"}</Text>
+                </Pressable>
+              )
+            ) : (
+              <View />
+            )}
           </View>
         ) : null}
       </SafeAreaView>

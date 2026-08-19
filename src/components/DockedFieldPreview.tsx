@@ -34,16 +34,18 @@ interface DockedFieldPreviewProps {
 
 /**
  * The on-page trigger for DockedInputBar — every field that used to be its
- * own in-page TextInput is now one of these: empty shows `placeholder`
- * (tap anywhere to start typing, which activates the docked bar); once
- * there's a value, the box itself scrolls internally (capped ~5 lines,
- * 2026-08-13) rather than activating on tap — only the explicit "Edit"
- * affordance opens the docked bar at that point, deliberately not the
- * whole box, since a Pressable wrapping a scrollable area (itself already
- * inside the page's own outer scroll) is a known RN gesture conflict that
- * silently prevented the inner scroll from ever working. Same interaction
- * whether starting fresh or editing something existing, everywhere in the
- * app. See docs/09-decision-log.md, 2026-08-10 and 2026-08-13.
+ * own in-page TextInput is now one of these: tap anywhere on the box to
+ * open the docked bar, empty or not. Once there's a value, the box also
+ * scrolls internally (capped ~5 lines) so existing content can be reviewed
+ * without opening the bar — `nestedScrollEnabled` on the inner ScrollView
+ * is what makes that scroll cooperate with the page's own outer scroll
+ * (Screen.tsx) rather than a "make the whole box non-tappable" workaround
+ * (tried 2026-08-13, reverted 2026-08-14 — it didn't actually fix the
+ * scroll either, and made the box untappable in the process, since real
+ * usage has a value from almost the first render onward). Same
+ * interaction whether starting fresh or editing something existing,
+ * everywhere in the app. See docs/09-decision-log.md, 2026-08-10 and
+ * 2026-08-14.
  */
 export function DockedFieldPreview({
   value,
@@ -88,43 +90,42 @@ export function DockedFieldPreview({
           ))}
         </ScrollView>
       ) : null}
-      {hasValue ? (
-        // Not a Pressable wrapping the ScrollView (2026-08-13 fix) — it
-        // was, and that's why this never actually scrolled: a Pressable
-        // (itself already sitting inside the page's own outer ScrollView)
-        // wrapping a second, inner ScrollView is a well-known RN gesture
-        // conflict, where the outer element claims the drag before the
-        // inner one ever gets a chance to recognise it as a scroll. The
-        // explicit "Edit" affordance below is now the only tap target
-        // that opens the bar when there's already content — scrolling
-        // the box itself no longer competes with that gesture at all.
-        <View style={[styles.box, isActive && styles.boxActive, style]}>
-          <ScrollView style={styles.textScroll}>
+      {/* Whole box opens the bar on tap, empty or not (2026-08-14, reverts
+          the 2026-08-13 "Edit"-link-only change for hasValue) — that
+          change traded a real regression (tapping the box did nothing,
+          confirmed on-device: `message` is pre-filled from either a saved
+          default or the intent-chip draft almost immediately in real use,
+          so hasValue is true from nearly the first render onward, meaning
+          the small "Edit" link became effectively the ONLY way in) for a
+          theorised, never-confirmed scroll fix that on-device testing
+          then found still didn't scroll either. Restores this component's
+          own stated design goal: "same interaction whether starting fresh
+          or editing something existing." `nestedScrollEnabled` on the
+          inner ScrollView is the actual documented RN mechanism for a
+          ScrollView nested inside another ScrollView (Screen.tsx's own
+          outer one) — Android needs it explicitly, iOS doesn't. A
+          Pressable wrapping a ScrollView doesn't block the ScrollView's
+          own drag gesture in practice (RN's responder system lets the
+          deeper, moving-vertically ScrollView claim it before Pressable's
+          tap-on-release ever fires) — Screen.tsx's own
+          TouchableWithoutFeedback-wraps-ScrollView already relies on the
+          same negotiation and is confirmed working. See
+          docs/09-decision-log.md, 2026-08-14. */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel ?? (hasValue ? `Edit: ${value}` : placeholder)}
+        disabled={isActive}
+        onPress={onPress}
+        style={[styles.box, isActive && styles.boxActive, style]}
+      >
+        {hasValue ? (
+          <ScrollView style={styles.textScroll} nestedScrollEnabled>
             <Text style={styles.valueText}>{value}</Text>
           </ScrollView>
-          {!isActive ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={accessibilityLabel ?? `Edit: ${value}`}
-              onPress={onPress}
-              hitSlop={8}
-            >
-              <Text style={styles.editLabel}>Edit</Text>
-            </Pressable>
-          ) : null}
-        </View>
-      ) : (
-        // Empty state keeps the original whole-box Pressable — nothing to
-        // scroll yet, so there's no gesture conflict to avoid here.
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={accessibilityLabel ?? placeholder}
-          onPress={onPress}
-          style={[styles.box, isActive && styles.boxActive, style]}
-        >
+        ) : (
           <Text style={styles.placeholderText}>{placeholder}</Text>
-        </Pressable>
-      )}
+        )}
+      </Pressable>
     </View>
   );
 }
@@ -156,12 +157,6 @@ function createStyles(colors: ThemeColors) {
       color: colors.textMuted,
       fontSize: 17,
       lineHeight: 25
-    },
-    editLabel: {
-      alignSelf: "flex-start",
-      color: colors.link,
-      fontSize: 13,
-      fontWeight: "600"
     },
     phraseRow: {
       flexDirection: "row",

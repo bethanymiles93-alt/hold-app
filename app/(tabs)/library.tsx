@@ -528,6 +528,7 @@ export default function LibraryScreen() {
             <AdaptiveCircleChip
               key={person.id}
               label={sentLook ? `✓ ${person.name}` : person.name}
+              compact
               isSelected={isSelected}
               hasSentThisSession={person.completed}
               onPress={() => toggleId(person.id)}
@@ -565,6 +566,7 @@ export default function LibraryScreen() {
               <AdaptiveCircleChip
                 key={person.id}
                 label={sentLook ? `✓ ${person.name}` : person.name}
+                compact
                 isSelected={isOpen}
                 hasSentThisSession={person.completed}
                 onPress={() => togglePersonalisePerson(person.id)}

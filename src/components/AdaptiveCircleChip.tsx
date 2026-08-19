@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
+import { stripEmoji } from "@/utils/stripEmoji";
 
 interface AdaptiveCircleChipProps {
   label: string;
@@ -29,7 +30,8 @@ interface AdaptiveCircleChipProps {
   onPress: () => void;
   /** Bordered/transparent treatment instead of a filled circle/pill — e.g. the "+" New Circle button. */
   outline?: boolean;
-  accessibilityRole?: "checkbox" | "button";
+  /** "text" renders a non-interactive pill (e.g. previewing an unselected Circle's members, where "exclude" has no meaning yet) — disabled, no press feedback, no checked/expanded state announced. */
+  accessibilityRole?: "checkbox" | "button" | "text";
   /** Defaults to `label` — set when the visible text ("+") isn't what a screen reader should announce. */
   accessibilityLabel?: string;
   /** When set, accessibilityState reports {expanded} instead of {checked: isSelected} — for a toggle-a-panel button like "+ New Circle" rather than a toggle-a-selection chip. */
@@ -48,6 +50,15 @@ interface AdaptiveCircleChipProps {
    * conflict between "this is Close" and "this has been sent").
    */
   labelBold?: boolean;
+  /**
+   * Content-hugging pill (fixed smaller height, padding sized to the
+   * label, no true-circle-if-it-fits logic) instead of the standard
+   * STANDARD_CHIP_DIAMETER sizing — for person-level recipient-pill rows
+   * (Going Quiet/Reconnect/Library's own per-person rows), never the
+   * top-level Circle-picker row, which keeps its true-circle sizing
+   * language unchanged. See docs/09-decision-log.md, 2026-08-14.
+   */
+  compact?: boolean;
 }
 
 /**
@@ -108,11 +119,13 @@ export function AdaptiveCircleChip({
   accessibilityLabel,
   expanded,
   labelFontSize,
-  labelBold
+  labelBold,
+  compact = false
 }: AdaptiveCircleChipProps) {
   const { colors } = useAppTheme("normal");
   const styles = createStyles(colors);
   const [measuredWidth, setMeasuredWidth] = useState<number | null>(null);
+  const displayLabel = stripEmoji(label);
 
   const onTextLayout = (event: NativeSyntheticEvent<TextLayoutEventData>) => {
     const line = event.nativeEvent.lines[0];
@@ -122,20 +135,22 @@ export function AdaptiveCircleChip({
   };
 
   const availableCircleWidth = STANDARD_CHIP_DIAMETER - CIRCLE_FIT_PADDING * 2;
-  const fitsAsCircle = measuredWidth !== null && measuredWidth <= availableCircleWidth;
+  const fitsAsCircle = !compact && measuredWidth !== null && measuredWidth <= availableCircleWidth;
 
-  const shapeStyle = fitsAsCircle
-    ? {
-        width: STANDARD_CHIP_DIAMETER,
-        height: STANDARD_CHIP_DIAMETER,
-        borderRadius: STANDARD_CHIP_DIAMETER / 2
-      }
-    : {
-        minWidth: STANDARD_CHIP_DIAMETER,
-        height: STANDARD_CHIP_DIAMETER,
-        borderRadius: STANDARD_CHIP_DIAMETER / 2,
-        paddingHorizontal: PILL_HORIZONTAL_PADDING
-      };
+  const shapeStyle = compact
+    ? styles.chipCompact
+    : fitsAsCircle
+      ? {
+          width: STANDARD_CHIP_DIAMETER,
+          height: STANDARD_CHIP_DIAMETER,
+          borderRadius: STANDARD_CHIP_DIAMETER / 2
+        }
+      : {
+          minWidth: STANDARD_CHIP_DIAMETER,
+          height: STANDARD_CHIP_DIAMETER,
+          borderRadius: STANDARD_CHIP_DIAMETER / 2,
+          paddingHorizontal: PILL_HORIZONTAL_PADDING
+        };
 
   // Sent look only shows when not currently selected — isSelected always
   // wins, per the priority order above. notYetSent is the lowest priority
@@ -167,8 +182,11 @@ export function AdaptiveCircleChip({
   return (
     <Pressable
       accessibilityRole={accessibilityRole}
-      accessibilityLabel={accessibilityLabel ?? label}
-      accessibilityState={expanded !== undefined ? { expanded } : { checked: isSelected }}
+      accessibilityLabel={accessibilityLabel ?? displayLabel}
+      accessibilityState={
+        accessibilityRole === "text" ? undefined : expanded !== undefined ? { expanded } : { checked: isSelected }
+      }
+      disabled={accessibilityRole === "text"}
       onPress={onPress}
       style={({ pressed }) => [
         styles.chip,
@@ -188,7 +206,7 @@ export function AdaptiveCircleChip({
           labelBold ? styles.labelBold : null
         ]}
       >
-        {label}
+        {displayLabel}
       </Text>
     </Pressable>
   );
@@ -199,6 +217,14 @@ function createStyles(colors: ThemeColors) {
     chip: {
       alignItems: "center",
       justifyContent: "center"
+    },
+    // Content-hugging, not diameter-locked — a person-pill row reads as a
+    // list of names, not a row of Circles, so it doesn't need the
+    // true-circle-if-it-fits treatment STANDARD_CHIP_DIAMETER exists for.
+    chipCompact: {
+      height: 32,
+      borderRadius: 16,
+      paddingHorizontal: theme.spacing.sm
     },
     chipSecondary: {
       backgroundColor: colors.surfaceStrong
