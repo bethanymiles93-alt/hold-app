@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
@@ -40,6 +40,23 @@ interface DockedFieldPreviewProps {
    * from Library's Templates tab. See docs/09-decision-log.md, 2026-08-20.
    */
   extraPhrases?: string[];
+  /**
+   * Renders the whole value green + bold — the un-edited-template look,
+   * matching DockedInputBar's own green-highlight/revert-on-edit block
+   * treatment (2026-08-20, closes a real gap: this box's own Template
+   * button called setMessage directly, bypassing that mechanic entirely,
+   * so a freshly-inserted template rendered as plain black text here even
+   * though the identical insertion via Box B renders green). A caller
+   * passes this as true exactly when the current value is still,
+   * byte-for-byte, the untouched template — typically the same boolean
+   * already driving a "✓ Saved" indicator nearby, not new state to
+   * invent. Whole-value only, not block-scoped like Box B's own ranges —
+   * correct for the common case (an empty box + one Template tap) without
+   * this box needing its own full range-tracking. Pairs colour with a
+   * weight change (bold), not colour alone, per the app's colour-
+   * blindness-safe rule. See docs/09-decision-log.md.
+   */
+  highlightAll?: boolean;
 }
 
 /**
@@ -65,12 +82,24 @@ export function DockedFieldPreview({
   accessibilityLabel,
   style,
   onInsertPill,
-  extraPhrases = []
+  extraPhrases = [],
+  highlightAll = false
 }: DockedFieldPreviewProps) {
   const { colors } = useAppTheme("normal");
   const styles = createStyles(colors);
   const hasValue = value.trim().length > 0;
   const [savedPhrases, setSavedPhrases] = useState<string[]>([]);
+  // Tap-vs-scroll disambiguation done by hand (2026-08-21) — a Pressable
+  // wrapping this box's own ScrollView was tried twice (nestedScrollEnabled,
+  // then a "the responder system should let the ScrollView win" theory),
+  // both confirmed on-device to still block scrolling. Rather than a third
+  // attempt at the same two-responder structure, the ScrollView is now the
+  // only thing claiming touches at all: a drag sets this ref, and onTouchEnd
+  // only calls onPress if no drag happened. onAccessibilityTap keeps
+  // VoiceOver/TalkBack activation working independently of this, since that
+  // fires as a distinct system gesture, not a regular touch. See
+  // docs/09-decision-log.md.
+  const didScrollRef = useRef(false);
 
   useEffect(() => {
     if (!onInsertPill) return;
@@ -104,41 +133,56 @@ export function DockedFieldPreview({
         </ScrollView>
       ) : null}
       {/* Whole box opens the bar on tap, empty or not (2026-08-14, reverts
-          the 2026-08-13 "Edit"-link-only change for hasValue) — that
-          change traded a real regression (tapping the box did nothing,
-          confirmed on-device: `message` is pre-filled from either a saved
-          default or the intent-chip draft almost immediately in real use,
-          so hasValue is true from nearly the first render onward, meaning
-          the small "Edit" link became effectively the ONLY way in) for a
-          theorised, never-confirmed scroll fix that on-device testing
-          then found still didn't scroll either. Restores this component's
-          own stated design goal: "same interaction whether starting fresh
-          or editing something existing." `nestedScrollEnabled` on the
-          inner ScrollView is the actual documented RN mechanism for a
-          ScrollView nested inside another ScrollView (Screen.tsx's own
-          outer one) — Android needs it explicitly, iOS doesn't. A
-          Pressable wrapping a ScrollView doesn't block the ScrollView's
-          own drag gesture in practice (RN's responder system lets the
-          deeper, moving-vertically ScrollView claim it before Pressable's
-          tap-on-release ever fires) — Screen.tsx's own
-          TouchableWithoutFeedback-wraps-ScrollView already relies on the
-          same negotiation and is confirmed working. See
-          docs/09-decision-log.md, 2026-08-14. */}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={accessibilityLabel ?? (hasValue ? `Edit: ${value}` : placeholder)}
-        disabled={isActive}
-        onPress={onPress}
-        style={[styles.box, isActive && styles.boxActive, style]}
-      >
-        {hasValue ? (
-          <ScrollView style={styles.textScroll} nestedScrollEnabled>
-            <Text style={styles.valueText}>{value}</Text>
+          the 2026-08-13 "Edit"-link-only change for hasValue) — same
+          interaction whether starting fresh or editing something existing,
+          everywhere in the app. See docs/09-decision-log.md, 2026-08-10 and
+          2026-08-14. */}
+      {hasValue ? (
+        // A Pressable wrapping this ScrollView was tried twice
+        // (nestedScrollEnabled; then a "the ScrollView should win the
+        // responder" theory) — both confirmed on-device to still block
+        // scrolling. The ScrollView is now the only thing claiming
+        // touches: a drag sets didScrollRef, onTouchEnd only opens the
+        // bar if no drag happened. `accessible`/`onAccessibilityTap` on
+        // this same View keep VoiceOver/TalkBack activation working
+        // independently — that fires as a distinct system gesture, not a
+        // regular touch, so it isn't affected by the manual tap/scroll
+        // split. See docs/09-decision-log.md, 2026-08-21.
+        <View
+          accessible
+          accessibilityRole="button"
+          accessibilityLabel={accessibilityLabel ?? `Edit: ${value}`}
+          accessibilityState={{ disabled: isActive }}
+          onAccessibilityTap={isActive ? undefined : onPress}
+          style={[styles.box, isActive && styles.boxActive, style]}
+        >
+          <ScrollView
+            style={styles.textScroll}
+            nestedScrollEnabled
+            onScrollBeginDrag={() => {
+              didScrollRef.current = true;
+            }}
+            onTouchEnd={() => {
+              if (!didScrollRef.current && !isActive) onPress();
+              didScrollRef.current = false;
+            }}
+          >
+            <Text style={[styles.valueText, highlightAll && styles.valueTextHighlighted]}>{value}</Text>
           </ScrollView>
-        ) : (
+        </View>
+      ) : (
+        // No scroll to conflict with here — a plain Pressable is safe and
+        // gets normal, un-worked-around accessibility semantics for free.
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={accessibilityLabel ?? placeholder}
+          disabled={isActive}
+          onPress={onPress}
+          style={[styles.box, isActive && styles.boxActive, style]}
+        >
           <Text style={styles.placeholderText}>{placeholder}</Text>
-        )}
-      </Pressable>
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -165,6 +209,12 @@ function createStyles(colors: ThemeColors) {
       color: colors.text,
       fontSize: 17,
       lineHeight: 25
+    },
+    // Colour + weight together, not colour alone — matches Box B's own
+    // green-highlight/revert-on-edit block treatment.
+    valueTextHighlighted: {
+      color: colors.primary,
+      fontWeight: "700"
     },
     placeholderText: {
       color: colors.textMuted,
