@@ -126,7 +126,6 @@ export default function HoldPeopleScreen() {
   // every Circle already sent to earlier in the session — a real bug found
   // 2026-08-11. See docs/09-decision-log.md.
   const [queuedGroups, setQueuedGroups] = useState<Map<string, CircleGroup>>(new Map());
-  const [autoFinished, setAutoFinished] = useState(false);
 
   // The one shared message for whichever Circle-combination is currently
   // selected — not per-Circle.
@@ -162,7 +161,10 @@ export default function HoldPeopleScreen() {
   // which one, if any, currently owns it. See docs/09-decision-log.md, 2026-08-10.
   const [activeField, setActiveField] = useState<ActiveField | null>(null);
 
-  const [emailEnabled, setEmailEnabled] = useState(false);
+  // ON by default here, deliberately opposite Reconnect's own OOO handling
+  // (which never has its own enable toggle at all — see docs/09-decision-log.md,
+  // 2026-08-21) — going quiet is the moment out-of-office is most likely wanted.
+  const [emailEnabled, setEmailEnabled] = useState(true);
   const [emailAccounts, setEmailAccounts] = useState<EmailAccount[]>([]);
   const [useSameEmailMessage, setUseSameEmailMessage] = useState(true);
   const [sharedEmailMessage, setSharedEmailMessage] = useState(DEFAULT_OOO_MESSAGE);
@@ -244,20 +246,22 @@ export default function HoldPeopleScreen() {
 
   const hasSentAnything = sentCircleIds.length > 0;
 
-  // Auto-complete: once every queued Circle has been sent to at least once,
-  // finish automatically — no manual Done tap needed for the normal case.
-  // "Done" (below) stays available throughout as a manual early exit.
-  useEffect(() => {
-    if (autoFinished || queuedGroupIds.size === 0) return;
-    const allSent = Array.from(queuedGroupIds).every((id) => sentCircleIds.includes(id));
-    if (!allSent) return;
-
-    setAutoFinished(true);
-    void finish();
-    // finish/queuedGroupIds/sentCircleIds are all derived fresh each render;
-    // this effect only needs to re-check when sentCircleIds actually changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sentCircleIds, queuedGroupIds, autoFinished]);
+  // Corrected 2026-08-21 — this used to call finish() directly the instant
+  // every queued Circle was sent, which navigates away immediately
+  // (router.replace("/create/done")), silently skipping past the
+  // collapsed-by-default OOO/status section without it ever being seen —
+  // a real, confirmed bug, and a direct contradiction of the documented
+  // rule that OOO/status "always reaches this point before the Transition
+  // screen, never skips past it unseen." Reconnect's own equivalent
+  // auto-complete only ever reveals more inline content (Personalise
+  // prompt, OOO/status) on the same continuously-rendered screen — it
+  // never routes away on its own, only an explicit "Done"/"Finish
+  // Reconnecting" tap does. Going Quiet now matches that: `hasSentAnything`
+  // already reveals Done + OOO/status naturally as circles get sent, with
+  // no separate trigger needed for that part — "Done" (below) is the only
+  // thing that actually calls finish() and navigates away, guaranteeing
+  // OOO/status is at least shown (even collapsed) before that can happen.
+  // See docs/09-decision-log.md.
 
   // Close first, per the send-order rule; every other Circle follows
   // whatever order it was tapped in.
@@ -941,6 +945,7 @@ export default function HoldPeopleScreen() {
                 onPress={() => setActiveField("group-message")}
                 accessibilityLabel={`Message to ${joinedGroupNames}`}
                 onInsertPill={(text) => setMessage((current) => (current.trim() ? `${current}\n${text}` : text))}
+                highlightAll={isSaved}
               />
               {/* "Change template" (setForceShowChips) cut entirely,
                   2026-08-13 — superseded by sentence pills, which solve
@@ -1057,7 +1062,7 @@ export default function HoldPeopleScreen() {
             onPress={() => setOooExpanded((current) => !current)}
             style={styles.oooHeader}
           >
-            <Text style={styles.oooHeaderText}>OOO and status</Text>
+            <Text style={styles.oooHeaderText}>Wider World</Text>
             <Text style={styles.oooChevron}>{oooExpanded ? "▲" : "▼"}</Text>
           </Pressable>
 

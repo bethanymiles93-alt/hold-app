@@ -752,3 +752,21 @@ Rebuilt: `SelectionCircle`-per-row replaced with `AdaptiveCircleChip`-per-person
 `tsc --noEmit` and `vitest run` (41/41) both pass. Not on-device verified — flagged for the user to confirm after a force-quit-and-reopen.
 
 **hold-book**: no update needed — corrects the 2026-08-20 excluded-line entry's own already-intended structure (position, "+" reuse, per-entry "already told them"), not a new behavior or spec change beyond what that entry already describes at the narrative level.
+
+## 2026-08-21 — Two confirmed, unambiguous fixes from the "Wider World" audit (item 5 of the same bug pass); rest reported, not built
+
+**Header renamed "OOO and status" → "Wider World"**, both `people.tsx` and `reconnect.tsx` (the latter has the identical string — the section is shared spec, just gated differently per screen).
+
+**Going Quiet's out-of-office toggle now defaults ON** (`emailEnabled` was `useState(false)`, now `useState(true)`) — per the confirmed decision that the two flows' OOO defaults are deliberately opposite. **Reconnect's side of that decision could not be applied the same way**: Reconnect has no enable toggle of its own at all — its "Wider World" section only ever reads `period.emailOutOfOfficeEnabled`/`widerWorldStatusEnabled` (whatever Going Quiet already set) and offers "Turn off"/"Clear" actions on that existing state, never its own Switch. So "Reconnect = OFF" has nothing to default in the current code; flagged rather than inventing a toggle that isn't otherwise specified.
+
+**Everything else in the fuller spec checked and found not yet built, not touched:**
+- No inline "Want to inform the wider world?" yes/no gate — `EmailOutOfOffice`/`WiderWorldStatus`'s own `Switch` is the only gate today.
+- No "status pills" of any kind exist — `WiderWorldStatus.tsx` is a single free-text field + a "Copy" button (copies to clipboard for manual pasting), not a platform-pill row.
+- No user-configurable "Your Wider World" settings screen exists anywhere in the app (confirmed via search) — so there's no configured-platforms list for pills to read from even once built.
+- No sent-state visual treatment (dark-green/white/checkmark) applies here, since there are no pills yet to apply it to.
+
+This is real, unbuilt scope (task #120, "Wider World: inline gate + settings screen," already tracks it) — not something this pass silently skipped.
+
+`tsc --noEmit` and `vitest run` (41/41) both pass. Not on-device verified.
+
+**hold-book**: no update yet — nothing built here changes documented behavior; the unbuilt pieces above are new scope to log once actually built, not before.

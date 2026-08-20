@@ -1167,7 +1167,7 @@ export default function ReconnectScreen() {
                 onPress={() => setOooExpanded((current) => !current)}
                 style={styles.oooHeader}
               >
-                <Text style={styles.oooHeaderText}>OOO and status</Text>
+                <Text style={styles.oooHeaderText}>Wider World</Text>
                 <Text style={styles.oooChevron}>{oooExpanded ? "▲" : "▼"}</Text>
               </Pressable>
 
