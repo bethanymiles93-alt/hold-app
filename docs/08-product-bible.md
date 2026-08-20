@@ -38,3 +38,9 @@ There are two palettes layered over light/dark mode: **normal** (the app's every
 - Both Light and Dark Mode are supported at the token level.
 - Reduce Motion is respected everywhere: tap animations skip straight to navigation, the breathing loop doesn't start, and the colour fade becomes an instant snap instead of a transition.
 - No animation is ever the only way to understand what state the app is in — text labels ("Taking time", "Going quiet") always carry that meaning on their own.
+
+## Deliberate non-features
+
+Some ideas are excluded on purpose, not by oversight. Recorded here because they're exactly the kind of feature that looks like an obvious value-add when scanning competitor feature lists without the context of who Hold is for — worth stating plainly so they aren't quietly reconsidered later.
+
+**Relationship health scores / a "this relationship is fading" indicator.** A visual score or decay indicator applied to a Circle or contact is not organisational help for someone in a capacity dip — it is a guilt engine, the opposite of what Hold is for. See `08-decisions/02-ideas-not-to-build.md` in `hold-book` for the full sourced rejection.
