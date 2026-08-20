@@ -740,3 +740,15 @@ Rebuilt: `SelectionCircle`-per-row replaced with `AdaptiveCircleChip`-per-person
 `tsc --noEmit` and `vitest run` (41/41) both pass. Not on-device verified — no simulator/device access this session; flagged for the user to confirm after a force-quit-and-reopen.
 
 **hold-book**: no update needed — this corrects an implementation bug against an already-documented spec (the original pill mechanics description), not a behavior or spec change.
+
+## 2026-08-21 — Reconnect's excluded line rebuilt to the confirmed structure (item 10 of the same bug pass)
+
+**Repositioned above the pill row.** The excluded line (`excludedPillPeople`, built 2026-08-20) previously rendered below the shared pill row, with its own dedicated "+" and a row-wide "Already told them" button — reported on-device as not matching the confirmed spec. Now renders directly beneath the Circle-browsing row, above the pill row, per direct instruction.
+
+**Its own "+" removed — bundling now goes through the Circle row's existing "+" instead.** That chip (`addPersonToAudience` by default) is dual-purpose as of this pass: with anyone marked on the excluded line (`bundleSelectedIds.size > 0`) it switches to `bundleExcludedIntoCircle` and shows a selected ring (`isSelected={bundleSelectedIds.size > 0}`) and an updated accessibility label; with nothing marked it's unchanged, adds a new person. Never both at once. `bundleExcludedIntoCircle`'s old "selected, or everyone unclaimed" fallback was removed as dead code — the only remaining call site only ever fires once something's marked, so the fallback branch could never run (Going Quiet's own bundle button keeps its fallback; it has no add-person duty on the same chip to fall back to instead).
+
+**"Already told them" is per-entry, not row-wide.** New `markSinglePersonAlreadyTold(phoneNumber)` replaces `markExcludedAlreadyToldThem` (deleted, along with the now-unused `excludedLineTargets` shared-fallback helper) — each excluded pill (not already sent-this-session) gets a small adjacent "✓" badge of its own, inline beside the chip (`excludedPersonUnit`, a plain row layout — not `circleUnit`/`arrowButton`'s absolute-positioned overlay, which assumes the taller STANDARD_CHIP_DIAMETER circle these compact pills don't use), acting on that one person alone via `markReconnectCoveredWithoutSend`.
+
+`tsc --noEmit` and `vitest run` (41/41) both pass. Not on-device verified — flagged for the user to confirm after a force-quit-and-reopen.
+
+**hold-book**: no update needed — corrects the 2026-08-20 excluded-line entry's own already-intended structure (position, "+" reuse, per-entry "already told them"), not a new behavior or spec change beyond what that entry already describes at the narrative level.
