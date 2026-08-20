@@ -39,6 +39,30 @@ export function resolveLinkedClusters(sets: LinkedCircleSet[], audienceCircleIds
 }
 
 /**
+ * Which still-grouped cluster (by combinationKey) each Circle belongs to,
+ * if any — the shared lookup both `sortByLinkedClusterAdjacency` and
+ * Conversations' own explicit visual marker (ConversationsView.tsx) build
+ * on, so "is this Circle part of a currently-grouped cluster" is resolved
+ * exactly once, the same way, everywhere it's asked. Ungrouped Circles and
+ * Circles with no cluster at all simply have no entry.
+ */
+export function resolveClusterKeyByCircle(
+  linkedCircleSets: LinkedCircleSet[],
+  ungroupedLinkKeys: string[],
+  audienceCircleIds: Set<string>
+): Map<string, string> {
+  const clusters = resolveLinkedClusters(linkedCircleSets, audienceCircleIds);
+  const ungrouped = new Set(ungroupedLinkKeys);
+  const map = new Map<string, string>();
+  for (const circleIds of clusters) {
+    const key = combinationKey(circleIds);
+    if (ungrouped.has(key)) continue;
+    for (const circleId of circleIds) map.set(circleId, key);
+  }
+  return map;
+}
+
+/**
  * Reorders a flat list of people so members of a still-grouped linked
  * cluster sit adjacent to each other, inserted at the position of that
  * cluster's earliest-appearing member — everyone else keeps their own
@@ -59,15 +83,19 @@ export function sortByLinkedClusterAdjacency<T extends { circleId: string | null
   ungroupedLinkKeys: string[]
 ): T[] {
   const audienceCircleIds = new Set(items.map((item) => item.circleId).filter((id): id is string => id !== null));
-  const clusters = resolveLinkedClusters(linkedCircleSets, audienceCircleIds);
-  const ungrouped = new Set(ungroupedLinkKeys);
+  const keyByCircle = resolveClusterKeyByCircle(linkedCircleSets, ungroupedLinkKeys, audienceCircleIds);
+  if (keyByCircle.size === 0) return items;
 
   const clusterIndexByCircleId = new Map<string, number>();
-  clusters.forEach((circleIds, clusterIndex) => {
-    if (ungrouped.has(combinationKey(circleIds))) return;
-    for (const circleId of circleIds) clusterIndexByCircleId.set(circleId, clusterIndex);
-  });
-  if (clusterIndexByCircleId.size === 0) return items;
+  const indexByKey = new Map<string, number>();
+  for (const [circleId, key] of keyByCircle) {
+    let clusterIndex = indexByKey.get(key);
+    if (clusterIndex === undefined) {
+      clusterIndex = indexByKey.size;
+      indexByKey.set(key, clusterIndex);
+    }
+    clusterIndexByCircleId.set(circleId, clusterIndex);
+  }
 
   const indexed = items.map((item, index) => ({ item, index }));
   const sortKeyForCluster = new Map<number, number>();

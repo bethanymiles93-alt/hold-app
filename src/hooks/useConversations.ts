@@ -12,7 +12,7 @@ import { clearReachedVia, getReconnectingPeriod, recordReachedVia } from "@/serv
 import { pickContact } from "@/services/contactPickerService";
 import { sendOrShare } from "@/services/smsService";
 import { QUICK_RECONNECT_MESSAGES } from "@/constants/copy";
-import { sortByLinkedClusterAdjacency } from "@/utils/linkedCircleClusters";
+import { resolveClusterKeyByCircle, sortByLinkedClusterAdjacency } from "@/utils/linkedCircleClusters";
 import type { LinkedCircleSet, ReturnStyle } from "@/types/hold";
 
 export const DEFAULT_QUICK_MESSAGE = QUICK_RECONNECT_MESSAGES[0]?.text ?? "";
@@ -155,6 +155,27 @@ export function useConversations(scope: ConversationsScope, onPersonAction?: () 
     // `people` closure updating synchronously within the same function.
     return ordered;
   }, [scope]);
+
+  // Which still-grouped linked cluster (if any) each person belongs to, by
+  // their own circleId — Conversations' own explicit visual marker
+  // (ConversationsView.tsx) reads this directly, on top of the adjacency
+  // ordering `refresh()` already applies above, per direct instruction:
+  // ordering alone wasn't a strong enough signal on its own. See
+  // docs/09-decision-log.md, 2026-08-21.
+  const linkedClusterKeyByPersonId = (() => {
+    if (scope === "all" || !scope.linkedCircleSets) return new Map<string, string>();
+    const audienceCircleIds = new Set(
+      people.map((person) => person.circleId).filter((id): id is string => id !== null)
+    );
+    const keyByCircle = resolveClusterKeyByCircle(scope.linkedCircleSets, scope.ungroupedLinkKeys ?? [], audienceCircleIds);
+    const map = new Map<string, string>();
+    for (const person of people) {
+      if (person.circleId && keyByCircle.has(person.circleId)) {
+        map.set(person.id, keyByCircle.get(person.circleId)!);
+      }
+    }
+    return map;
+  })();
 
   const circleSections = groupByCircle(people);
   const ungroupedPeople = people.filter((person) => person.circleId === null);
@@ -339,6 +360,7 @@ export function useConversations(scope: ConversationsScope, onPersonAction?: () 
 
   return {
     people,
+    linkedClusterKeyByPersonId,
     circleSections,
     ungroupedPeople,
     expandedPeople,

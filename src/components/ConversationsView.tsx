@@ -169,11 +169,25 @@ export function ConversationsView({ conversations: c, mode }: ConversationsViewP
         : null}
 
       <View style={styles.cardList}>
-        {cardPeople.map((person) => {
+        {cardPeople.map((person, index) => {
           const selectedForCircle = c.selectedOtherIds.has(person.id);
+          // Explicit visual marker for a still-grouped linked cluster —
+          // confirmed needed on top of the adjacency ordering
+          // sortByLinkedClusterAdjacency already applies, since ordering
+          // alone doesn't read as "these are connected" without also
+          // looking at circle names. A left-edge line, same colour
+          // LinkedCircleCluster's own connecting line uses when grouped
+          // (colors.primary) — the label appears once, on the first card
+          // of each cluster's run, not repeated on every card in it. See
+          // docs/09-decision-log.md, 2026-08-21.
+          const clusterKey = c.linkedClusterKeyByPersonId.get(person.id);
+          const previousPerson = index > 0 ? cardPeople[index - 1] : undefined;
+          const previousClusterKey = previousPerson ? c.linkedClusterKeyByPersonId.get(previousPerson.id) : undefined;
+          const isFirstInCluster = clusterKey !== undefined && clusterKey !== previousClusterKey;
 
           return (
-            <View key={person.id} style={styles.card}>
+            <View key={person.id} style={[styles.card, clusterKey !== undefined && styles.cardLinked]}>
+              {isFirstInCluster ? <Text style={styles.linkedLabel}>🔗 Linked</Text> : null}
               <View style={styles.cardHeader}>
                 {mode === "browse" ? (
                   <Pressable
@@ -318,6 +332,19 @@ function createStyles(colors: ThemeColors) {
       borderWidth: 1.5,
       borderColor: colors.border,
       padding: theme.spacing.md
+    },
+    // Same colour LinkedCircleCluster's own connecting line uses while
+    // grouped (colors.primary) — a left-edge "spine" reading as connected
+    // when cards from the same cluster sit stacked directly beneath each
+    // other, same as this component's own card list already renders them.
+    cardLinked: {
+      borderLeftWidth: 4,
+      borderLeftColor: colors.primary
+    },
+    linkedLabel: {
+      color: colors.primary,
+      fontSize: 12,
+      fontWeight: "700"
     },
     cardHeader: {
       flexDirection: "row",

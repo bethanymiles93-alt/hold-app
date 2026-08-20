@@ -810,3 +810,13 @@ This is real, unbuilt scope (task #120, "Wider World: inline gate + settings scr
 `tsc --noEmit` and `vitest run` (51/51) both pass throughout, verified after each of the six build steps plus this fix. Not on-device verified, and **cannot be end-to-end verified even on-device without real OAuth client ids** — flagged doubly clearly given this touches real external accounts and a real, sensitive credential-storage path.
 
 **hold-book updated**: `04-ux-content/01-core-journeys.md`'s "Wider World" section rewritten from "planned, NOT YET BUILT" to built (with the OAuth-credentials caveat), including a correction to its own earlier "common presets + inline +" draft (superseded by the dedicated settings-screen approach actually built); three other stale references synced in the same pass — the "OOO and status" section name (→ "Wider World"), the Reconnect resumed-view "Both are currently mocked" claim, and the exit-nudge's own now-fixed per-platform-checklist note.
+
+## 2026-08-21 — Conversations gets an explicit visual marker for linked clusters, not just adjacency ordering
+
+Direct correction to the same day's earlier linked-circles work: `sortByLinkedClusterAdjacency` (ordering only) was confirmed insufficient on its own — "these people are connected" needs to actually be visible, not just inferable from position. New `resolveClusterKeyByCircle` in `linkedCircleClusters.ts` (which cluster, by combinationKey, a Circle currently belongs to) — extracted as its own function so `sortByLinkedClusterAdjacency` reuses it internally rather than duplicating the same resolution logic a second time. `useConversations` exposes a new `linkedClusterKeyByPersonId: Map<string, string>`, computed from the scope's `linkedCircleSets`/`ungroupedLinkKeys` (only ever present for Reconnect's embedded `{candidates}` scope, same as the adjacency ordering already was).
+
+`ConversationsView.tsx`'s flat-mode cards: a person whose Circle is in a still-grouped cluster gets a 4px left-edge border in `colors.primary` — the same colour `LinkedCircleCluster`'s own connecting line uses while grouped — reading as a continuous "spine" against the cards' own already-adjacent stacking. A small "🔗 Linked" label appears once, on the first card of each cluster's run (determined by comparing each card's cluster key against the previous card's, both already adjacency-sorted), not repeated on every card in it.
+
+`tsc --noEmit` and `vitest run` (51/51) both pass.
+
+**hold-book**: no update needed — this is an implementation detail closing a gap the same day's own entry already flagged as an open question ("a more explicit visual... is a further design call not made here"), not a new behavior beyond what that entry already described as pending.
