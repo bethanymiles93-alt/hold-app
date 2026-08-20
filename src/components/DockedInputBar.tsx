@@ -241,6 +241,7 @@ export function DockedInputBar({
               accessibilityRole="button"
               accessibilityLabel={amend.status === "loading" ? "Generating" : "Generate with AI"}
               disabled={amend.status === "loading"}
+              hitSlop={8}
               onPress={() => void amend.generate()}
               style={({ pressed }) => [
                 styles.amendGo,

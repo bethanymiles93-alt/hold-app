@@ -271,7 +271,13 @@ export function TakingTimeUpdateDrawer({ visible, onClose, period, onSent }: Tak
                     onPress={() => toggleCircle(circle.circleId)}
                     accessibilityRole="button"
                   />
-                  <Text accessibilityRole="button" onPress={() => toggleArrow(circle.circleId)} style={styles.arrow}>
+                  <Text
+                    accessibilityRole="button"
+                    accessibilityLabel={`${circle.circleName}, ${isExpanded ? "hide" : "show"} people`}
+                    accessibilityState={{ expanded: isExpanded }}
+                    onPress={() => toggleArrow(circle.circleId)}
+                    style={styles.arrow}
+                  >
                     {isExpanded ? "▲" : "▼"}
                   </Text>
                 </View>
@@ -300,6 +306,7 @@ export function TakingTimeUpdateDrawer({ visible, onClose, period, onSent }: Tak
               <AdaptiveCircleChip
                 key={person.key}
                 label={person.name}
+                compact
                 isSelected={!includedPersonIds.has(`exclude:${person.id}`)}
                 onPress={() => togglePerson(`exclude:${person.id}`)}
                 accessibilityRole="button"

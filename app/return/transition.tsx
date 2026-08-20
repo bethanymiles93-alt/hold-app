@@ -24,7 +24,7 @@ export default function ReconnectTransitionScreen() {
         <HoldMark size={64} />
         <Text style={styles.title}>Welcome back.</Text>
         <Text style={styles.subtitle}>
-          Here’s who’s waiting to hear from you. Reply however feels right today.
+          Reply however feels right today, whenever you’re ready.
         </Text>
       </View>
     </Screen>

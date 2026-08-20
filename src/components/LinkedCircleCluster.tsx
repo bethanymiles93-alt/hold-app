@@ -58,7 +58,13 @@ export function LinkedCircleCluster({ members, onToggle, onToggleArrow }: Linked
               onPress={onToggle}
               accessibilityRole="button"
             />
-            <Text accessibilityRole="button" onPress={() => onToggleArrow(member.circleId)} style={styles.arrow}>
+            <Text
+              accessibilityRole="button"
+              accessibilityLabel={`${member.circleName}, ${member.isExpanded ? "hide" : "show"} people`}
+              accessibilityState={{ expanded: member.isExpanded }}
+              onPress={() => onToggleArrow(member.circleId)}
+              style={styles.arrow}
+            >
               {member.isExpanded ? "▲" : "▼"}
             </Text>
           </View>

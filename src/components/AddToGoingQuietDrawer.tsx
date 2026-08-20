@@ -171,11 +171,12 @@ export function AddToGoingQuietDrawer({
               }}
             />
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-              <AdaptiveCircleChip label="All" isSelected={allPillsIncluded} labelBold onPress={toggleAllPills} accessibilityRole="button" />
+              <AdaptiveCircleChip label="All" compact isSelected={allPillsIncluded} labelBold onPress={toggleAllPills} accessibilityRole="button" />
               {pillPeople.map((person) => (
                 <AdaptiveCircleChip
                   key={person.key}
                   label={person.name}
+                  compact
                   isSelected={!excludedPersonIds.has(person.id)}
                   onPress={() => togglePerson(person.id)}
                   accessibilityRole="button"
