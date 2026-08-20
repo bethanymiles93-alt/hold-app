@@ -202,8 +202,14 @@ export default function ReconnectScreen() {
     setNeedsNamingGroups(allGroups.filter((group) => group.needsNaming));
 
     if (current) {
-      const coverage = getReconnectCoverage(current);
-      setIncludedPersonIds(new Set(coverage.totalIds.filter((id) => !coverage.contactedIds.includes(id))));
+      // Corrected 2026-08-21 — this used to default to "everyone not yet
+      // contacted," which on a fresh load is literally everyone, reading
+      // as "All" pre-selected with no tap made. Matches the original pill
+      // mechanics spec exactly now: nothing is selected until the person
+      // taps something — a Circle chip selects only that Circle's own
+      // people, "All" is the only action that selects everyone. See
+      // docs/09-decision-log.md.
+      setIncludedPersonIds(new Set());
       setPillLockedIds(null);
     }
   }, [reconnectPeriodId]);
@@ -1047,6 +1053,7 @@ export default function ReconnectScreen() {
                 accessibilityLabel="Message to send"
                 onInsertPill={(text) => changeMessage(message.trim() ? `${message}\n${text}` : text)}
                 extraPhrases={messageExtraPhrases}
+                highlightAll={isSaved}
               />
               {/* "Change template" cut entirely, 2026-08-13 — superseded
                   by sentence pills. See docs/09-decision-log.md.
