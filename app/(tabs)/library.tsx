@@ -1,39 +1,19 @@
 import { useCallback, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { SecondaryButton } from "@/components/SecondaryButton";
-import { CompactSendButton } from "@/components/CompactSendButton";
 import { DockedInputBar } from "@/components/DockedInputBar";
 import { DockedFieldPreview } from "@/components/DockedFieldPreview";
-import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
-import { PersonaliseAccordion } from "@/components/PersonaliseAccordion";
+import { ConversationsView } from "@/components/ConversationsView";
 import { ResearchContent } from "@/components/ResearchContent";
 import { SuggestedPhrasesEditor } from "@/components/SuggestedPhrasesEditor";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
-import { QUICK_RECONNECT_MESSAGES } from "@/constants/copy";
-import {
-  addPerson,
-  getAll as getAllConversationPeople,
-  markQuickSent,
-  toggleComplete,
-  type ConversationPerson
-} from "@/services/conversationService";
-import {
-  addContactToGroup,
-  createGroup,
-  getGroups,
-  NEWLY_ADDED_APOLOGY_PHRASE,
-  PENDING_CIRCLE_ID_PREFIX
-} from "@/services/circleService";
-import { pickContact } from "@/services/contactPickerService";
-import { sendOrShare } from "@/services/smsService";
-import { clearReachedVia, getReconnectingPeriod, recordReachedVia } from "@/services/holdHistoryService";
+import { useConversations } from "@/hooks/useConversations";
+import { getGroups, NEWLY_ADDED_APOLOGY_PHRASE, PENDING_CIRCLE_ID_PREFIX } from "@/services/circleService";
+import { getReconnectingPeriod } from "@/services/holdHistoryService";
 import { getAllTemplates, saveCircleTemplate } from "@/services/templateService";
-import type { ReturnStyle } from "@/types/hold";
-
-const DEFAULT_QUICK_MESSAGE = QUICK_RECONNECT_MESSAGES[0]?.text ?? "";
 
 interface TemplateRow {
   circleId: string;
@@ -41,40 +21,8 @@ interface TemplateRow {
   text: string;
 }
 
-interface CircleSection {
-  circleId: string;
-  circleName: string;
-  people: ConversationPerson[];
-}
-
-function groupByCircle(people: ConversationPerson[]): CircleSection[] {
-  const sections: CircleSection[] = [];
-  const indexByCircleId = new Map<string, number>();
-
-  for (const person of people) {
-    if (!person.circleId) continue;
-
-    let index = indexByCircleId.get(person.circleId);
-    if (index === undefined) {
-      index = sections.length;
-      indexByCircleId.set(person.circleId, index);
-      sections.push({ circleId: person.circleId, circleName: person.circleName ?? "Circle", people: [] });
-    }
-
-    sections[index]?.people.push(person);
-  }
-
-  return sections;
-}
-
-/** Every screen-owned docked-bar field, keyed by tag — mirrors create/people.tsx's pattern. Personalise's "Your reply" is handled separately (personaliseReplyTarget below), since its persistence is owned by each PersonaliseAccordion instance, not by the screen. */
-type ActiveField = `individual-message:${string}` | "new-circle" | `template:${string}`;
-
-interface PersonaliseReplyTarget {
-  personId: string;
-  onChangeText: (text: string) => void;
-  friendMessage: string;
-}
+/** Templates tab's own docked-bar field — Conversations' own fields (individual-message/new-circle/personalise-reply) now live inside useConversations, kept separate since Templates isn't part of that shared hook. */
+type TemplateActiveField = `template:${string}`;
 
 type LibraryTab = "conversations" | "templates" | "research";
 
@@ -92,43 +40,17 @@ export default function LibraryScreen() {
   const [activeTab, setActiveTab] = useState<LibraryTab>(
     initialTabParam === "research" || initialTabParam === "templates" ? initialTabParam : "conversations"
   );
-  const [people, setPeople] = useState<ConversationPerson[]>([]);
 
-  // Per-circle dropdown-arrow reveal — a Set, not a single value, since
-  // "All" (below) can expand every circle at once for scanning across
-  // everyone; an individual arrow tap only ever toggles its own circle in
-  // or out of the set. See docs/09-decision-log.md, 2026-08-12.
-  const [expandedCircleIds, setExpandedCircleIds] = useState<Set<string>>(new Set());
-  // Which one person's PersonaliseAccordion is open — a single value, same
-  // single-expand convention as everywhere else this pattern exists.
-  const [expandedPersonaliseId, setExpandedPersonaliseId] = useState<string | null>(null);
-  const [personaliseDrafts, setPersonaliseDrafts] = useState<Record<string, string>>({});
-  const [personaliseStyles, setPersonaliseStyles] = useState<Record<string, ReturnStyle>>({});
-  const [personaliseReplyTarget, setPersonaliseReplyTarget] = useState<PersonaliseReplyTarget | null>(null);
-
-  // Ungrouped people only now — circle-grouped people are reached via each
-  // circle's own dropdown arrow instead (2026-08-12). Still gates each
-  // ungrouped person's own expanded card below, and still feeds the
-  // 2-selected -> "Create a Circle for these people?" prompt.
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [individualMessages, setIndividualMessages] = useState<Record<string, string>>({});
-  const [personaliseSwapIds, setPersonaliseSwapIds] = useState<Set<string>>(new Set());
   /**
-   * Permission-to-stop line, shown after every send while clearing a
-   * backlog (Quick message or Personalise) — not count-gated, and
-   * deliberately not an encouragement-to-continue message ("great, one
-   * more!" is explicitly wrong, per the guilt-spiral research's own
-   * "never praise for basic communication" rule). One shared flag rather
-   * than per-card state: it's about the act of sending, not which card
-   * was tapped, and the next send simply re-shows it. See
-   * docs/09-decision-log.md, 2026-08-19.
+   * Standalone, unscoped — every ConversationPerson ever added, same
+   * component and query logic Reconnect's own embedded step now uses too
+   * (scoped to just its period's audience there). Extracted 2026-08-20 so
+   * the two entry points show the same "what's pending" picture, not two
+   * implementations reading the same store differently. See
+   * docs/09-decision-log.md.
    */
-  const [stopPermissionShown, setStopPermissionShown] = useState(false);
+  const conversations = useConversations("all");
 
-  const [selectedOtherIds, setSelectedOtherIds] = useState<Set<string>>(new Set());
-  const [circlePromptStage, setCirclePromptStage] = useState<"none" | "confirm" | "naming">("none");
-  const [newOtherCircleName, setNewOtherCircleName] = useState("");
-  const [activeField, setActiveField] = useState<ActiveField | null>(null);
   // Library never shows the bottom tab bar, in any state, on any of its
   // three tabs — a Back button (top-left, see _layout.tsx) takes its
   // place. Enforced via navTier's TIER_1_PREFIXES ("/library" included
@@ -140,10 +62,10 @@ export default function LibraryScreen() {
 
   const [templates, setTemplates] = useState<TemplateRow[]>([]);
   const [templateDrafts, setTemplateDrafts] = useState<Record<string, string>>({});
+  const [templateActiveField, setTemplateActiveField] = useState<TemplateActiveField | null>(null);
 
   const refresh = useCallback(async () => {
-    const all = await getAllConversationPeople();
-    setPeople(all);
+    const all = await conversations.refresh();
 
     // Only a real, still-open Reconnect journey earns the "You're reconnected" screen —
     // Library is also reachable standalone, where reaching zero-incomplete has no such
@@ -176,7 +98,8 @@ export default function LibraryScreen() {
       }
       return next;
     });
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversations.refresh]);
 
   const changeTemplateDraft = (circleId: string, text: string) => {
     setTemplateDrafts((current) => ({ ...current, [circleId]: text }));
@@ -194,268 +117,65 @@ export default function LibraryScreen() {
     }, [refresh])
   );
 
-  const circleSections = useMemo(() => groupByCircle(people), [people]);
-  const ungroupedPeople = useMemo(() => people.filter((person) => person.circleId === null), [people]);
-
-  // One shared row, ordered to match each person's parent circle's
-  // left-to-right position in the circle row above — circleSections is
-  // already in that same order, so filtering+flatMapping it in place
-  // preserves it without needing a separate sort. See
-  // docs/09-decision-log.md, 2026-08-12.
-  const expandedPeople = useMemo(
-    () =>
-      circleSections
-        .filter((section) => expandedCircleIds.has(section.circleId))
-        .flatMap((section) => section.people),
-    [circleSections, expandedCircleIds]
-  );
-  const expandedPersonalisePerson = expandedPersonaliseId
-    ? (expandedPeople.find((person) => person.id === expandedPersonaliseId) ?? null)
-    : null;
-
-  const allIds = useMemo(() => ungroupedPeople.map((person) => person.id), [ungroupedPeople]);
-  const allSelected = allIds.length > 0 && allIds.every((id) => selectedIds.has(id));
-
-  const toggleAll = () => {
-    setSelectedIds(allSelected ? new Set() : new Set(allIds));
-  };
-
-  const toggleId = (id: string) => {
-    setSelectedIds((current) => {
-      const next = new Set(current);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  };
-
-  const toggleCircleExpanded = (circleId: string) => {
-    setExpandedCircleIds((current) => {
-      const next = new Set(current);
-      if (next.has(circleId)) {
-        next.delete(circleId);
-
-        // Collapsing removes this circle's people from the shared pill
-        // row — if the currently-open accordion belonged to one of them,
-        // close it too, rather than leaving it floating with no visible
-        // pill above it. Their draft is untouched either way (it lives in
-        // personaliseDrafts/replyStorageService, not here) — reopening the
-        // circle and tapping their pill again brings it straight back.
-        const section = circleSections.find((s) => s.circleId === circleId);
-        if (section?.people.some((person) => person.id === expandedPersonaliseId)) {
-          setExpandedPersonaliseId(null);
-        }
-      } else {
-        next.add(circleId);
-      }
-      return next;
-    });
-  };
-
-  const togglePersonalisePerson = (personId: string) => {
-    setExpandedPersonaliseId((current) => (current === personId ? null : personId));
-  };
-
-  const activeIndividualMessageId = activeField?.startsWith("individual-message:")
-    ? activeField.slice("individual-message:".length)
-    : null;
-  const activeTemplateId = activeField?.startsWith("template:") ? activeField.slice("template:".length) : null;
-  const activeIndividualPerson = activeIndividualMessageId
-    ? people.find((p) => p.id === activeIndividualMessageId)
-    : undefined;
-  const activeTemplate = activeTemplateId ? templates.find((t) => t.circleId === activeTemplateId) : undefined;
-
-  const activeFieldValue = (): string => {
-    if (activeIndividualMessageId) {
-      // Ungrouped people default to the quick-message text; a circle's
-      // excluded member defaults to empty — matches each field's own prior
-      // fallback exactly.
-      const fallback = activeIndividualPerson?.circleId === null ? DEFAULT_QUICK_MESSAGE : "";
-      return individualMessages[activeIndividualMessageId] ?? fallback;
-    }
-    if (activeField === "new-circle") return newOtherCircleName;
-    if (activeTemplateId) return templateDrafts[activeTemplateId] ?? activeTemplate?.text ?? "";
-    return "";
-  };
-
-  const setActiveFieldValue = (text: string) => {
-    if (activeIndividualMessageId) {
-      setIndividualMessages((current) => ({ ...current, [activeIndividualMessageId]: text }));
-    } else if (activeField === "new-circle") {
-      setNewOtherCircleName(text);
-    } else if (activeTemplateId) {
-      changeTemplateDraft(activeTemplateId, text);
-    }
-  };
-
-  const activeFieldLabel = (): string => {
-    if (activeIndividualPerson) return `Message for ${activeIndividualPerson.name}`;
-    if (activeField === "new-circle") return "New Circle name";
-    if (activeTemplate) return `Saved message for ${activeTemplate.circleName}`;
-    return "Message";
-  };
-
-  const togglePersonaliseSwap = (personId: string) => {
-    setPersonaliseSwapIds((current) => {
-      const next = new Set(current);
-      if (next.has(personId)) {
-        next.delete(personId);
-      } else {
-        next.add(personId);
-      }
-      return next;
-    });
-  };
-
-  const sendIndividual = (person: ConversationPerson) => {
-    const text = (individualMessages[person.id] ?? "").trim();
-    if (!text) return;
-
-    void (async () => {
-      try {
-        await sendOrShare([person.phoneNumber], text);
-      } catch {
-        // The compose sheet closing is the only signal available either way.
-      }
-      await markQuickSent([person.id]);
-      await refresh();
-      setStopPermissionShown(true);
-    })();
-  };
-
-  /**
-   * "Conversation complete" — Conversations-only, standalone completion
-   * log, never gating Reconnect's own completion (that's Trigger 2, a
-   * separate Reconnect-only action). Covers: replied in Hold, replied
-   * elsewhere, phone call, saw them in person, or no further reply needed
-   * (04-ux-content/01-core-journeys.md:217) — one mark for all of them,
-   * not a reason picker. Only attaches to a Hold period's own History
-   * (`marked_elsewhere`) while inside an active Continue-reconnecting
-   * session for that period — no lookup-by-phone-number, no guessing at
-   * "most recent period" (2026-08-20, settled after considering and
-   * rejecting that approach). Un-marking retracts the reachedVia entry
-   * too, so History doesn't keep a stale record of something no longer
-   * true. See docs/09-decision-log.md.
-   */
-  const markConversationComplete = (person: ConversationPerson) => {
-    void (async () => {
-      const nextCompleted = !person.completed;
-      await toggleComplete(person.id, nextCompleted);
-
-      const reconnectingPeriod = await getReconnectingPeriod();
-      if (reconnectingPeriod) {
-        if (nextCompleted) {
-          await recordReachedVia(reconnectingPeriod.id, person.phoneNumber, "marked_elsewhere");
-        } else {
-          await clearReachedVia(reconnectingPeriod.id, person.phoneNumber);
-        }
-      }
-
-      await refresh();
-    })();
-  };
-
-  /**
-   * The one add-person entry point on this screen — "+" in the circle row
-   * (2026-08-12, replaces the old full-width "Add person" button, now
-   * redundant with "+" positioned first). Adds an ungrouped person; folding
-   * someone into a Circle is a separate, existing action (select 2+ below).
-   */
-  const addNewPerson = () => {
-    void (async () => {
-      const picked = await pickContact();
-      if (!picked) return;
-
-      await addPerson(picked);
-      await refresh();
-    })();
-  };
-
-  const toggleOtherSelection = (person: ConversationPerson) => {
-    setSelectedOtherIds((current) => {
-      const next = new Set(current);
-      if (next.has(person.id)) {
-        next.delete(person.id);
-        if (next.size < 2) setCirclePromptStage("none");
-        return next;
-      }
-
-      next.add(person.id);
-      if (next.size === 2) setCirclePromptStage("confirm");
-      return next;
-    });
-  };
-
-  const declineCreateCircle = () => {
-    setCirclePromptStage("none");
-    setSelectedOtherIds(new Set());
-  };
-
-  const submitCreateCircle = async () => {
-    const name = newOtherCircleName.trim();
-    if (!name) return;
-
-    const selectedPeople = ungroupedPeople.filter((person) => selectedOtherIds.has(person.id));
-    const group = await createGroup(name);
-    for (const person of selectedPeople) {
-      await addContactToGroup(group.id, { name: person.name, phoneNumber: person.phoneNumber });
-    }
-
-    setNewOtherCircleName("");
-    setCirclePromptStage("none");
-    setSelectedOtherIds(new Set());
-    await refresh();
-  };
-
   return (
     <Screen
       contentContainerStyle={styles.content}
       dockedInput={
-        personaliseReplyTarget ? (
+        conversations.personaliseReplyTarget ? (
           <DockedInputBar
-            value={personaliseDrafts[personaliseReplyTarget.personId] ?? ""}
-            onChangeText={personaliseReplyTarget.onChangeText}
-            onDone={() => setPersonaliseReplyTarget(null)}
+            value={conversations.personaliseDrafts[conversations.personaliseReplyTarget.personId] ?? ""}
+            onChangeText={conversations.personaliseReplyTarget.onChangeText}
+            onDone={() => conversations.setPersonaliseReplyTarget(null)}
             placeholder="Your reply"
             accessibilityLabel="Your reply"
             aiAmend={{
               surface: "conversations-reply",
               context: {
-                returnStyle: personaliseStyles[personaliseReplyTarget.personId] ?? undefined,
-                friendMessage: personaliseReplyTarget.friendMessage
+                returnStyle: conversations.personaliseStyles[conversations.personaliseReplyTarget.personId] ?? undefined,
+                friendMessage: conversations.personaliseReplyTarget.friendMessage
               }
             }}
             extraPhrases={
-              people.find((person) => person.id === personaliseReplyTarget.personId)?.circleId?.startsWith(
-                PENDING_CIRCLE_ID_PREFIX
-              )
+              conversations.people
+                .find((person) => person.id === conversations.personaliseReplyTarget?.personId)
+                ?.circleId?.startsWith(PENDING_CIRCLE_ID_PREFIX)
                 ? [NEWLY_ADDED_APOLOGY_PHRASE]
                 : []
             }
           />
-        ) : activeField ? (
+        ) : conversations.activeField ? (
           <DockedInputBar
-            value={activeFieldValue()}
-            onChangeText={setActiveFieldValue}
-            onDone={() => setActiveField(null)}
-            placeholder={activeFieldLabel()}
-            accessibilityLabel={activeFieldLabel()}
+            value={conversations.activeFieldValue()}
+            onChangeText={conversations.setActiveFieldValue}
+            onDone={() => conversations.setActiveField(null)}
+            placeholder={conversations.activeFieldLabel()}
+            accessibilityLabel={conversations.activeFieldLabel()}
             aiAmend={
-              activeIndividualPerson
+              conversations.activeIndividualPerson
                 ? {
                     surface: "conversations-reply",
-                    context: { recipientLabel: activeIndividualPerson.name }
+                    context: { recipientLabel: conversations.activeIndividualPerson.name }
                   }
-                : activeTemplateId
-                  ? { surface: "template" }
-                  : undefined
+                : undefined
             }
             extraPhrases={
-              activeIndividualPerson?.circleId?.startsWith(PENDING_CIRCLE_ID_PREFIX) ? [NEWLY_ADDED_APOLOGY_PHRASE] : []
+              conversations.activeIndividualPerson?.circleId?.startsWith(PENDING_CIRCLE_ID_PREFIX)
+                ? [NEWLY_ADDED_APOLOGY_PHRASE]
+                : []
             }
+          />
+        ) : templateActiveField ? (
+          <DockedInputBar
+            value={
+              templateDrafts[templateActiveField.slice("template:".length)] ??
+              templates.find((t) => t.circleId === templateActiveField.slice("template:".length))?.text ??
+              ""
+            }
+            onChangeText={(text) => changeTemplateDraft(templateActiveField.slice("template:".length), text)}
+            onDone={() => setTemplateActiveField(null)}
+            placeholder={`Saved message for ${templates.find((t) => t.circleId === templateActiveField.slice("template:".length))?.circleName ?? ""}`}
+            accessibilityLabel="Saved message"
+            aiAmend={{ surface: "template" }}
           />
         ) : null
       }
@@ -498,299 +218,13 @@ export default function LibraryScreen() {
 
       {activeTab === "research" ? <ResearchContent /> : null}
 
-      {activeTab === "conversations" && people.length === 0 ? (
+      {activeTab === "conversations" && conversations.people.length === 0 ? (
         <Text style={styles.empty}>
           Nothing here yet. When you need help replying to someone, this is where you’ll find it.
         </Text>
       ) : null}
 
-      {activeTab !== "conversations" ? null : (
-      <>
-      {/* Permission-to-stop, not encouragement-to-continue — shown after
-          every send while clearing a backlog, not count-gated. See
-          docs/09-decision-log.md, 2026-08-19. */}
-      {stopPermissionShown ? (
-        <Text style={styles.stopPermission}>You can stop here. What's sent is enough for today.</Text>
-      ) : null}
-      {/* "+" pinned outside the scroll (never scrolls away), "All" first
-          inside it — matches GroupPicker.tsx's own pinnedRow/newCircleStack
-          treatment exactly, an app-wide convention, not specific to this
-          screen (2026-08-13). See docs/09-decision-log.md. */}
-      <View style={styles.pinnedRow}>
-        <AdaptiveCircleChip
-          label="+"
-          accessibilityLabel="Add person"
-          accessibilityRole="button"
-          outline
-          isSelected={false}
-          labelFontSize={28}
-          labelBold
-          onPress={addNewPerson}
-        />
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chipRow}
-          style={styles.pillScroll}
-        >
-        {allIds.length > 0 ? (
-          <AdaptiveCircleChip
-            label="All"
-            isSelected={allSelected}
-            labelBold
-            onPress={toggleAll}
-            accessibilityRole="button"
-          />
-        ) : null}
-
-        {circleSections.map((section) => {
-          const isExpanded = expandedCircleIds.has(section.circleId);
-
-          return (
-            <View key={section.circleId} style={styles.circleUnit}>
-              <AdaptiveCircleChip
-                label={section.circleName}
-                isSelected={isExpanded}
-                onPress={() => toggleCircleExpanded(section.circleId)}
-                accessibilityRole="button"
-                accessibilityLabel={`${section.circleName}, ${isExpanded ? "hide" : "show"} people`}
-              />
-              {/* Independent of the chip's own tap, same as Going Quiet's —
-                  both happen to do the same thing here (there's no separate
-                  "select for a shared send" meaning left to keep apart, see
-                  docs/09-decision-log.md, 2026-08-12), but the visual
-                  affordance stays consistent with the rest of the app. */}
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`${section.circleName}, ${isExpanded ? "hide" : "show"} people`}
-                accessibilityState={{ expanded: isExpanded }}
-                hitSlop={8}
-                onPress={() => toggleCircleExpanded(section.circleId)}
-                style={styles.arrowButton}
-              >
-                {({ pressed }) => (
-                  <View style={[styles.arrowBadge, pressed && styles.arrowPressed]}>
-                    <Text style={styles.arrowGlyph}>{isExpanded ? "▲" : "▼"}</Text>
-                  </View>
-                )}
-              </Pressable>
-            </View>
-          );
-        })}
-
-        {ungroupedPeople.map((person) => {
-          const isSelected = selectedIds.has(person.id);
-          const sentLook = person.completed && !isSelected;
-
-          return (
-            <AdaptiveCircleChip
-              key={person.id}
-              label={sentLook ? `✓ ${person.name}` : person.name}
-              compact
-              isSelected={isSelected}
-              hasSentThisSession={person.completed}
-              onPress={() => toggleId(person.id)}
-              accessibilityRole="button"
-              accessibilityLabel={sentLook ? `${person.name}, already sent. Tap to send another message.` : person.name}
-            />
-          );
-        })}
-        </ScrollView>
-      </View>
-
-      {/* One shared row, not a pop-up per circle — continues the same
-          visual flow directly beneath the circle row above. A circle's
-          arrow adds/removes only that circle's own people; with more than
-          one circle expanded, people are ordered to match their parent
-          circle's left-to-right position above, not grouped or separated
-          visually by circle (2026-08-12, corrects this pass's own earlier,
-          per-circle-row draft). Standard chip size throughout — no
-          override — and sent-state (dark-green fill) is never locked, same
-          "reselect to message again" rule as every other sent chip in the
-          app. Drafts survive a circle being collapsed and reopened: they
-          live in personaliseDrafts (this screen) backed by
-          replyStorageService's own durable per-person storage inside
-          PersonaliseAccordion itself, never cleared by
-          toggleCircleExpanded — collapsing only changes who's currently
-          visible in the row, never the underlying draft. See
-          docs/09-decision-log.md, 2026-08-12. */}
-      {expandedPeople.length > 0 ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-          {expandedPeople.map((person) => {
-            const isOpen = expandedPersonaliseId === person.id;
-            const sentLook = person.completed && !isOpen;
-
-            return (
-              <AdaptiveCircleChip
-                key={person.id}
-                label={sentLook ? `✓ ${person.name}` : person.name}
-                compact
-                isSelected={isOpen}
-                hasSentThisSession={person.completed}
-                onPress={() => togglePersonalisePerson(person.id)}
-                accessibilityRole="button"
-                accessibilityLabel={
-                  sentLook
-                    ? `${person.name}, already replied to. Tap to send another message.`
-                    : person.name
-                }
-              />
-            );
-          })}
-        </ScrollView>
-      ) : null}
-
-      {expandedPersonalisePerson ? (
-        <PersonaliseAccordion
-          person={expandedPersonalisePerson}
-          isOpen
-          onToggle={() => setExpandedPersonaliseId(null)}
-          onSent={() => {
-            void refresh();
-            setStopPermissionShown(true);
-          }}
-          draft={personaliseDrafts[expandedPersonalisePerson.id] ?? ""}
-          onChangeDraft={(text) =>
-            setPersonaliseDrafts((current) => ({ ...current, [expandedPersonalisePerson.id]: text }))
-          }
-          style={personaliseStyles[expandedPersonalisePerson.id] ?? null}
-          onChangeStyle={(style) =>
-            setPersonaliseStyles((current) => ({ ...current, [expandedPersonalisePerson.id]: style }))
-          }
-          isReplyActive={personaliseReplyTarget?.personId === expandedPersonalisePerson.id}
-          onActivateReply={(bundle) =>
-            setPersonaliseReplyTarget({ personId: expandedPersonalisePerson.id, ...bundle })
-          }
-        />
-      ) : null}
-
-      <View style={styles.cardList}>
-        {ungroupedPeople
-          .filter((person) => selectedIds.has(person.id))
-          .map((person) => {
-            const selectedForCircle = selectedOtherIds.has(person.id);
-
-            return (
-              <View key={person.id} style={styles.card}>
-                <View style={styles.cardHeader}>
-                  <Pressable
-                    accessibilityRole="checkbox"
-                    accessibilityLabel={`Select ${person.name} to group into a Circle`}
-                    accessibilityState={{ checked: selectedForCircle }}
-                    onPress={() => toggleOtherSelection(person)}
-                  >
-                    <Text style={[styles.cardTitle, selectedForCircle && styles.cardTitleSelected]}>
-                      {person.name}
-                    </Text>
-                  </Pressable>
-                  {/* First visible label this control has ever had — was a
-                      bare, unlabelled checkbox (accessibility-text only).
-                      "Conversation complete" per
-                      04-ux-content/01-core-journeys.md:217, covering
-                      replied-in-Hold/elsewhere/phone/in-person/no-further-
-                      reply-needed as one mark, not a reason picker. See
-                      docs/09-decision-log.md, 2026-08-20. */}
-                  <Pressable
-                    accessibilityRole="checkbox"
-                    accessibilityLabel={`${person.name}: Conversation complete`}
-                    accessibilityState={{ checked: person.completed }}
-                    onPress={() => markConversationComplete(person)}
-                    hitSlop={8}
-                    style={styles.conversationCompleteRow}
-                  >
-                    <View style={[styles.checkbox, person.completed && styles.checkboxChecked]}>
-                      {/* "✓" glyph, not just the fill colour, marks checked
-                          — colour-blindness-safe per the app's standing
-                          rule, same fix as the excluded-line/roster work.
-                          See docs/09-decision-log.md, 2026-08-20. */}
-                      {person.completed ? <Text style={styles.checkboxGlyph}>✓</Text> : null}
-                    </View>
-                    <Text style={styles.conversationCompleteLabel}>Conversation complete</Text>
-                  </Pressable>
-                </View>
-
-                {personaliseSwapIds.has(person.id) ? (
-                  <>
-                    <PersonaliseAccordion
-                      person={person}
-                      isOpen={expandedPersonaliseId === person.id}
-                      onToggle={() =>
-                        setExpandedPersonaliseId((current) => (current === person.id ? null : person.id))
-                      }
-                      onSent={() => {
-                        void refresh();
-                        setStopPermissionShown(true);
-                      }}
-                      draft={personaliseDrafts[person.id] ?? ""}
-                      onChangeDraft={(text) =>
-                        setPersonaliseDrafts((current) => ({ ...current, [person.id]: text }))
-                      }
-                      style={personaliseStyles[person.id] ?? null}
-                      onChangeStyle={(style) =>
-                        setPersonaliseStyles((current) => ({ ...current, [person.id]: style }))
-                      }
-                      isReplyActive={personaliseReplyTarget?.personId === person.id}
-                      onActivateReply={(bundle) =>
-                        setPersonaliseReplyTarget({ personId: person.id, ...bundle })
-                      }
-                    />
-                    <Pressable accessibilityRole="button" onPress={() => togglePersonaliseSwap(person.id)}>
-                      <Text style={styles.linkText}>Use a quick message instead</Text>
-                    </Pressable>
-                  </>
-                ) : (
-                  <>
-                    <DockedFieldPreview
-                      value={individualMessages[person.id] ?? DEFAULT_QUICK_MESSAGE}
-                      placeholder={`Message for ${person.name}`}
-                      isActive={activeField === `individual-message:${person.id}`}
-                      onPress={() => setActiveField(`individual-message:${person.id}`)}
-                      accessibilityLabel={`Message for ${person.name}`}
-                    />
-                    <View style={styles.excludedActions}>
-                      <CompactSendButton
-                        disabled={!(individualMessages[person.id] ?? DEFAULT_QUICK_MESSAGE).trim()}
-                        accessibilityLabel={`Send to ${person.name}`}
-                        onPress={() => sendIndividual(person)}
-                      />
-                      <Pressable accessibilityRole="button" onPress={() => togglePersonaliseSwap(person.id)}>
-                        <Text style={styles.linkText}>Personalise</Text>
-                      </Pressable>
-                    </View>
-                  </>
-                )}
-              </View>
-            );
-          })}
-      </View>
-
-      {circlePromptStage === "confirm" ? (
-        <View style={styles.createCirclePrompt}>
-          <Text style={styles.createCirclePromptText}>Create a Circle for these people?</Text>
-          <View style={styles.createCircleActions}>
-            <SecondaryButton label="No" onPress={declineCreateCircle} />
-            <SecondaryButton label="Yes" onPress={() => setCirclePromptStage("naming")} />
-          </View>
-        </View>
-      ) : circlePromptStage === "naming" ? (
-        <View style={styles.createCirclePrompt}>
-          <DockedFieldPreview
-            value={newOtherCircleName}
-            placeholder="Circle name"
-            isActive={activeField === "new-circle"}
-            onPress={() => setActiveField("new-circle")}
-            accessibilityLabel="New Circle name"
-          />
-          <SecondaryButton
-            disabled={!newOtherCircleName.trim()}
-            label="Create Circle"
-            onPress={() => void submitCreateCircle()}
-          />
-        </View>
-      ) : null}
-      </>
-      )}
+      {activeTab === "conversations" ? <ConversationsView conversations={conversations} mode="browse" /> : null}
 
       {activeTab === "templates" ? (
       <View style={styles.section}>
@@ -815,8 +249,8 @@ export default function LibraryScreen() {
                   <DockedFieldPreview
                     value={draft}
                     placeholder={`Saved message for ${row.circleName}`}
-                    isActive={activeField === `template:${row.circleId}`}
-                    onPress={() => setActiveField(`template:${row.circleId}`)}
+                    isActive={templateActiveField === `template:${row.circleId}`}
+                    onPress={() => setTemplateActiveField(`template:${row.circleId}`)}
                     accessibilityLabel={`Saved message for ${row.circleName}`}
                   />
                   <SecondaryButton
@@ -873,12 +307,6 @@ function createStyles(colors: ThemeColors) {
     fontSize: 16,
     lineHeight: 24
   },
-  stopPermission: {
-    color: colors.textMuted,
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: theme.spacing.sm
-  },
   section: {
     gap: theme.spacing.md
   },
@@ -901,126 +329,10 @@ function createStyles(colors: ThemeColors) {
   templateBlock: {
     gap: theme.spacing.xs
   },
-  chipRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.sm
-  },
-  // "+" pinned outside the scroll (never scrolls away), "All" first inside
-  // it — matches GroupPicker.tsx's own pinnedRow/newCircleStack treatment.
-  pinnedRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: theme.spacing.sm
-  },
-  pillScroll: {
-    flex: 1
-  },
-  // Wraps tightly to the chip's own rendered size — the dropdown arrow is
-  // positioned inside it, not beside it. Matches GroupPicker.tsx's own
-  // circleUnit/arrowButton treatment exactly. See docs/09-decision-log.md,
-  // 2026-08-12.
-  circleUnit: {
-    position: "relative",
-    alignSelf: "flex-start"
-  },
-  arrowButton: {
-    position: "absolute",
-    right: 6,
-    bottom: 8,
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  arrowBadge: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.12)"
-  },
-  arrowPressed: {
-    opacity: 0.6
-  },
-  arrowGlyph: {
-    color: colors.textMuted,
-    fontSize: 13,
-    fontWeight: "600"
-  },
-  cardList: {
-    gap: theme.spacing.lg
-  },
-  card: {
-    gap: theme.spacing.sm,
-    borderRadius: theme.radius.md,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    padding: theme.spacing.md
-  },
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center"
-  },
   cardTitle: {
     color: colors.text,
     fontSize: 17,
     fontWeight: "600"
-  },
-  cardTitleSelected: {
-    color: colors.primary
-  },
-  linkText: {
-    color: colors.link,
-    fontSize: 13,
-    fontWeight: "600"
-  },
-  excludedActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.md
-  },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: theme.radius.sm,
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  checkboxChecked: {
-    backgroundColor: colors.primary
-  },
-  checkboxGlyph: {
-    color: colors.onPrimary,
-    fontSize: 14,
-    fontWeight: "700"
-  },
-  conversationCompleteRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.xs
-  },
-  conversationCompleteLabel: {
-    color: colors.textMuted,
-    fontSize: 13,
-    fontWeight: "600"
-  },
-  createCirclePrompt: {
-    gap: theme.spacing.sm,
-    borderRadius: theme.radius.md,
-    backgroundColor: colors.surface,
-    padding: theme.spacing.md
-  },
-  createCirclePromptText: {
-    color: colors.text,
-    fontSize: 15,
-    fontWeight: "600"
-  },
-  createCircleActions: {
-    flexDirection: "row",
-    gap: theme.spacing.sm
   },
   });
 }
