@@ -26,6 +26,8 @@ import { deleteAllReconnectCombinationTemplates, deleteAllReconnectTemplates } f
 import { deleteAllDrafts } from "@/services/messageDraftService";
 import { deleteAllWiderWorldPlatforms } from "@/services/widerWorldSettingsService";
 import { deleteAllEmailOAuthTokens } from "@/services/emailOAuthService";
+import { deleteAllSuggestedPhrases } from "@/services/suggestedPhrasesService";
+import { deleteAllUpdateCombinationTemplates, deleteAllUpdateTemplates } from "@/services/updateTemplateService";
 import { setMemoryEnabled } from "@/services/aiMemoryService";
 import { setHoldPlusActive } from "@/services/holdPlusService";
 import { deleteAiInstallId } from "@/services/aiProxyClient";
@@ -173,6 +175,9 @@ export function SettingsDrawer() {
                 deleteAllDrafts(),
                 deleteAllWiderWorldPlatforms(),
                 deleteAllEmailOAuthTokens(),
+                deleteAllSuggestedPhrases(),
+                deleteAllUpdateTemplates(),
+                deleteAllUpdateCombinationTemplates(),
                 // setMemoryEnabled(false), not deleteAllMemoryNotes() directly — also
                 // clears the Layer-1 "Remember helpful details" toggle itself, not
                 // just the notes it captured, so a wipe doesn't leave it reading "on"
