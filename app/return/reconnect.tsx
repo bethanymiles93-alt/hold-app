@@ -10,12 +10,12 @@ import { DockedFieldPreview } from "@/components/DockedFieldPreview";
 import { MemoryNoteSuggestion } from "@/components/MemoryNoteSuggestion";
 import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
 import { HoldMark } from "@/components/HoldMark";
-import { PersonaliseCandidateList } from "@/components/PersonaliseCandidateList";
+import { ConversationsView } from "@/components/ConversationsView";
 import { PENDING_CIRCLE_ID_PREFIX } from "@/components/GroupPicker";
 import { NEWLY_ADDED_APOLOGY_PHRASE } from "@/services/circleService";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
-import { usePersonaliseCompletion } from "@/hooks/usePersonaliseCompletion";
+import { useConversations } from "@/hooks/useConversations";
 import { useHoldFlow } from "@/context/HoldFlowContext";
 import {
   addToReconnectingAudience,
@@ -85,7 +85,35 @@ export default function ReconnectScreen() {
   // dropdown-arrow "reveal on demand" pattern used elsewhere. See
   // docs/09-decision-log.md, 2026-08-12.
   const [notNowCollapsed, setNotNowCollapsed] = useState(false);
-  const personalise = usePersonaliseCompletion();
+  /**
+   * Same Conversations implementation Library's own standalone tab uses
+   * (2026-08-20 unification) — scoped to just this period's own audience,
+   * both Circle members and ungrouped contacts, rather than a separate
+   * bespoke Personalise-only list. onPersonAction records this session's
+   * "personalise_completed" step, same as the old onSent wiring did. See
+   * docs/09-decision-log.md.
+   */
+  const conversationsCandidates = period
+    ? [
+        ...(period.audienceCircles ?? []).flatMap((circle) =>
+          circle.contacts.map((contact) => ({
+            name: contact.name,
+            phoneNumber: contact.phoneNumber,
+            circleId: circle.circleId,
+            circleName: circle.circleName
+          }))
+        ),
+        ...(period.audienceUngrouped ?? []).map((contact) => ({
+          name: contact.name,
+          phoneNumber: contact.phoneNumber,
+          circleId: null,
+          circleName: null
+        }))
+      ]
+    : [];
+  const conversations = useConversations({ candidates: conversationsCandidates }, () => {
+    if (period) void recordReconnectStepReached(period.id, "personalise_completed");
+  });
 
   /**
    * Per-person pill-selection model (2026-08-13), replacing the old
@@ -476,11 +504,7 @@ export default function ReconnectScreen() {
     setShowPersonalise(true);
     if (!period) return;
 
-    const phoneNumbers = [
-      ...(period.audienceCircles ?? []).flatMap((circle) => circle.contacts.map((contact) => contact.phoneNumber)),
-      ...(period.audienceUngrouped ?? []).map((contact) => contact.phoneNumber)
-    ];
-    void personalise.loadAlreadySeeded(phoneNumbers);
+    void conversations.refresh();
   };
 
   /**
@@ -742,21 +766,42 @@ export default function ReconnectScreen() {
                 : undefined
             }
           />
-        ) : personalise.replyTarget ? (
+        ) : conversations.personaliseReplyTarget ? (
           <DockedInputBar
-            value={personalise.drafts[personalise.replyTarget.personId] ?? ""}
-            onChangeText={personalise.replyTarget.onChangeText}
-            onDone={personalise.closeReply}
+            value={conversations.personaliseDrafts[conversations.personaliseReplyTarget.personId] ?? ""}
+            onChangeText={conversations.personaliseReplyTarget.onChangeText}
+            onDone={() => conversations.setPersonaliseReplyTarget(null)}
             placeholder="Your reply"
             accessibilityLabel="Your reply"
             aiAmend={{
               surface: "conversations-reply",
-              context: { friendMessage: personalise.replyTarget.friendMessage }
+              context: { friendMessage: conversations.personaliseReplyTarget.friendMessage }
             }}
             extraPhrases={
-              personalise.people.find((person) => person.id === personalise.replyTarget?.personId)?.circleId?.startsWith(
-                PENDING_CIRCLE_ID_PREFIX
-              )
+              conversations.people
+                .find((person) => person.id === conversations.personaliseReplyTarget?.personId)
+                ?.circleId?.startsWith(PENDING_CIRCLE_ID_PREFIX)
+                ? [NEWLY_ADDED_APOLOGY_PHRASE]
+                : []
+            }
+          />
+        ) : conversations.activeField ? (
+          <DockedInputBar
+            value={conversations.activeFieldValue()}
+            onChangeText={conversations.setActiveFieldValue}
+            onDone={() => conversations.setActiveField(null)}
+            placeholder={conversations.activeFieldLabel()}
+            accessibilityLabel={conversations.activeFieldLabel()}
+            aiAmend={
+              conversations.activeIndividualPerson
+                ? {
+                    surface: "conversations-reply",
+                    context: { recipientLabel: conversations.activeIndividualPerson.name }
+                  }
+                : undefined
+            }
+            extraPhrases={
+              conversations.activeIndividualPerson?.circleId?.startsWith(PENDING_CIRCLE_ID_PREFIX)
                 ? [NEWLY_ADDED_APOLOGY_PHRASE]
                 : []
             }
@@ -1140,23 +1185,14 @@ export default function ReconnectScreen() {
           ) : null}
         </View>
 
-        {showPersonalise ? (
-          <PersonaliseCandidateList
-            people={personalise.people}
-            expandedId={personalise.expandedId}
-            onToggle={personalise.toggle}
-            onSent={() => {
-              if (period) void recordReconnectStepReached(period.id, "personalise_completed");
-              void refresh();
-            }}
-            drafts={personalise.drafts}
-            onChangeDraft={personalise.onChangeDraft}
-            styles={personalise.styles}
-            onChangeStyle={personalise.onChangeStyle}
-            replyTargetPersonId={personalise.replyTarget?.personId ?? null}
-            onActivateReply={personalise.activateReply}
-          />
-        ) : null}
+        {/* Same Conversations implementation Library's own standalone tab
+            renders — "flat" mode, since this period's audience is already
+            fixed (no browsing/selection step needed, unlike Library's own
+            potentially-much-larger, unscoped list). onSentFromAccordion
+            already records this session's "personalise_completed" step via
+            the onPersonAction callback passed to useConversations above.
+            See docs/09-decision-log.md, 2026-08-20. */}
+        {showPersonalise ? <ConversationsView conversations={conversations} mode="flat" /> : null}
 
         <View style={styles.sendRow}>
           {/* The one exit control on this screen — never a send trigger.

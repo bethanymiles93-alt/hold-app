@@ -16,18 +16,25 @@ import type { ReturnStyle } from "@/types/hold";
 
 export const DEFAULT_QUICK_MESSAGE = QUICK_RECONNECT_MESSAGES[0]?.text ?? "";
 
+export interface ConversationsCandidate {
+  name: string;
+  phoneNumber: string;
+  /** null for an ungrouped audience member — seedPersonaliseRecipient needs a real Circle id, so these seed via addPerson instead. */
+  circleId: string | null;
+  circleName: string | null;
+}
+
 /**
  * Who this instance shows — `"all"` for Library's own standalone
  * Conversations tab (unscoped, everyone ever added), or a specific set of
  * candidates for an embedded, period-scoped view (Reconnect's own
- * "want to reply to anyone properly?" step). Candidates are seeded into
- * conversationService's store idempotently (matches the existing
+ * "want to reply to anyone properly?" step, including its own ungrouped
+ * audience members). Candidates are seeded into conversationService's
+ * store idempotently (matches the existing
  * usePersonaliseCompletion.seedAndLoad behaviour, now generalised) —
  * harmless to re-seed someone already there.
  */
-export type ConversationsScope =
-  | "all"
-  | { candidates: { name: string; phoneNumber: string; circleId: string; circleName: string }[] };
+export type ConversationsScope = "all" | { candidates: ConversationsCandidate[] };
 
 export interface CircleSection {
   circleId: string;
@@ -100,7 +107,16 @@ export function useConversations(scope: ConversationsScope, onPersonAction?: () 
   const refresh = useCallback(async () => {
     if (scope !== "all") {
       for (const candidate of scope.candidates) {
-        await seedPersonaliseRecipient(candidate);
+        if (candidate.circleId) {
+          await seedPersonaliseRecipient({
+            name: candidate.name,
+            phoneNumber: candidate.phoneNumber,
+            circleId: candidate.circleId,
+            circleName: candidate.circleName ?? "Circle"
+          });
+        } else {
+          await addPerson({ name: candidate.name, phoneNumber: candidate.phoneNumber });
+        }
       }
     }
 
