@@ -10,7 +10,7 @@ import { isMemoryEnabled, setMemoryEnabled } from "@/services/aiMemoryService";
 const HOLD_PLUS_SECTIONS = [
   {
     title: "What Hold+ would add",
-    body: "Unlimited AI-assisted drafting. AI personalisation that learns your writing style and can use saved messages as context. Richer Patterns, including seasonal trends, recurring timing, and longer-term summaries. Optional encrypted sync, so your Circles, Library, History and Patterns are available on a second device."
+    body: "Unlimited AI-assisted drafting. AI personalisation that learns your writing style and can use saved messages as context. Richer Patterns, including seasonal trends, recurring timing, and longer-term summaries."
   },
   {
     title: "Fair by design",
@@ -27,8 +27,9 @@ const AMEND_EXAMPLE = {
 };
 
 const PRICING_ROWS = [
-  { label: "Annual", founding: "£17.99/year (≈ £1.50/month)", standard: "£29.99/year (≈ £2.50/month)" },
-  { label: "Monthly", founding: "£1.99/month", standard: "£2.99/month" }
+  { label: "First 3 months", value: "£4.50 one-time" },
+  { label: "Then, monthly", value: "£3.49/month" },
+  { label: "Then, yearly", value: "£19.99/year" }
 ];
 
 export default function HoldPlusScreen() {
@@ -115,22 +116,16 @@ export default function HoldPlusScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.title}>Founding Member pricing</Text>
+          <Text style={styles.title}>Pricing</Text>
           <Text style={styles.body}>
-            Founding Members keep their annual price for as long as their subscription stays
-            active — a reward for early supporters, not a limited-time discount that expires.
+            A one-time £4.50 covers your first 3 months. After that, it continues at whichever
+            you choose — monthly or yearly.
           </Text>
           <View style={styles.pricingTable}>
-            <View style={styles.pricingRow}>
-              <Text style={styles.pricingHeaderCell} />
-              <Text style={styles.pricingHeaderCell}>Founding Member</Text>
-              <Text style={styles.pricingHeaderCell}>Standard, later</Text>
-            </View>
             {PRICING_ROWS.map((row) => (
               <View key={row.label} style={styles.pricingRow}>
                 <Text style={styles.pricingLabelCell}>{row.label}</Text>
-                <Text style={styles.pricingValueCell}>{row.founding}</Text>
-                <Text style={styles.pricingValueCell}>{row.standard}</Text>
+                <Text style={styles.pricingValueCell}>{row.value}</Text>
               </View>
             ))}
           </View>
@@ -224,13 +219,6 @@ function createStyles(colors: ThemeColors) {
       flexDirection: "row",
       borderBottomWidth: 1,
       borderBottomColor: colors.border
-    },
-    pricingHeaderCell: {
-      flex: 1,
-      color: colors.textMuted,
-      fontSize: 12,
-      fontWeight: "600",
-      padding: theme.spacing.sm
     },
     pricingLabelCell: {
       flex: 1,
