@@ -1,6 +1,7 @@
 import * as SecureStore from "expo-secure-store";
 import { initialsPlaceholderName, PENDING_CIRCLE_ID_PREFIX } from "@/services/circleService";
-import type { AudienceCircle, HoldPeriod, ReachedVia, ReconnectStep } from "@/types/hold";
+import { combinationKey } from "@/services/templateService";
+import type { AudienceCircle, HoldPeriod, LinkedCircleSet, ReachedVia, ReconnectStep } from "@/types/hold";
 
 const INDEX_KEY = "hold.history.index";
 const OPEN_KEY = "hold.history.open";
@@ -341,6 +342,53 @@ export async function markUpdateSent(circleId: string): Promise<void> {
   if (existing.includes(circleId)) return;
 
   await writeRecord({ ...period, updateSentCircleIds: [...existing, circleId] });
+}
+
+/**
+ * Records that these Circles were just sent one combined message together
+ * — Going Quiet's own trigger for the linked-circles (Olympic-rings)
+ * mechanic already built for Taking Time's "Send an Update", extended to
+ * fire here too. Reads OPEN_KEY directly rather than taking a periodId,
+ * matching markUpdateSent's own pattern just above — this only ever fires
+ * from Going Quiet's send path, while its period is still open. Appends
+ * rather than merging/overwriting (same as Taking Time's own combination-
+ * template writes) — resolveLinkedClusters resolves "most recent wins per
+ * Circle" at read time, so this never needs to reconcile with older
+ * records itself. No-op below two Circles; there's nothing to link.
+ */
+export async function linkCirclesInPeriod(circleIds: string[]): Promise<void> {
+  if (circleIds.length < 2) return;
+
+  const openId = await SecureStore.getItemAsync(OPEN_KEY);
+  if (!openId) return;
+
+  const period = await readRecord(openId);
+  if (!period) return;
+
+  const existing = period.linkedCircleSets ?? [];
+  const nextSet: LinkedCircleSet = { combinationKey: combinationKey(circleIds), circleIds, updatedAt: Date.now() };
+  await writeRecord({ ...period, linkedCircleSets: [...existing, nextSet] });
+}
+
+/**
+ * Sets whether a linked cluster is currently grouped or ungrouped, keyed by
+ * its combinationKey — persisted on the period itself (not session-local
+ * like Taking Time's own `ungroupedKeys`) so the choice carries forward
+ * across screens within the same period: Reconnect's instant-message
+ * screen and Conversations both read `ungroupedLinkKeys` directly rather
+ * than keeping their own separate decision. Takes an explicit periodId
+ * (unlike linkCirclesInPeriod above) since this can fire from Reconnect,
+ * well after the period that created the link has closed.
+ */
+export async function setLinkClusterGrouped(periodId: string, key: string, grouped: boolean): Promise<void> {
+  const period = await readRecord(periodId);
+  if (!period) return;
+
+  const current = new Set(period.ungroupedLinkKeys ?? []);
+  if (grouped) current.delete(key);
+  else current.add(key);
+
+  await writeRecord({ ...period, ungroupedLinkKeys: [...current] });
 }
 
 /**

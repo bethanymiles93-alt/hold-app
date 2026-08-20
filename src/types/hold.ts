@@ -151,6 +151,37 @@ export interface HoldPeriod {
   reconnectStepsReached?: ReconnectStep[];
   /** How each person was reached this session — see ReachedVia. Keyed by phone number. */
   reconnectReachedVia?: Record<string, { at: number; via: ReachedVia }>;
+  /**
+   * Circles combined-sent together this period — Going Quiet's own trigger
+   * for the linked-circles (Olympic-rings) mechanic already built for
+   * Taking Time's "Send an Update". **Period-scoped, not a standing
+   * relationship between Circles**: a new Hold period starts with no
+   * inherited links, even if the same Circles are combined-sent again
+   * later — that's a fresh link for the new period (direct instruction,
+   * corrects an earlier "permanent per circle-set" framing this session
+   * floated and the user then reversed). Keeps every historical record
+   * rather than merging/overwriting on write, same as Taking Time's own
+   * `UpdateCombinationTemplateRecord` — resolveLinkedClusters (see
+   * src/utils/linkedCircleClusters.ts) resolves "most recent wins per
+   * Circle" at read time. See docs/09-decision-log.md.
+   */
+  linkedCircleSets?: LinkedCircleSet[];
+  /**
+   * combinationKeys the person has explicitly ungrouped this period —
+   * persisted (not session-local like Taking Time's own `ungroupedKeys`,
+   * which deliberately resets every time that drawer reopens) so the
+   * choice carries forward across screens within the same period:
+   * Reconnect's instant-message screen and Conversations both read this
+   * same field rather than each keeping their own separate decision.
+   */
+  ungroupedLinkKeys?: string[];
+}
+
+/** One combined-send record — see HoldPeriod.linkedCircleSets. */
+export interface LinkedCircleSet {
+  combinationKey: string;
+  circleIds: string[];
+  updatedAt: number;
 }
 
 export interface CircleContact {

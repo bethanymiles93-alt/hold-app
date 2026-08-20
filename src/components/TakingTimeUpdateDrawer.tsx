@@ -4,6 +4,7 @@ import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { BottomSheetDrawer } from "@/components/BottomSheetDrawer";
 import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
+import { LinkedCircleCluster, LinkGroupToggle, type LinkedClusterMember } from "@/components/LinkedCircleCluster";
 import { CompactSendButton } from "@/components/CompactSendButton";
 import { combinationKey } from "@/services/templateService";
 import {
@@ -237,16 +238,21 @@ export function TakingTimeUpdateDrawer({ visible, onClose, period, onSent }: Tak
               const cluster = clusterFor(circle.circleId);
               if (cluster) {
                 for (const id of cluster) rendered.add(id);
+                const members: LinkedClusterMember[] = audienceCircles
+                  .filter((c) => cluster.includes(c.circleId))
+                  .map((c) => ({
+                    circleId: c.circleId,
+                    circleName: c.circleName,
+                    isSelected: selectedCircleIds.has(c.circleId),
+                    hasSentThisSession: sentCircleIds.includes(c.circleId),
+                    isExpanded: expandedCircleIds.has(c.circleId)
+                  }));
                 return (
-                  <LinkedCluster
+                  <LinkedCircleCluster
                     key={combinationKey(cluster)}
-                    circles={audienceCircles.filter((c) => cluster.includes(c.circleId))}
-                    selectedCircleIds={selectedCircleIds}
-                    sentCircleIds={sentCircleIds}
-                    expandedCircleIds={expandedCircleIds}
+                    members={members}
                     onToggle={() => toggleCircle(circle.circleId)}
                     onToggleArrow={toggleArrow}
-                    colors={colors}
                   />
                 );
               }
@@ -274,12 +280,10 @@ export function TakingTimeUpdateDrawer({ visible, onClose, period, onSent }: Tak
           })()}
         </View>
 
-        {showGroupToggle ? (
-          <Text
-            accessibilityRole="button"
-            style={styles.groupToggle}
+        {showGroupToggle && selectedClusterKey ? (
+          <LinkGroupToggle
+            grouped={!ungroupedKeys.has(selectedClusterKey)}
             onPress={() => {
-              if (!selectedClusterKey) return;
               setUngroupedKeys((current) => {
                 const next = new Set(current);
                 if (next.has(selectedClusterKey)) next.delete(selectedClusterKey);
@@ -287,9 +291,7 @@ export function TakingTimeUpdateDrawer({ visible, onClose, period, onSent }: Tak
                 return next;
               });
             }}
-          >
-            {selectedClusterKey && ungroupedKeys.has(selectedClusterKey) ? "Group" : "Ungroup"}
-          </Text>
+          />
         ) : null}
 
         {pillPeople.length > 0 ? (
@@ -348,72 +350,6 @@ export function TakingTimeUpdateDrawer({ visible, onClose, period, onSent }: Tak
   );
 }
 
-function LinkedCluster({
-  circles,
-  selectedCircleIds,
-  sentCircleIds,
-  expandedCircleIds,
-  onToggle,
-  onToggleArrow,
-  colors
-}: {
-  circles: AudienceCircle[];
-  selectedCircleIds: Set<string>;
-  sentCircleIds: string[];
-  expandedCircleIds: Set<string>;
-  onToggle: () => void;
-  onToggleArrow: (circleId: string) => void;
-  colors: ThemeColors;
-}) {
-  const isSelected = circles.every((circle) => selectedCircleIds.has(circle.circleId));
-  const styles = createStyles(colors);
-
-  return (
-    <View style={styles.clusterUnit}>
-      <View style={clusterLineStyle(colors, isSelected)} />
-      <View style={styles.clusterRow}>
-        {circles.map((circle, index) => (
-          <View key={circle.circleId} style={[styles.clusterChip, index > 0 && styles.clusterChipOverlap]}>
-            <AdaptiveCircleChip
-              label={circle.circleName}
-              isSelected={selectedCircleIds.has(circle.circleId)}
-              hasSentThisSession={sentCircleIds.includes(circle.circleId)}
-              onPress={onToggle}
-              accessibilityRole="button"
-            />
-            <Text accessibilityRole="button" onPress={() => onToggleArrow(circle.circleId)} style={localStyles.arrow}>
-              {expandedCircleIds.has(circle.circleId) ? "▲" : "▼"}
-            </Text>
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-}
-
-const localStyles = StyleSheet.create({
-  arrow: {
-    textAlign: "center",
-    fontSize: 12
-  }
-});
-
-/**
- * A plain inline style object, not a StyleSheet.create entry — it needs a
- * runtime argument (whether this cluster is currently grouped), which
- * StyleSheet.create's static registration doesn't support.
- */
-function clusterLineStyle(colors: ThemeColors, grouped: boolean) {
-  return {
-    position: "absolute" as const,
-    top: 45,
-    left: 20,
-    right: 20,
-    height: 2,
-    backgroundColor: grouped ? colors.primary : colors.border,
-    opacity: grouped ? 1 : 0.5
-  };
-}
 
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
@@ -435,12 +371,6 @@ function createStyles(colors: ThemeColors) {
       fontSize: 12,
       color: colors.textMuted,
       textAlign: "center"
-    },
-    groupToggle: {
-      alignSelf: "flex-start",
-      color: colors.link,
-      fontSize: 13,
-      fontWeight: "600"
     },
     pillRow: {
       flexDirection: "row",
@@ -476,23 +406,6 @@ function createStyles(colors: ThemeColors) {
       color: colors.link,
       fontSize: 13,
       fontWeight: "600"
-    },
-    // Instant snap, no animation, per direct instruction — a future calm
-    // separation animation (no bounce, respecting Reduce Motion) is logged
-    // as a design idea, not built. See docs/09-decision-log.md, 2026-08-13.
-    clusterUnit: {
-      alignItems: "center"
-    },
-    clusterRow: {
-      flexDirection: "row",
-      alignItems: "center"
-    },
-    clusterChip: {
-      alignItems: "center",
-      gap: 2
-    },
-    clusterChipOverlap: {
-      marginLeft: -18
     }
   });
 }

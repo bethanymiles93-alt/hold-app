@@ -11,12 +11,15 @@ import { MemoryNoteSuggestion } from "@/components/MemoryNoteSuggestion";
 import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
 import { HoldMark } from "@/components/HoldMark";
 import { ConversationsView } from "@/components/ConversationsView";
+import { LinkedCircleCluster, LinkGroupToggle, type LinkedClusterMember } from "@/components/LinkedCircleCluster";
 import { PENDING_CIRCLE_ID_PREFIX } from "@/components/GroupPicker";
 import { NEWLY_ADDED_APOLOGY_PHRASE } from "@/services/circleService";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { useConversations } from "@/hooks/useConversations";
 import { useHoldFlow } from "@/context/HoldFlowContext";
+import { resolveLinkedClusters } from "@/utils/linkedCircleClusters";
+import { combinationKey } from "@/services/templateService";
 import {
   addToReconnectingAudience,
   beginReconnecting,
@@ -29,7 +32,8 @@ import {
   recordReconnectStepReached,
   recordSendChannel,
   renameCircleInPeriod,
-  resolvePendingCircleInPeriod
+  resolvePendingCircleInPeriod,
+  setLinkClusterGrouped
 } from "@/services/holdHistoryService";
 import {
   getAll as getAllConversationPeople,
@@ -111,9 +115,21 @@ export default function ReconnectScreen() {
         }))
       ]
     : [];
-  const conversations = useConversations({ candidates: conversationsCandidates }, () => {
-    if (period) void recordReconnectStepReached(period.id, "personalise_completed");
-  });
+  // linkedCircleSets/ungroupedLinkKeys carry the linked-circles
+  // grouped/ungrouped choice made above, in the circle row, into
+  // Conversations too (2026-08-21) — "reflects whatever state was left at
+  // Reconnect's instant-message stage," not a separate decision point.
+  // See docs/09-decision-log.md.
+  const conversations = useConversations(
+    {
+      candidates: conversationsCandidates,
+      linkedCircleSets: period?.linkedCircleSets,
+      ungroupedLinkKeys: period?.ungroupedLinkKeys
+    },
+    () => {
+      if (period) void recordReconnectStepReached(period.id, "personalise_completed");
+    }
+  );
 
   /**
    * Per-person pill-selection model (2026-08-13), replacing the old
@@ -360,25 +376,39 @@ export default function ReconnectScreen() {
   };
 
   /**
-   * Single bulk toggle, no multi-tap cycle: if this Circle currently has
-   * any included person, tapping excludes all of them; otherwise it
-   * includes all of them. Also expands the Circle (so the effect is
-   * visible) — the chip never collapses one, only the arrow does that.
-   * Deliberately does not lock on its own; this is an in-row adjustment,
-   * same as an individual pill tap.
+   * Single bulk toggle, no multi-tap cycle: if any of these Circles
+   * currently has any included person, tapping excludes all of them
+   * across every Circle given; otherwise it includes all of them. Also
+   * expands every Circle given (so the effect is visible) — the chip
+   * never collapses one, only the arrow does that. Deliberately does not
+   * lock on its own; this is an in-row adjustment, same as an individual
+   * pill tap. Takes an array so a still-grouped linked cluster (2026-08-21)
+   * can toggle every member Circle together as one unit — the cluster
+   * itself is what's being selected, not any one member alone — while a
+   * plain, unclustered Circle just passes its own single-item array.
    */
-  const toggleCircleChip = (circle: AudienceCircle) => {
-    const anyIncluded = circle.contacts.some((contact) => includedPersonIds.has(contact.phoneNumber));
+  const toggleCircleGroup = (circles: AudienceCircle[]) => {
+    const anyIncluded = circles.some((circle) =>
+      circle.contacts.some((contact) => includedPersonIds.has(contact.phoneNumber))
+    );
     setIncludedPersonIds((current) => {
       const next = new Set(current);
-      for (const contact of circle.contacts) {
-        if (anyIncluded) next.delete(contact.phoneNumber);
-        else next.add(contact.phoneNumber);
+      for (const circle of circles) {
+        for (const contact of circle.contacts) {
+          if (anyIncluded) next.delete(contact.phoneNumber);
+          else next.add(contact.phoneNumber);
+        }
       }
       return next;
     });
-    setExpandedCircleIds((current) => new Set(current).add(circle.circleId));
+    setExpandedCircleIds((current) => {
+      const next = new Set(current);
+      for (const circle of circles) next.add(circle.circleId);
+      return next;
+    });
   };
+
+  const toggleCircleChip = (circle: AudienceCircle) => toggleCircleGroup([circle]);
 
   const togglePersonIncluded = (phoneNumber: string) => {
     setIncludedPersonIds((current) => {
@@ -726,6 +756,59 @@ export default function ReconnectScreen() {
     return [...sent, ...notYetSentCircles];
   })();
 
+  /**
+   * Linked circles (Olympic-rings) — Circles combined-sent together this
+   * period via Going Quiet's own send (see HoldPeriod.linkedCircleSets),
+   * carried forward here using the identical shared component/logic
+   * Taking Time's "Send an Update" already uses. Period-scoped, not a
+   * standing relationship between these Circles (a new Hold period starts
+   * with no inherited links). Ungrouping is persisted on the period itself
+   * (ungroupedLinkKeys), not session-local, so the choice also carries
+   * forward into Conversations rather than resetting per screen-open. See
+   * docs/09-decision-log.md, 2026-08-21.
+   */
+  const linkedClusters = resolveLinkedClusters(
+    period.linkedCircleSets ?? [],
+    new Set(audienceCircles.map((circle) => circle.circleId))
+  );
+  const ungroupedLinkKeys = new Set(period.ungroupedLinkKeys ?? []);
+  const clusterFor = (circleId: string): string[] | null => {
+    const cluster = linkedClusters.find((ids) => ids.includes(circleId));
+    if (!cluster) return null;
+    return ungroupedLinkKeys.has(combinationKey(cluster)) ? null : cluster;
+  };
+  const clusterFullyIncluded = (circleIds: string[]): boolean =>
+    circleIds.every((circleId) => {
+      const circle = audienceCircles.find((c) => c.circleId === circleId);
+      return (
+        !!circle && circle.contacts.length > 0 && circle.contacts.every((contact) => includedPersonIds.has(contact.phoneNumber))
+      );
+    });
+  // The one cluster (if any) currently selected together, in the same
+  // sense Taking Time's own `showGroupToggle` means it — every member
+  // Circle's people all included at once. Only one toggle shows at a time,
+  // matching that established single-toggle-for-the-current-selection
+  // shape even though Reconnect's own selection is derived from per-person
+  // inclusion rather than an explicit Set of selected Circle ids.
+  const fullySelectedCluster =
+    linkedClusters.find((circleIds) => !ungroupedLinkKeys.has(combinationKey(circleIds)) && clusterFullyIncluded(circleIds)) ??
+    null;
+
+  const toggleLinkGroup = (circleIds: string[]) => {
+    if (!period) return;
+    const key = combinationKey(circleIds);
+    const currentlyGrouped = !(period.ungroupedLinkKeys ?? []).includes(key);
+    void (async () => {
+      await setLinkClusterGrouped(period.id, key, !currentlyGrouped);
+      // A direct re-fetch, not the full refresh() — refresh() also resets
+      // includedPersonIds/pillLockedIds on every call (2026-08-21 fix for
+      // items 7/9), which would wipe the person's current pill selection
+      // as a side effect of nothing more than a Group/Ungroup tap.
+      const updated = await getHoldPeriodById(period.id);
+      if (updated) setPeriod(updated);
+    })();
+  };
+
   // One continuous screen throughout, not a page-swap once everyone's been
   // reached (2026-08-12) — reaching full coverage used to render an
   // entirely different Screen tree (new header, no circle row, no message
@@ -879,52 +962,102 @@ export default function ReconnectScreen() {
                 />
               ) : null}
 
-              {orderedAudienceCircles.map((circle) => {
-                const isExpanded = expandedCircleIds.has(circle.circleId);
-                const allIncluded =
-                  circle.contacts.length > 0 &&
-                  circle.contacts.every((contact) => includedPersonIds.has(contact.phoneNumber));
-                const hasSentThisSession =
-                  circle.contacts.length > 0 &&
-                  circle.contacts.every((contact) => coverage.contactedIds.includes(contact.phoneNumber));
+              {(() => {
+                const rendered = new Set<string>();
+                return orderedAudienceCircles.map((circle) => {
+                  if (rendered.has(circle.circleId)) return null;
 
-                return (
-                  <View key={circle.circleId} style={styles.circleUnit}>
-                    <AdaptiveCircleChip
-                      label={circle.circleName}
-                      isSelected={allIncluded}
-                      hasSentThisSession={hasSentThisSession}
-                      notYetSent={coverage.complete && !hasSentThisSession}
-                      newlyAdded={circle.circleId.startsWith(PENDING_CIRCLE_ID_PREFIX)}
-                      onPress={() => toggleCircleChip(circle)}
-                      accessibilityRole="button"
-                      accessibilityLabel={
-                        circle.circleId.startsWith(PENDING_CIRCLE_ID_PREFIX)
-                          ? `${circle.circleName}, added now, wasn't told when you went quiet. ${allIncluded ? "Tap to exclude." : "Tap to include."}`
-                          : allIncluded
-                            ? `${circle.circleName}, everyone included. Tap to exclude everyone.`
-                            : `${circle.circleName}. Tap to include everyone.`
-                      }
-                    />
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`${circle.circleName}, ${isExpanded ? "hide" : "show"} people`}
-                      accessibilityState={{ expanded: isExpanded }}
-                      hitSlop={8}
-                      onPress={() => toggleCircleArrow(circle.circleId)}
-                      style={styles.arrowButton}
-                    >
-                      {({ pressed }) => (
-                        <View style={[styles.arrowBadge, pressed && styles.arrowPressed]}>
-                          <Text style={styles.arrowGlyph}>{isExpanded ? "▲" : "▼"}</Text>
-                        </View>
-                      )}
-                    </Pressable>
-                  </View>
-                );
-              })}
+                  const cluster = clusterFor(circle.circleId);
+                  if (cluster) {
+                    for (const id of cluster) rendered.add(id);
+                    const memberCircles = cluster
+                      .map((id) => audienceCircles.find((c) => c.circleId === id))
+                      .filter((c): c is AudienceCircle => c !== undefined);
+                    const members: LinkedClusterMember[] = memberCircles.map((c) => ({
+                      circleId: c.circleId,
+                      circleName: c.circleName,
+                      isSelected:
+                        c.contacts.length > 0 && c.contacts.every((contact) => includedPersonIds.has(contact.phoneNumber)),
+                      hasSentThisSession:
+                        c.contacts.length > 0 &&
+                        c.contacts.every((contact) => coverage.contactedIds.includes(contact.phoneNumber)),
+                      newlyAdded: c.circleId.startsWith(PENDING_CIRCLE_ID_PREFIX),
+                      isExpanded: expandedCircleIds.has(c.circleId)
+                    }));
+                    return (
+                      <LinkedCircleCluster
+                        key={combinationKey(cluster)}
+                        members={members}
+                        onToggle={() => toggleCircleGroup(memberCircles)}
+                        onToggleArrow={toggleCircleArrow}
+                      />
+                    );
+                  }
+
+                  rendered.add(circle.circleId);
+                  const isExpanded = expandedCircleIds.has(circle.circleId);
+                  const allIncluded =
+                    circle.contacts.length > 0 &&
+                    circle.contacts.every((contact) => includedPersonIds.has(contact.phoneNumber));
+                  const hasSentThisSession =
+                    circle.contacts.length > 0 &&
+                    circle.contacts.every((contact) => coverage.contactedIds.includes(contact.phoneNumber));
+
+                  return (
+                    <View key={circle.circleId} style={styles.circleUnit}>
+                      <AdaptiveCircleChip
+                        label={circle.circleName}
+                        isSelected={allIncluded}
+                        hasSentThisSession={hasSentThisSession}
+                        notYetSent={coverage.complete && !hasSentThisSession}
+                        newlyAdded={circle.circleId.startsWith(PENDING_CIRCLE_ID_PREFIX)}
+                        onPress={() => toggleCircleChip(circle)}
+                        accessibilityRole="button"
+                        accessibilityLabel={
+                          circle.circleId.startsWith(PENDING_CIRCLE_ID_PREFIX)
+                            ? `${circle.circleName}, added now, wasn't told when you went quiet. ${allIncluded ? "Tap to exclude." : "Tap to include."}`
+                            : allIncluded
+                              ? `${circle.circleName}, everyone included. Tap to exclude everyone.`
+                              : `${circle.circleName}. Tap to include everyone.`
+                        }
+                      />
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`${circle.circleName}, ${isExpanded ? "hide" : "show"} people`}
+                        accessibilityState={{ expanded: isExpanded }}
+                        hitSlop={8}
+                        onPress={() => toggleCircleArrow(circle.circleId)}
+                        style={styles.arrowButton}
+                      >
+                        {({ pressed }) => (
+                          <View style={[styles.arrowBadge, pressed && styles.arrowPressed]}>
+                            <Text style={styles.arrowGlyph}>{isExpanded ? "▲" : "▼"}</Text>
+                          </View>
+                        )}
+                      </Pressable>
+                    </View>
+                  );
+                });
+              })()}
             </ScrollView>
           </View>
+
+          {/*
+           * Linked-circles Group/Ungroup toggle — the identical shared
+           * component/toggle Taking Time's "Send an Update" already uses,
+           * extended here (2026-08-21): appears only when a linked
+           * cluster's Circles are currently all included together.
+           * Persisted via setLinkClusterGrouped (period.ungroupedLinkKeys),
+           * not session-local, so the choice carries forward into
+           * Conversations rather than resetting on reopen. See
+           * docs/09-decision-log.md.
+           */}
+          {fullySelectedCluster ? (
+            <LinkGroupToggle
+              grouped={!ungroupedLinkKeys.has(combinationKey(fullySelectedCluster))}
+              onPress={() => toggleLinkGroup(fullySelectedCluster)}
+            />
+          ) : null}
 
           {/*
            * Excluded line — repositioned above the pill row (corrected

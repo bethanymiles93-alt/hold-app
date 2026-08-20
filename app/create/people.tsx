@@ -25,6 +25,7 @@ import { buildAudienceCircles, useHoldFlow } from "@/context/HoldFlowContext";
 import { createDraft } from "@/services/draftService";
 import {
   getOpenHoldPeriod,
+  linkCirclesInPeriod,
   recordPostSendChoices,
   recordSendChannel,
   startHoldPeriod,
@@ -674,6 +675,15 @@ export default function HoldPeopleScreen() {
     const wasCombo = selectedGroups.length > 1;
     if (wasCombo) {
       await saveCombinationTemplate(selectedGroups.map((group) => group.id), text);
+      // These Circles just received one combined message together — Going
+      // Quiet's own trigger for the linked-circles (Olympic-rings) mechanic
+      // already built for Taking Time's "Send an Update", extended here.
+      // Period-scoped, not a permanent relationship between these Circles
+      // — see HoldPeriod.linkedCircleSets. No cluster rendering added to
+      // Going Quiet itself: it only ever creates the link, never consumes
+      // it (that's Reconnect's instant-message screen and Conversations).
+      // See docs/09-decision-log.md.
+      await linkCirclesInPeriod(selectedGroups.map((group) => group.id));
     }
 
     await refreshPeriod();

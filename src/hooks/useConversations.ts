@@ -12,7 +12,8 @@ import { clearReachedVia, getReconnectingPeriod, recordReachedVia } from "@/serv
 import { pickContact } from "@/services/contactPickerService";
 import { sendOrShare } from "@/services/smsService";
 import { QUICK_RECONNECT_MESSAGES } from "@/constants/copy";
-import type { ReturnStyle } from "@/types/hold";
+import { sortByLinkedClusterAdjacency } from "@/utils/linkedCircleClusters";
+import type { LinkedCircleSet, ReturnStyle } from "@/types/hold";
 
 export const DEFAULT_QUICK_MESSAGE = QUICK_RECONNECT_MESSAGES[0]?.text ?? "";
 
@@ -34,7 +35,22 @@ export interface ConversationsCandidate {
  * usePersonaliseCompletion.seedAndLoad behaviour, now generalised) —
  * harmless to re-seed someone already there.
  */
-export type ConversationsScope = "all" | { candidates: ConversationsCandidate[] };
+export type ConversationsScope =
+  | "all"
+  | {
+      candidates: ConversationsCandidate[];
+      /**
+       * Period-scoped, optional — Reconnect's own instant-message screen is
+       * the only current caller that has these. When present, refresh()
+       * reorders the returned people so members of a still-grouped linked
+       * cluster sit adjacent to each other, reflecting whatever
+       * grouped/ungrouped state was left at Reconnect's stage rather than
+       * treating it as a separate decision point here. See
+       * docs/09-decision-log.md, 2026-08-21.
+       */
+      linkedCircleSets?: LinkedCircleSet[];
+      ungroupedLinkKeys?: string[];
+    };
 
 export interface CircleSection {
   circleId: string;
@@ -128,12 +144,16 @@ export function useConversations(scope: ConversationsScope, onPersonAction?: () 
             const phoneNumbers = new Set(scope.candidates.map((candidate) => candidate.phoneNumber));
             return all.filter((person) => phoneNumbers.has(person.phoneNumber));
           })();
-    setPeople(scoped);
+    const ordered =
+      scope !== "all" && scope.linkedCircleSets
+        ? sortByLinkedClusterAdjacency(scoped, scope.linkedCircleSets, scope.ungroupedLinkKeys ?? [])
+        : scoped;
+    setPeople(ordered);
     // Returned directly, not just set — a caller needing the freshly-fetched
     // list right after awaiting refresh() (e.g. Library's own "everyone's
     // done, redirect to Reconnected" check) can't rely on this hook's own
     // `people` closure updating synchronously within the same function.
-    return scoped;
+    return ordered;
   }, [scope]);
 
   const circleSections = groupByCircle(people);
