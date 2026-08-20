@@ -1,5 +1,5 @@
 import * as SecureStore from "expo-secure-store";
-import { clearStaleFriendMessage, partitionActiveReplies } from "@/services/replyExpiry";
+import { partitionActiveReplies } from "@/services/replyExpiry";
 import type { StoredReply } from "@/types/hold";
 
 const INDEX_KEY = "hold.reply.index";
@@ -51,12 +51,16 @@ export interface ActiveRepliesResult {
 }
 
 /**
- * Reads every stored reply, deleting (and reporting) any whose draft-reply
- * backstop has passed. Expiry is only checked when this runs — there is no
- * guaranteed background timer — so a record can remain at rest, still
- * encrypted, until the app is next opened or foregrounded. Any still-active
- * record whose shorter friend-message window has separately passed gets that
- * one field cleared and rewritten, leaving the user's own reply untouched.
+ * Reads every stored reply, deleting (and reporting) any whose shared
+ * 7-day backstop has passed — friendMessage and draftReply clear together,
+ * on the same clock, no separate earlier window for the pasted-in message
+ * (see hold-book 06-privacy-security/04-content-retention.md, "Draft
+ * retention windows — resolved"; the previous separate, shorter
+ * friend-message clearing and the app-launch clearing trigger are both
+ * "no longer applicable" per that same section, removed 2026-08-21).
+ * Expiry is only checked when this runs — there is no guaranteed
+ * background timer — so a record can remain at rest, still encrypted,
+ * until the app is next opened or foregrounded.
  */
 export async function getActiveReplies(now: number): Promise<ActiveRepliesResult> {
   const ids = await readIndex();
@@ -73,16 +77,7 @@ export async function getActiveReplies(now: number): Promise<ActiveRepliesResult
     await deleteReply(reply.id);
   }
 
-  const settled: StoredReply[] = [];
-  for (const reply of active) {
-    const cleared = clearStaleFriendMessage(reply, now);
-    if (cleared !== reply) {
-      await saveReply(cleared);
-    }
-    settled.push(cleared);
-  }
-
-  return { active: settled, justExpiredIds: expired.map((reply) => reply.id) };
+  return { active, justExpiredIds: expired.map((reply) => reply.id) };
 }
 
 /** A single reply by id, if it exists and hasn't expired. Used to load a person's
@@ -90,20 +85,4 @@ export async function getActiveReplies(now: number): Promise<ActiveRepliesResult
 export async function getReply(id: string): Promise<StoredReply | null> {
   const { active } = await getActiveReplies(Date.now());
   return active.find((reply) => reply.id === id) ?? null;
-}
-
-/**
- * The "app fully closing" trigger for the pasted-in message's short window —
- * call once on app launch. A cold launch is itself the clearing signal, not
- * just elapsed time, so every remaining active record's friend message is
- * blanked unconditionally, on top of the normal expiry sweep.
- */
-export async function clearStaleFriendMessagesOnLaunch(): Promise<void> {
-  const { active } = await getActiveReplies(Date.now());
-
-  for (const reply of active) {
-    if (reply.friendMessage !== "") {
-      await saveReply({ ...reply, friendMessage: "" });
-    }
-  }
 }

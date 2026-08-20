@@ -83,11 +83,26 @@ export const REPLY_STYLES: Array<{
   }
 ];
 
-/** "What they sent" — someone else's words, cheapest to lose, cleared soonest. */
-export const FRIEND_MESSAGE_RETENTION_HOURS = 4;
+/**
+ * Unsaved Going Quiet/Reconnect message edits — device-storage-hygiene
+ * backstop only, never framed to the user as a timer/countdown/deadline.
+ * See hold-book 06-privacy-security/04-content-retention.md, "Draft
+ * retention windows — resolved 2026-08-11". Migrated 2026-08-21 from the
+ * superseded 48-hour model.
+ */
+export const GOING_QUIET_RECONNECT_DRAFT_RETENTION_DAYS = 30;
 
-/** "Your reply" and unsaved Going Quiet/Reconnect edits — the effortful, hard-to-recreate content. */
-export const DRAFT_REPLY_RETENTION_HOURS = 48;
+/**
+ * Conversations reply drafts — "Your reply" AND the paired "What they
+ * sent" field, sharing this one lifecycle. Shorter than the Going
+ * Quiet/Reconnect window specifically because this record includes a
+ * third party's pasted content; the friend's message never expires
+ * earlier than the user's own draft — they clear together, on the same
+ * clock, not on separate schedules. See hold-book
+ * 06-privacy-security/04-content-retention.md. Migrated 2026-08-21 from
+ * the superseded, separately-timed 4-hour/48-hour split.
+ */
+export const CONVERSATIONS_REPLY_RETENTION_DAYS = 7;
 
 /**
  * Safeguarding detection layer — see hold-book 06-privacy-security/03-safeguarding.md.

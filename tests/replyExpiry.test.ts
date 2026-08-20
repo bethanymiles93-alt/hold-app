@@ -1,39 +1,30 @@
 import { describe, expect, it } from "vitest";
-import { clearStaleFriendMessage, partitionActiveReplies } from "../src/services/replyExpiry";
+import { HEADS_UP_WINDOW_MS, needsHeadsUp, partitionActiveReplies } from "../src/services/replyExpiry";
 import type { StoredReply } from "../src/types/hold";
 
-function reply(
-  id: string,
-  draftReplyExpiresAt: number,
-  friendMessageExpiresAt: number = draftReplyExpiresAt
-): StoredReply {
+function reply(id: string, draftReplyExpiresAt: number, overrides: Partial<StoredReply> = {}): StoredReply {
   return {
     id,
     recipientName: "Sam",
     friendMessage: "hey, you around?",
-    friendMessageExpiresAt,
+    friendMessageExpiresAt: draftReplyExpiresAt,
     draftReply: "Thanks for your message.",
     draftReplyExpiresAt,
-    createdAt: 0
+    createdAt: 0,
+    ...overrides
   };
 }
 
 describe("partitionActiveReplies", () => {
   it("keeps replies whose draft-reply backstop has not passed", () => {
-    const { active, expired } = partitionActiveReplies(
-      [reply("a", 2000)],
-      1000
-    );
+    const { active, expired } = partitionActiveReplies([reply("a", 2000)], 1000);
 
     expect(active.map((r) => r.id)).toEqual(["a"]);
     expect(expired).toEqual([]);
   });
 
   it("expires replies at or past their draft-reply backstop", () => {
-    const { active, expired } = partitionActiveReplies(
-      [reply("a", 1000)],
-      1000
-    );
+    const { active, expired } = partitionActiveReplies([reply("a", 1000)], 1000);
 
     expect(active).toEqual([]);
     expect(expired.map((r) => r.id)).toEqual(["a"]);
@@ -49,32 +40,42 @@ describe("partitionActiveReplies", () => {
     expect(expired.map((r) => r.id)).toEqual(["expired"]);
   });
 
-  it("keeps a reply active on its draft-reply timer even once its shorter friend-message window has passed", () => {
-    const { active, expired } = partitionActiveReplies(
-      [reply("a", 5000, 500)],
-      1000
-    );
+  it("friendMessage and draftReply share one expiry — a record is active or expired as a whole, not per field", () => {
+    const { active, expired } = partitionActiveReplies([reply("a", 5000)], 1000);
 
     expect(active.map((r) => r.id)).toEqual(["a"]);
+    expect(active.find((r) => r.id === "a")?.friendMessage).toBe("hey, you around?");
     expect(expired).toEqual([]);
   });
 });
 
-describe("clearStaleFriendMessage", () => {
-  it("leaves the friend message untouched before its window passes", () => {
-    const cleared = clearStaleFriendMessage(reply("a", 5000, 2000), 1000);
-    expect(cleared.friendMessage).toBe("hey, you around?");
+describe("needsHeadsUp", () => {
+  it("is false well before the heads-up window", () => {
+    const now = 0;
+    const draftReplyExpiresAt = HEADS_UP_WINDOW_MS * 3;
+    expect(needsHeadsUp(reply("a", draftReplyExpiresAt), now)).toBe(false);
   });
 
-  it("blanks the friend message once its window has passed, leaving the draft reply intact", () => {
-    const cleared = clearStaleFriendMessage(reply("a", 5000, 500), 1000);
-    expect(cleared.friendMessage).toBe("");
-    expect(cleared.draftReply).toBe("Thanks for your message.");
+  it("is true once within the heads-up window but not yet expired", () => {
+    const now = 0;
+    const draftReplyExpiresAt = HEADS_UP_WINDOW_MS - 1;
+    expect(needsHeadsUp(reply("a", draftReplyExpiresAt), now)).toBe(true);
   });
 
-  it("is a no-op once the friend message is already blank", () => {
-    const original = { ...reply("a", 5000, 500), friendMessage: "" };
-    const cleared = clearStaleFriendMessage(original, 1000);
-    expect(cleared).toBe(original);
+  it("is false once already expired", () => {
+    const now = 1000;
+    expect(needsHeadsUp(reply("a", 1000), now)).toBe(false);
+  });
+
+  it("is false once already shown for this record", () => {
+    const now = 0;
+    const draftReplyExpiresAt = HEADS_UP_WINDOW_MS - 1;
+    expect(needsHeadsUp(reply("a", draftReplyExpiresAt, { headsUpShownAt: now }), now)).toBe(false);
+  });
+
+  it("is false for an already-sent reply — nothing left to warn about", () => {
+    const now = 0;
+    const draftReplyExpiresAt = HEADS_UP_WINDOW_MS - 1;
+    expect(needsHeadsUp(reply("a", draftReplyExpiresAt, { sentAt: now }), now)).toBe(false);
   });
 });

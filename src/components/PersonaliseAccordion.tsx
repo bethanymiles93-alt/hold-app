@@ -8,12 +8,13 @@ import { SafeguardingBanner } from "@/components/SafeguardingBanner";
 import { useSafeguardingCheck } from "@/hooks/useSafeguardingCheck";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
-import { DRAFT_REPLY_RETENTION_HOURS, FRIEND_MESSAGE_RETENTION_HOURS, REPLY_STYLES } from "@/constants/copy";
+import { CONVERSATIONS_REPLY_RETENTION_DAYS, REPLY_STYLES } from "@/constants/copy";
 import { HAS_SEEN_RETENTION_NOTE_KEY } from "@/constants/storageKeys";
 import type { ConversationPerson } from "@/services/conversationService";
 import { sendOrShare } from "@/services/smsService";
 import { createReplyDraft } from "@/services/draftService";
 import { getReply, saveReply } from "@/services/replyStorageService";
+import { needsHeadsUp } from "@/services/replyExpiry";
 import { formatSentLabel } from "@/services/holdHistoryFormat";
 import type { ReturnStyle, StoredReply } from "@/types/hold";
 
@@ -69,6 +70,8 @@ export function PersonaliseAccordion({
   const [friendMessageEditing, setFriendMessageEditing] = useState(true);
   const [status, setStatus] = useState<"none" | "draft" | "sent">("none");
   const [sentAt, setSentAt] = useState<number | null>(null);
+  /** Threaded through every persist() call, same as sentAt above, so it survives the record being rebuilt on every keystroke autosave. See docs/09-decision-log.md, 2026-08-21. */
+  const [headsUpShownAt, setHeadsUpShownAt] = useState<number | undefined>(undefined);
   const safeguardingTriggered = useSafeguardingCheck(draft);
 
   useEffect(() => {
@@ -82,6 +85,25 @@ export function PersonaliseAccordion({
         onChangeDraft(existing.draftReply);
         setStatus(existing.sentAt ? "sent" : "draft");
         setSentAt(existing.sentAt ?? null);
+        setHeadsUpShownAt(existing.headsUpShownAt);
+
+        // Quiet, one-time-per-draft heads-up as this record nears its own
+        // 7-day retention backstop — never a countdown/urgency framing, see
+        // hold-book 06-privacy-security/04-content-retention.md, "Heads-up
+        // before auto-clear".
+        if (needsHeadsUp(existing, Date.now())) {
+          const shownAt = Date.now();
+          setHeadsUpShownAt(shownAt);
+          await saveReply({ ...existing, headsUpShownAt: shownAt });
+          // hold-book's own suggested wording ends "...or save it to Library?" —
+          // adjusted here: no "save a Conversations reply to Library" action
+          // exists anywhere in this component (Library's saved-template
+          // mechanism is Circle-scoped, for Going Quiet/Reconnect messages,
+          // not per-person Conversations replies). Flagged as a real gap
+          // rather than promising a button that isn't there. See
+          // docs/09-decision-log.md, 2026-08-21.
+          Alert.alert("Still there?", "This draft has been open a while. Send it when you're ready, or keep it as is.");
+        }
       }
       setLoaded(true);
     })();
@@ -101,15 +123,26 @@ export function PersonaliseAccordion({
     overrides?: { friendMessage?: string; draftReply?: string }
   ): Promise<StoredReply> => {
     const now = Date.now();
+    // Both fields share one 7-day lifecycle now — friendMessage never
+    // expires earlier than draftReply, they clear together on the same
+    // clock. See hold-book 06-privacy-security/04-content-retention.md,
+    // "Draft retention windows — resolved".
+    const expiresAt = now + CONVERSATIONS_REPLY_RETENTION_DAYS * 24 * 60 * 60 * 1000;
     const record: StoredReply = {
       id: person.id,
       recipientName: person.name,
       friendMessage: overrides?.friendMessage ?? friendMessage,
-      friendMessageExpiresAt: now + FRIEND_MESSAGE_RETENTION_HOURS * 60 * 60 * 1000,
+      friendMessageExpiresAt: expiresAt,
       draftReply: overrides?.draftReply ?? draft,
-      draftReplyExpiresAt: now + DRAFT_REPLY_RETENTION_HOURS * 60 * 60 * 1000,
+      draftReplyExpiresAt: expiresAt,
       createdAt: now,
       sentAt: sentAtValue
+      // headsUpShownAt deliberately NOT carried forward here — every
+      // persist() call recomputes expiresAt fresh (now + 7 days), so any
+      // earlier heads-up is stale the moment real activity happens again;
+      // omitting it resets eligibility for the new, later deadline. Only
+      // the direct saveReply() call in the load effect below sets it,
+      // against the record's own unchanged expiry, not through persist().
     };
     await saveReply(record);
     return record;
@@ -138,7 +171,7 @@ export function PersonaliseAccordion({
       await AsyncStorage.setItem(HAS_SEEN_RETENTION_NOTE_KEY, "true");
       Alert.alert(
         "Saved",
-        "Your reply stays on your device for a couple of days in case you need to step away. Their message clears sooner."
+        "This and their message stay private to your device for about a week, then clear together. Nothing to manage."
       );
     })();
   };

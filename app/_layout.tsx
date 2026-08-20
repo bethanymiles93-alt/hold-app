@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -12,14 +11,9 @@ import { QuietPaletteProvider } from "@/context/QuietPaletteContext";
 import { ComposingProvider } from "@/context/ComposingContext";
 import { SettingsDrawerProvider } from "@/context/SettingsDrawerContext";
 import { useAppTheme } from "@/hooks/useAppTheme";
-import { clearStaleFriendMessagesOnLaunch } from "@/services/replyStorageService";
 
 export default function RootLayout() {
   const { colors, isDark } = useAppTheme("normal");
-
-  useEffect(() => {
-    void clearStaleFriendMessagesOnLaunch();
-  }, []);
 
   return (
     <SafeAreaProvider>

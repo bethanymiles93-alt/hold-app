@@ -86,6 +86,8 @@ export interface StoredReply {
   draftReplyExpiresAt: number;
   createdAt: number;
   sentAt?: number | null;
+  /** Set once the quiet "this draft has been open a while" heads-up has been shown for this record, so it's shown at most once per draft, not every time the accordion opens near expiry. See hold-book 06-privacy-security/04-content-retention.md, "Heads-up before auto-clear". */
+  headsUpShownAt?: number;
 }
 
 /**
