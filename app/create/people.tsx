@@ -32,6 +32,7 @@ import {
   syncAudience
 } from "@/services/holdHistoryService";
 import { activateOutOfOffice } from "@/services/emailAccountService";
+import { getWiderWorldPlatforms } from "@/services/widerWorldSettingsService";
 import { copyToClipboard } from "@/services/clipboardService";
 import { channelKey, sendToCircles } from "@/services/smsService";
 import { getDefaultSendingChannel } from "@/services/sendingPreferencesService";
@@ -44,7 +45,14 @@ import {
   saveCircleTemplate,
   saveCombinationTemplate
 } from "@/services/templateService";
-import type { CircleGroup, EmailAccount, GoingQuietRecipient, HoldIntent, HoldPeriod } from "@/types/hold";
+import type {
+  CircleGroup,
+  EmailAccount,
+  GoingQuietRecipient,
+  HoldIntent,
+  HoldPeriod,
+  WiderWorldPlatform
+} from "@/types/hold";
 
 const SUGGESTED_CIRCLES = ["Friends", "Work", "Book Club"];
 
@@ -171,6 +179,25 @@ export default function HoldPeopleScreen() {
   const [sharedEmailMessage, setSharedEmailMessage] = useState(DEFAULT_OOO_MESSAGE);
   const [widerWorldEnabled, setWiderWorldEnabled] = useState(false);
   const [widerWorldText, setWiderWorldText] = useState(DEFAULT_STATUS_LINE);
+  /**
+   * "Where did you post this?" — revealed once Status is actually copied
+   * (not the moment the toggle turns on), since there's nothing to ask
+   * about before that. Local, revisable state until Done, same pattern as
+   * emailEnabled/widerWorldEnabled above — committed via
+   * recordPostSendChoices. See docs/09-decision-log.md, 2026-08-21.
+   */
+  const [widerWorldPlatforms, setWiderWorldPlatforms] = useState<WiderWorldPlatform[]>([]);
+  const [widerWorldPostedTo, setWiderWorldPostedTo] = useState<Set<string>>(new Set());
+  const [showWiderWorldPostedTo, setShowWiderWorldPostedTo] = useState(false);
+
+  const toggleWiderWorldPostedTo = (platformId: string) => {
+    setWiderWorldPostedTo((current) => {
+      const next = new Set(current);
+      if (next.has(platformId)) next.delete(platformId);
+      else next.add(platformId);
+      return next;
+    });
+  };
 
   const refreshPeriod = useCallback(async () => {
     setPeriod(await getOpenHoldPeriod());
@@ -180,11 +207,16 @@ export default function HoldPeopleScreen() {
     setAllGroups(await getGroups());
   }, []);
 
+  const refreshWiderWorldPlatforms = useCallback(async () => {
+    setWiderWorldPlatforms(await getWiderWorldPlatforms());
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       void refreshPeriod();
       void refreshGroups();
-    }, [refreshPeriod, refreshGroups])
+      void refreshWiderWorldPlatforms();
+    }, [refreshPeriod, refreshGroups, refreshWiderWorldPlatforms])
   );
 
   // The queue only ever grows — every Circle id ever selected joins it and
@@ -727,7 +759,11 @@ export default function HoldPeopleScreen() {
 
     await recordPostSendChoices({
       emailOutOfOfficeEnabled: emailEnabled,
-      widerWorldStatusEnabled: widerWorldEnabled
+      emailLinkedAccounts: emailAccounts
+        .filter((account) => account.linkedAt !== undefined)
+        .map((account) => ({ id: account.id, provider: account.provider })),
+      widerWorldStatusEnabled: widerWorldEnabled,
+      widerWorldPostedPlatforms: Array.from(widerWorldPostedTo)
     });
 
     router.replace("/create/done");
@@ -1098,7 +1134,46 @@ export default function HoldPeopleScreen() {
                 onChangeText={setWiderWorldText}
                 isActive={activeField === "wider-world-status"}
                 onActivate={() => setActiveField("wider-world-status")}
+                onCopied={() => setShowWiderWorldPostedTo(true)}
               />
+
+              {/*
+               * "Where did you post this?" — revealed once Status is
+               * actually copied, not the moment its toggle turns on.
+               * Reconnect's own taken-down checklist reads exactly this
+               * selection back, so it only ever asks about platforms
+               * confirmed here, not the full configured list every time.
+               * Nothing shows if "Your Wider World" has no platforms
+               * configured yet, same "no built-in default list" rule the
+               * settings screen itself documents. See
+               * docs/09-decision-log.md, 2026-08-21.
+               */}
+              {showWiderWorldPostedTo && widerWorldPlatforms.length > 0 ? (
+                <View style={styles.widerWorldPostedToBlock}>
+                  <Text style={styles.widerWorldPostedToLabel}>Where did you post this?</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.chipRow}
+                  >
+                    {widerWorldPlatforms.map((platform) => (
+                      <AdaptiveCircleChip
+                        key={platform.id}
+                        label={platform.name}
+                        compact
+                        isSelected={widerWorldPostedTo.has(platform.id)}
+                        onPress={() => toggleWiderWorldPostedTo(platform.id)}
+                        accessibilityRole="checkbox"
+                        accessibilityLabel={
+                          widerWorldPostedTo.has(platform.id)
+                            ? `Posted to ${platform.name}. Tap to remove.`
+                            : `Not marked as posted to ${platform.name}. Tap to mark.`
+                        }
+                      />
+                    ))}
+                  </ScrollView>
+                </View>
+              ) : null}
             </View>
           ) : null}
         </>
@@ -1265,6 +1340,19 @@ function createStyles(colors: ThemeColors) {
     },
     oooBody: {
       gap: theme.spacing.md
+    },
+    widerWorldPostedToBlock: {
+      gap: theme.spacing.sm
+    },
+    widerWorldPostedToLabel: {
+      color: colors.text,
+      fontSize: 15,
+      fontWeight: "600"
+    },
+    chipRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm
     }
   });
 }

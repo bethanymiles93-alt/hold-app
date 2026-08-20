@@ -3,7 +3,8 @@ import { Alert, Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { DockedFieldPreview } from "@/components/DockedFieldPreview";
-import { connectEmailAccount, createEmailAccountId } from "@/services/emailAccountService";
+import { connectEmailAccount, createEmailAccountId, deleteLinkedAccountToken } from "@/services/emailAccountService";
+import { isEmailOAuthConfigured } from "@/services/emailOAuthService";
 import type { EmailAccount, EmailProvider } from "@/types/hold";
 
 interface EmailOutOfOfficeProps {
@@ -36,13 +37,23 @@ export function EmailOutOfOffice({
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const connect = async (provider: EmailProvider, isWork: boolean) => {
-    const result = await connectEmailAccount(provider, isWork);
+    // Generated up front, not inside the "Add" label-prompt callback below
+    // (2026-08-21 — was, when this was still fully mocked, since no real
+    // token needed keying against) — the real OAuth flow needs an id to
+    // store its token under from the moment it starts, before this
+    // function has any result to hand back.
+    const accountId = createEmailAccountId();
+    const result = await connectEmailAccount(provider, isWork, accountId);
 
     if (!result.ok) {
-      Alert.alert(
-        "Can’t connect this account",
-        "Many workplaces block third-party apps from connecting to work email. Try adding a personal email instead."
-      );
+      if (result.reason === "work-blocked") {
+        Alert.alert(
+          "Can’t connect this account",
+          "Many workplaces block third-party apps from connecting to work email. Try adding a personal email instead."
+        );
+      }
+      // oauth-cancelled: the person backed out of the browser flow
+      // themselves — no error alert, same as tapping Cancel anywhere else.
       return;
     }
 
@@ -52,16 +63,26 @@ export function EmailOutOfOffice({
       "Label this account",
       "e.g. Work, Personal",
       [
-        { text: "Cancel", style: "cancel" },
+        {
+          text: "Cancel",
+          style: "cancel",
+          // A real link succeeded but the person backed out of naming it —
+          // don't leave an orphaned token behind with no account record
+          // pointing at it.
+          onPress: () => {
+            if (result.linkedAt) void deleteLinkedAccountToken(accountId);
+          }
+        },
         {
           text: "Add",
           onPress: (label?: string) => {
             const account: EmailAccount = {
-              id: createEmailAccountId(),
+              id: accountId,
               label: label?.trim() || defaultLabel,
               provider,
               message: "",
-              enabled: true
+              enabled: true,
+              linkedAt: result.linkedAt
             };
             onAccountsChange([...accounts, account]);
           }
@@ -98,6 +119,13 @@ export function EmailOutOfOffice({
     );
   };
 
+  // Real once a provider's OAuth client id is configured (see
+  // emailOAuthService.ts) — neither is yet, so this still reads as a
+  // manual-only preview on-device today, but the wording itself is no
+  // longer a blanket "always mocked" claim. See docs/09-decision-log.md,
+  // 2026-08-21.
+  const anyProviderConfigured = isEmailOAuthConfigured("gmail") || isEmailOAuthConfigured("outlook");
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -105,7 +133,9 @@ export function EmailOutOfOffice({
           <Text style={styles.title}>Email out-of-office</Text>
           <Text style={styles.subtext}>
             {enabled
-              ? "Preview: account connection is mocked for now, so nothing is sent automatically yet."
+              ? anyProviderConfigured
+                ? "Connect a Gmail or Outlook account to turn its real auto-reply on and off directly, or draft text below to paste into your own manually."
+                : "Real account connection isn’t set up on this build yet — draft text below to paste into your own auto-reply manually."
               : "Automatically let email senders know you’re away."}
           </Text>
         </View>

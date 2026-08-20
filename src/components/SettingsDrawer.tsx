@@ -24,6 +24,8 @@ import { deleteAllReplies } from "@/services/replyStorageService";
 import { deleteAllCombinationTemplates, deleteAllTemplates } from "@/services/templateService";
 import { deleteAllReconnectCombinationTemplates, deleteAllReconnectTemplates } from "@/services/reconnectTemplateService";
 import { deleteAllDrafts } from "@/services/messageDraftService";
+import { deleteAllWiderWorldPlatforms } from "@/services/widerWorldSettingsService";
+import { deleteAllEmailOAuthTokens } from "@/services/emailOAuthService";
 import { setMemoryEnabled } from "@/services/aiMemoryService";
 import { setHoldPlusActive } from "@/services/holdPlusService";
 import { deleteAiInstallId } from "@/services/aiProxyClient";
@@ -131,6 +133,7 @@ export function SettingsDrawer() {
       | "/settings/hold-plus"
       | "/settings/circle"
       | "/settings/sending-channel"
+      | "/settings/wider-world"
   ) => {
     close();
     router.push(path);
@@ -168,6 +171,8 @@ export function SettingsDrawer() {
                 deleteAllReconnectTemplates(),
                 deleteAllReconnectCombinationTemplates(),
                 deleteAllDrafts(),
+                deleteAllWiderWorldPlatforms(),
+                deleteAllEmailOAuthTokens(),
                 // setMemoryEnabled(false), not deleteAllMemoryNotes() directly — also
                 // clears the Layer-1 "Remember helpful details" toggle itself, not
                 // just the notes it captured, so a wipe doesn't leave it reading "on"
@@ -221,6 +226,7 @@ export function SettingsDrawer() {
           <View style={styles.group}>
             <NavRow label="Your Circles" onPress={() => goTo("/settings/circle")} />
             <NavRow label="Sending channel" onPress={() => goTo("/settings/sending-channel")} />
+            <NavRow label="Your Wider World" onPress={() => goTo("/settings/wider-world")} />
             <ComingLaterRow label="Notifications" />
             <ComingLaterRow label="Language" />
             <ComingLaterRow label="Connected Accounts" />

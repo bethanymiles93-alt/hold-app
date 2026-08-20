@@ -13,6 +13,14 @@ interface WiderWorldStatusProps {
   onChangeText: (text: string) => void;
   isActive: boolean;
   onActivate: () => void;
+  /**
+   * Fires after a real copy — Going Quiet's own trigger for revealing the
+   * "Where did you post this?" step just below (see people.tsx). Optional
+   * since Reconnect doesn't render this component at all (it's turned
+   * off/amended there, not drafted) and has no equivalent moment. See
+   * docs/09-decision-log.md, 2026-08-21.
+   */
+  onCopied?: () => void;
 }
 
 export function WiderWorldStatus({
@@ -21,7 +29,8 @@ export function WiderWorldStatus({
   text,
   onChangeText,
   isActive,
-  onActivate
+  onActivate,
+  onCopied
 }: WiderWorldStatusProps) {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -29,6 +38,7 @@ export function WiderWorldStatus({
   const copy = async () => {
     await copyToClipboard(text.trim());
     Alert.alert("Copied", "Paste it to your story or status when you’re ready.");
+    onCopied?.();
   };
 
   return (

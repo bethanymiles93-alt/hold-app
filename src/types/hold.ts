@@ -128,6 +128,16 @@ export interface HoldPeriod {
   /** Whether email out-of-office / wider-world status were turned on at Going Quiet's "Done" step. */
   emailOutOfOfficeEnabled?: boolean;
   widerWorldStatusEnabled?: boolean;
+  /**
+   * The real, OAuth-linked email accounts (EmailAccount.linkedAt set)
+   * behind emailOutOfOfficeEnabled — id+provider only, enough for
+   * Reconnect's own real deactivate call (setRealAutoReply per account),
+   * without persisting anything else about the account. Empty/absent
+   * means Email was drafted manually, no real account linked — Reconnect
+   * shows a manual-removal reminder instead of a real "turn off" action
+   * in that case. See docs/09-decision-log.md, 2026-08-21.
+   */
+  emailLinkedAccounts?: { id: string; provider: EmailProvider }[];
   /** Circle ids and ungrouped phone numbers already sent an instant message this Reconnect session — see docs/03-privacy-model.md. */
   reconnectContactedIds?: string[];
   /** Circle ids already sent a Taking Time "update" this Hold period — durable equivalent of Reconnect's reconnectContactedIds, scoped to the still-open period rather than a separate marker. */
@@ -175,6 +185,21 @@ export interface HoldPeriod {
    * same field rather than each keeping their own separate decision.
    */
   ungroupedLinkKeys?: string[];
+  /**
+   * WiderWorldPlatform ids the person said, at Going Quiet, they posted
+   * their status to (the "Where did you post this?" step, offered once
+   * the status text is copied) — this is what Reconnect's own taken-down
+   * checklist below reads to know exactly which platforms to ask about,
+   * rather than the full configured list every time.
+   */
+  widerWorldPostedPlatforms?: string[];
+  /**
+   * A subset of widerWorldPostedPlatforms the person has since confirmed,
+   * at Reconnect, they've taken down — drives the checklist's own
+   * sent-style (dark-green/white/checkmark) visual treatment per item,
+   * matching every other "resolved" pill treatment in the app.
+   */
+  widerWorldTakenDownPlatforms?: string[];
 }
 
 /** One combined-send record — see HoldPeriod.linkedCircleSets. */
@@ -227,4 +252,28 @@ export interface EmailAccount {
   provider: EmailProvider;
   message: string;
   enabled: boolean;
+  /**
+   * Present once a real OAuth token exchange has succeeded for this
+   * account — its absence is what drives the manual-draft-text fallback
+   * everywhere this account is used, not `enabled` (which only means
+   * "include this account's out-of-office at all"). Never the raw
+   * access/refresh token itself (kept in emailOAuthTokenService's own
+   * SecureStore entry, this account record travels through app state and
+   * UI far more freely than a token should). See docs/09-decision-log.md,
+   * 2026-08-21.
+   */
+  linkedAt?: number;
+}
+
+/**
+ * One platform a person might post a "wider world" status update to
+ * (Instagram, WhatsApp, etc.) — user-configured via the "Your Wider
+ * World" settings screen, not a fixed built-in list. No configured
+ * platforms means no pills show at "Where did you post this?" or the
+ * Reconnect taken-down checklist; both read from this same list. See
+ * docs/09-decision-log.md, 2026-08-21.
+ */
+export interface WiderWorldPlatform {
+  id: string;
+  name: string;
 }

@@ -29,6 +29,7 @@ import {
   getReconnectingPeriod,
   markReconnectContacted,
   markReconnectCoveredWithoutSend,
+  markWiderWorldTakenDown,
   recordReconnectStepReached,
   recordSendChannel,
   renameCircleInPeriod,
@@ -43,6 +44,7 @@ import {
 import { addContactToGroup, createGroup, getGroups, renameGroup } from "@/services/circleService";
 import { pickContact } from "@/services/contactPickerService";
 import { deactivateOutOfOffice } from "@/services/emailAccountService";
+import { getWiderWorldPlatforms } from "@/services/widerWorldSettingsService";
 import { channelKey, sendIndividual, sendToCircles } from "@/services/smsService";
 import { getDefaultSendingChannel } from "@/services/sendingPreferencesService";
 import {
@@ -52,7 +54,7 @@ import {
   saveReconnectCombinationTemplate
 } from "@/services/reconnectTemplateService";
 import { clearDraft, getDraft, saveDraft } from "@/services/messageDraftService";
-import type { AudienceCircle, CircleGroup, HoldPeriod } from "@/types/hold";
+import type { AudienceCircle, CircleGroup, HoldPeriod, WiderWorldPlatform } from "@/types/hold";
 
 const RECONNECT_DRAFT_KEY = "reconnect";
 // Reconnect's own default starting text — short and instant, not a fully
@@ -72,6 +74,11 @@ export default function ReconnectScreen() {
   const [savedDefaultText, setSavedDefaultText] = useState<string | null>(null);
   const [emailOff, setEmailOff] = useState(false);
   const [statusCleared, setStatusCleared] = useState(false);
+  /** Loaded once, independent of refresh()'s own period-reload cycle — these are global user settings, not period data. See docs/09-decision-log.md, 2026-08-21. */
+  const [widerWorldPlatforms, setWiderWorldPlatforms] = useState<WiderWorldPlatform[]>([]);
+  useEffect(() => {
+    void getWiderWorldPlatforms().then(setWiderWorldPlatforms);
+  }, []);
   const [suggestedPrompt, setSuggestedPrompt] = useState<string | undefined>(undefined);
   // Collapsed by default — 2026-08-13 confirmed correction, superseding
   // the 2026-08-12 entry that had flipped this to expanded for this exact
@@ -257,12 +264,10 @@ export default function ReconnectScreen() {
   // path), lets the leave be paused with e.preventDefault(), and — if the
   // person still chooses to leave — replayed via navigation.dispatch(
   // e.data.action) rather than re-implementing the original navigation.
-  // Flagged: "status platform in the takedown checklist" (as specified)
-  // doesn't exist in the current build — there's one combined wider-world
-  // status toggle, not a per-platform checklist (that's `04-nav-bar-wider-
-  // world.md`'s Section 6, task #120, explicitly scheduled to build
-  // last) — checked against the single toggle that does exist as the best
-  // current approximation. See docs/09-decision-log.md.
+  // Checks the real per-platform takedown checklist now (2026-08-21) —
+  // this used to only check the one combined wider-world status toggle,
+  // since the checklist itself didn't exist yet. See
+  // docs/09-decision-log.md.
   const navigation = useNavigation();
 
   useEffect(() => {
@@ -270,7 +275,15 @@ export default function ReconnectScreen() {
       if (!period) return;
 
       const oooUnresolved = period.emailOutOfOfficeEnabled && !emailOff;
-      const statusUnresolved = period.widerWorldStatusEnabled && !statusCleared;
+      const postedIds = period.widerWorldPostedPlatforms ?? [];
+      const takenDownIds = period.widerWorldTakenDownPlatforms ?? [];
+      // With any platforms actually marked posted-to, "resolved" means
+      // every one of them has been checked off — the fallback single
+      // "Clear my status" link (no platforms posted-to) still uses
+      // statusCleared, the same as before.
+      const statusUnresolved =
+        period.widerWorldStatusEnabled &&
+        (postedIds.length > 0 ? postedIds.some((id) => !takenDownIds.includes(id)) : !statusCleared);
       if (!oooUnresolved && !statusUnresolved) return;
 
       e.preventDefault();
@@ -554,13 +567,31 @@ export default function ReconnectScreen() {
     router.replace("/return/done");
   };
 
+  /**
+   * Handles both of Email's two Reconnect states with one action: real
+   * linked accounts (period.emailLinkedAccounts) get a genuine deactivate
+   * call per account; no linked accounts just means acknowledging the
+   * manual reminder (deactivateOutOfOffice is a no-op on an empty array)
+   * — same "settled" outcome either way from the person's own perspective,
+   * only the label text (rendered below) differs. See
+   * docs/09-decision-log.md, 2026-08-21.
+   */
   const turnOffEmail = () => {
-    void deactivateOutOfOffice();
+    void deactivateOutOfOffice(period?.emailLinkedAccounts ?? []);
     setEmailOff(true);
   };
 
   const clearStatus = () => {
     setStatusCleared(true);
+  };
+
+  const markPlatformTakenDown = (platformId: string) => {
+    if (!period) return;
+    void (async () => {
+      await markWiderWorldTakenDown(period.id, platformId);
+      const updated = await getHoldPeriodById(period.id);
+      if (updated) setPeriod(updated);
+    })();
   };
 
   const openRename = (group: CircleGroup) => {
@@ -607,6 +638,15 @@ export default function ReconnectScreen() {
   };
 
   const showOoo = period.emailOutOfOfficeEnabled || period.widerWorldStatusEnabled;
+
+  // Exactly the platforms marked "posted here" at Going Quiet's own
+  // "Where did you post this?" step — not the full configured list, so
+  // Reconnect only ever asks about what's actually relevant this round.
+  // A platform since deleted from "Your Wider World" settings simply
+  // drops out here (no id to resolve a name against), rather than erroring.
+  const postedPlatformIds = period.widerWorldPostedPlatforms ?? [];
+  const takenDownPlatformIds = new Set(period.widerWorldTakenDownPlatforms ?? []);
+  const postedPlatforms = widerWorldPlatforms.filter((platform) => postedPlatformIds.includes(platform.id));
 
   const audienceCircles = period.audienceCircles ?? [];
   const allAudiencePhoneNumbers = [
@@ -1304,26 +1344,68 @@ export default function ReconnectScreen() {
                 <Text style={styles.oooChevron}>{oooExpanded ? "▲" : "▼"}</Text>
               </Pressable>
 
+              {/*
+               * Same two options as Going Quiet — Email, Status — mirrored
+               * here in Reconnect's own "turned off/amended" mode rather
+               * than Going Quiet's "turned on/drafted" one. See
+               * docs/09-decision-log.md, 2026-08-21.
+               */}
               {oooExpanded ? (
                 <View style={styles.oooBody}>
                   {period.emailOutOfOfficeEnabled ? (
-                    emailOff ? (
-                      <Text style={styles.settledText}>Out-of-office turned off.</Text>
-                    ) : (
-                      <Pressable accessibilityRole="button" onPress={turnOffEmail}>
-                        <Text style={styles.linkText}>Turn off out-of-office</Text>
-                      </Pressable>
-                    )
+                    <View style={styles.widerWorldOption}>
+                      <Text style={styles.widerWorldOptionLabel}>Email</Text>
+                      {emailOff ? (
+                        <Text style={styles.settledText}>Out-of-office turned off.</Text>
+                      ) : (period.emailLinkedAccounts?.length ?? 0) > 0 ? (
+                        <Pressable accessibilityRole="button" onPress={turnOffEmail}>
+                          <Text style={styles.linkText}>Turn off out-of-office</Text>
+                        </Pressable>
+                      ) : (
+                        <Pressable accessibilityRole="button" onPress={turnOffEmail}>
+                          <Text style={styles.linkText}>Remember to remove your manual out-of-office</Text>
+                        </Pressable>
+                      )}
+                    </View>
                   ) : null}
 
                   {period.widerWorldStatusEnabled ? (
-                    statusCleared ? (
-                      <Text style={styles.settledText}>Status cleared.</Text>
-                    ) : (
-                      <Pressable accessibilityRole="button" onPress={clearStatus}>
-                        <Text style={styles.linkText}>Clear my status</Text>
-                      </Pressable>
-                    )
+                    <View style={styles.widerWorldOption}>
+                      <Text style={styles.widerWorldOptionLabel}>Status</Text>
+                      {postedPlatforms.length > 0 ? (
+                        <ScrollView
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          contentContainerStyle={styles.chipRow}
+                        >
+                          {postedPlatforms.map((platform) => {
+                            const takenDown = takenDownPlatformIds.has(platform.id);
+                            return (
+                              <AdaptiveCircleChip
+                                key={platform.id}
+                                label={takenDown ? `✓ ${platform.name}` : platform.name}
+                                compact
+                                isSelected={false}
+                                hasSentThisSession={takenDown}
+                                onPress={() => (takenDown ? undefined : markPlatformTakenDown(platform.id))}
+                                accessibilityRole="checkbox"
+                                accessibilityLabel={
+                                  takenDown
+                                    ? `${platform.name}, taken down`
+                                    : `${platform.name}, not yet taken down. Tap once you have.`
+                                }
+                              />
+                            );
+                          })}
+                        </ScrollView>
+                      ) : statusCleared ? (
+                        <Text style={styles.settledText}>Status cleared.</Text>
+                      ) : (
+                        <Pressable accessibilityRole="button" onPress={clearStatus}>
+                          <Text style={styles.linkText}>Clear my status</Text>
+                        </Pressable>
+                      )}
+                    </View>
                   ) : null}
                 </View>
               ) : null}
@@ -1534,6 +1616,14 @@ function createStyles(colors: ThemeColors) {
     },
     oooBody: {
       gap: theme.spacing.md
+    },
+    widerWorldOption: {
+      gap: theme.spacing.xs
+    },
+    widerWorldOptionLabel: {
+      color: colors.text,
+      fontSize: 15,
+      fontWeight: "600"
     },
     actions: {
       gap: theme.spacing.sm

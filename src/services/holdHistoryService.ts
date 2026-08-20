@@ -1,7 +1,7 @@
 import * as SecureStore from "expo-secure-store";
 import { initialsPlaceholderName, PENDING_CIRCLE_ID_PREFIX } from "@/services/circleService";
 import { combinationKey } from "@/services/templateService";
-import type { AudienceCircle, HoldPeriod, LinkedCircleSet, ReachedVia, ReconnectStep } from "@/types/hold";
+import type { AudienceCircle, EmailProvider, HoldPeriod, LinkedCircleSet, ReachedVia, ReconnectStep } from "@/types/hold";
 
 const INDEX_KEY = "hold.history.index";
 const OPEN_KEY = "hold.history.open";
@@ -292,10 +292,17 @@ export async function syncAudience(input: StartHoldPeriodInput): Promise<void> {
 /**
  * Writes the OOO/status choices made at Going Quiet's "Done" step onto the
  * still-open period (Send already started it; Done is when these are set).
+ * `widerWorldPostedPlatforms` follows the same local-state-until-Done
+ * pattern as `emailOutOfOfficeEnabled`/`widerWorldStatusEnabled` here —
+ * freely revisable in the UI (the "Where did you post this?" selection can
+ * be reopened and changed right up until Done) without touching the
+ * period record on every toggle.
  */
 export async function recordPostSendChoices(choices: {
   emailOutOfOfficeEnabled: boolean;
+  emailLinkedAccounts: { id: string; provider: EmailProvider }[];
   widerWorldStatusEnabled: boolean;
+  widerWorldPostedPlatforms: string[];
 }): Promise<void> {
   const openId = await SecureStore.getItemAsync(OPEN_KEY);
   if (!openId) return;
@@ -304,6 +311,22 @@ export async function recordPostSendChoices(choices: {
   if (!period) return;
 
   await writeRecord({ ...period, ...choices });
+}
+
+/**
+ * Marks one WiderWorldPlatform as taken down — Reconnect's own checklist
+ * action, idempotent. Takes an explicit periodId (fires from Reconnect,
+ * well after the period that recorded the original posting has closed),
+ * matching markReconnectContacted's own pattern just below.
+ */
+export async function markWiderWorldTakenDown(periodId: string, platformId: string): Promise<void> {
+  const period = await readRecord(periodId);
+  if (!period) return;
+
+  const existing = period.widerWorldTakenDownPlatforms ?? [];
+  if (existing.includes(platformId)) return;
+
+  await writeRecord({ ...period, widerWorldTakenDownPlatforms: [...existing, platformId] });
 }
 
 /**
