@@ -57,6 +57,14 @@ interface DockedInputBarProps {
    */
   suggestions?: { label: string; onPress: () => void }[];
   /**
+   * Context-specific pills shown alongside (not instead of) the person's
+   * own general suggested phrases — e.g. the apology wording for messaging
+   * someone added via Reconnect's own "+", never the default. Purely
+   * additive at render time, not written into suggestedPhrasesService's
+   * own user-editable store. See docs/09-decision-log.md, 2026-08-20.
+   */
+  extraPhrases?: string[];
+  /**
    * A Circle's own saved default message — present only where a caller
    * has one to offer (Going Quiet, Reconnect, Send an Update). Powers the
    * "Template"/"Remove template" button (2026-08-13): inserting is
@@ -128,7 +136,8 @@ export function DockedInputBar({
   aiAmend,
   suggestions,
   template,
-  saveDefault
+  saveDefault,
+  extraPhrases = []
 }: DockedInputBarProps) {
   const { colors, isDark } = useAppTheme("normal");
   const styles = createStyles(colors, isDark);
@@ -144,16 +153,18 @@ export function DockedInputBar({
 
   const dismiss = onDismiss ?? onDone;
 
-  const [phrases, setPhrases] = useState<string[]>([]);
+  const [savedPhrases, setSavedPhrases] = useState<string[]>([]);
 
   useFocusEffect(
     // Self-sourced, not a prop — the whole point is that this appears
     // above the docked bar app-wide with no per-screen wiring needed.
     // See docs/09-decision-log.md, 2026-08-13.
     () => {
-      void getSuggestedPhrases().then(setPhrases);
+      void getSuggestedPhrases().then(setSavedPhrases);
     }
   );
+
+  const phrases = [...extraPhrases, ...savedPhrases];
 
   // Persists across a revert-by-edit (the button stays "Remove template",
   // now disabled) — only cleared by a successful explicit removal while

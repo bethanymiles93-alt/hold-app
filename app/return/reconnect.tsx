@@ -12,6 +12,7 @@ import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
 import { HoldMark } from "@/components/HoldMark";
 import { PersonaliseCandidateList } from "@/components/PersonaliseCandidateList";
 import { PENDING_CIRCLE_ID_PREFIX } from "@/components/GroupPicker";
+import { NEWLY_ADDED_APOLOGY_PHRASE } from "@/services/circleService";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { usePersonaliseCompletion } from "@/hooks/usePersonaliseCompletion";
@@ -19,10 +20,12 @@ import { useHoldFlow } from "@/context/HoldFlowContext";
 import {
   addToReconnectingAudience,
   beginReconnecting,
+  bundleIntoReconnectCircle,
   getHoldPeriodById,
   getReconnectCoverage,
   getReconnectingPeriod,
   markReconnectContacted,
+  markReconnectCoveredWithoutSend,
   recordReconnectStepReached,
   recordSendChannel,
   renameCircleInPeriod,
@@ -112,6 +115,8 @@ export default function ReconnectScreen() {
   const [expandedCircleIds, setExpandedCircleIds] = useState<Set<string>>(new Set());
   const [includedPersonIds, setIncludedPersonIds] = useState<Set<string>>(new Set());
   const [pillLockedIds, setPillLockedIds] = useState<string[] | null>(null);
+  /** Marked-for-bundling on the excluded line, by phone number — mirrors Going Quiet's own bundleSelectedIds. See docs/09-decision-log.md, 2026-08-20. */
+  const [bundleSelectedIds, setBundleSelectedIds] = useState<Set<string>>(new Set());
 
   /**
    * Circles freshly made real from Going Quiet's ad-hoc bundling flow,
@@ -249,6 +254,18 @@ export default function ReconnectScreen() {
   }, [period, includedPersonIds]);
   const contributingSignature = [...contributingCircleIds].sort().join(",");
   const isSingleCircle = contributingCircleIds.length === 1;
+  /**
+   * True while at least one currently-included person belongs to a
+   * "+"-added, not-originally-told Circle — offers the apology phrase as
+   * one of the docked bar's suggestion pills, never the default wording.
+   * See docs/09-decision-log.md, 2026-08-20.
+   */
+  const hasNewlyAddedIncluded = (period?.audienceCircles ?? []).some(
+    (circle) =>
+      circle.circleId.startsWith(PENDING_CIRCLE_ID_PREFIX) &&
+      circle.contacts.some((contact) => includedPersonIds.has(contact.phoneNumber))
+  );
+  const messageExtraPhrases = hasNewlyAddedIncluded ? [NEWLY_ADDED_APOLOGY_PHRASE] : [];
   const isSaved = savedDefaultText !== null && message === savedDefaultText;
 
   useEffect(() => {
@@ -589,6 +606,64 @@ export default function ReconnectScreen() {
     });
   };
 
+  /**
+   * The passive excluded line (2026-08-20, corrects the earlier reversed
+   * "auto-spin into Circle-of-one on unselect" instruction) — everyone
+   * currently visible but not included, same underlying data `pillPeople`
+   * itself already carries, just filtered. Unselecting a pill above does
+   * nothing more than this on its own; bundling and "I've already told
+   * them" are both separate, available actions below, not a forced fork
+   * at unselect time. See docs/09-decision-log.md.
+   */
+  const excludedPillPeople = pillPeople.filter((person) => !includedPersonIds.has(person.id));
+
+  const toggleReconnectBundleSelected = (phoneNumber: string) => {
+    setBundleSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(phoneNumber)) next.delete(phoneNumber);
+      else next.add(phoneNumber);
+      return next;
+    });
+  };
+
+  // Shared by both excluded-line actions below — acts on whichever entries
+  // are marked, or (nothing marked) everyone on the line not already
+  // covered one way or another, same "selected, or everyone unclaimed"
+  // fallback Going Quiet's own bundle button uses.
+  const excludedLineTargets = (): string[] =>
+    bundleSelectedIds.size > 0
+      ? [...bundleSelectedIds]
+      : excludedPillPeople
+          .filter((person) => !(coverage?.contactedIds.includes(person.id) ?? false))
+          .map((person) => person.id);
+
+  const bundleExcludedIntoCircle = () => {
+    void (async () => {
+      if (!period) return;
+      const targets = excludedLineTargets();
+      if (targets.length === 0) return;
+
+      await bundleIntoReconnectCircle(period.id, targets);
+      setBundleSelectedIds(new Set());
+      await refresh();
+    })();
+  };
+
+  /** "I've already told them" — Trigger 2, Reconnect-only, satisfies the completion gate without a send. See markReconnectCoveredWithoutSend, docs/09-decision-log.md, 2026-08-20. */
+  const markExcludedAlreadyToldThem = () => {
+    void (async () => {
+      if (!period) return;
+      const targets = excludedLineTargets();
+      if (targets.length === 0) return;
+
+      for (const phoneNumber of targets) {
+        await markReconnectCoveredWithoutSend(period.id, phoneNumber);
+      }
+      setBundleSelectedIds(new Set());
+      await refresh();
+    })();
+  };
+
   // The real gate for whether there's anything to compose/send right now
   // — not coverage.complete on its own, since a fully-reached Circle's
   // people are still reselectable for a further message (2026-08-13,
@@ -655,6 +730,7 @@ export default function ReconnectScreen() {
             accessibilityLabel="Message to send"
             aiAmend={{ surface: "reconnect", initialPrompt: suggestedPrompt }}
             template={savedDefaultText !== null ? { text: savedDefaultText } : undefined}
+            extraPhrases={messageExtraPhrases}
             saveDefault={
               contributingCircleIds.length > 0
                 ? {
@@ -677,6 +753,13 @@ export default function ReconnectScreen() {
               surface: "conversations-reply",
               context: { friendMessage: personalise.replyTarget.friendMessage }
             }}
+            extraPhrases={
+              personalise.people.find((person) => person.id === personalise.replyTarget?.personId)?.circleId?.startsWith(
+                PENDING_CIRCLE_ID_PREFIX
+              )
+                ? [NEWLY_ADDED_APOLOGY_PHRASE]
+                : []
+            }
           />
         ) : null
       }
@@ -747,12 +830,15 @@ export default function ReconnectScreen() {
                       isSelected={allIncluded}
                       hasSentThisSession={hasSentThisSession}
                       notYetSent={coverage.complete && !hasSentThisSession}
+                      newlyAdded={circle.circleId.startsWith(PENDING_CIRCLE_ID_PREFIX)}
                       onPress={() => toggleCircleChip(circle)}
                       accessibilityRole="button"
                       accessibilityLabel={
-                        allIncluded
-                          ? `${circle.circleName}, everyone included. Tap to exclude everyone.`
-                          : `${circle.circleName}. Tap to include everyone.`
+                        circle.circleId.startsWith(PENDING_CIRCLE_ID_PREFIX)
+                          ? `${circle.circleName}, added now, wasn't told when you went quiet. ${allIncluded ? "Tap to exclude." : "Tap to include."}`
+                          : allIncluded
+                            ? `${circle.circleName}, everyone included. Tap to exclude everyone.`
+                            : `${circle.circleName}. Tap to include everyone.`
                       }
                     />
                     <Pressable
@@ -846,6 +932,66 @@ export default function ReconnectScreen() {
             </ScrollView>
           </View>
 
+          {/* Excluded line — passive, at-a-glance visibility for who's not
+              currently included, same underlying data as the pill row
+              above just filtered (2026-08-20). Tap a pill to mark it for
+              bundling; "+" groups marked people (or everyone not yet
+              covered, if none marked) into one new shared Circle; "Already
+              told them" satisfies the completion gate for the same
+              selection without a send. Neither action is forced at
+              unselect time. See docs/09-decision-log.md. */}
+          {excludedPillPeople.length > 0 ? (
+            <View style={styles.excludedLineRow}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.chipRow}
+                style={styles.pillScroll}
+              >
+                {excludedPillPeople.map((person) => {
+                  const hasSentThisSession = coverage.contactedIds.includes(person.id);
+                  return (
+                    <AdaptiveCircleChip
+                      key={person.key}
+                      label={hasSentThisSession ? `✓ ${person.name}` : person.name}
+                      compact
+                      isSelected={bundleSelectedIds.has(person.id)}
+                      hasSentThisSession={hasSentThisSession}
+                      onPress={() => toggleReconnectBundleSelected(person.id)}
+                      accessibilityRole="checkbox"
+                      accessibilityLabel={
+                        hasSentThisSession
+                          ? `${person.name}, already covered without a message`
+                          : `${person.name}, excluded. Tap to mark for a shared action below.`
+                      }
+                    />
+                  );
+                })}
+              </ScrollView>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={
+                  bundleSelectedIds.size > 0
+                    ? `New circle from ${bundleSelectedIds.size} selected`
+                    : "New circle from everyone not yet covered"
+                }
+                hitSlop={8}
+                onPress={bundleExcludedIntoCircle}
+                style={styles.removedBundleButton}
+              >
+                <Text style={styles.removedBundleButtonText}>+</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="I've already told them"
+                hitSlop={8}
+                onPress={markExcludedAlreadyToldThem}
+              >
+                <Text style={styles.linkText}>Already told them</Text>
+              </Pressable>
+            </View>
+          ) : null}
+
           {hasComposeTargets ? (
             <View style={styles.messageBlock}>
               <DockedFieldPreview
@@ -855,6 +1001,7 @@ export default function ReconnectScreen() {
                 onPress={openMessageField}
                 accessibilityLabel="Message to send"
                 onInsertPill={(text) => changeMessage(message.trim() ? `${message}\n${text}` : text)}
+                extraPhrases={messageExtraPhrases}
               />
               {/* "Change template" cut entirely, 2026-08-13 — superseded
                   by sentence pills. See docs/09-decision-log.md.
@@ -1051,6 +1198,26 @@ function createStyles(colors: ThemeColors) {
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.sm
+    },
+    excludedLineRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm
+    },
+    removedBundleButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      borderWidth: 1.5,
+      borderColor: colors.primary,
+      alignItems: "center",
+      justifyContent: "center"
+    },
+    removedBundleButtonText: {
+      color: colors.primary,
+      fontSize: 20,
+      fontWeight: "700",
+      lineHeight: 22
     },
     chipGreyed: {
       opacity: 0.4

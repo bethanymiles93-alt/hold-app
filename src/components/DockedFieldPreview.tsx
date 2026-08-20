@@ -30,6 +30,16 @@ interface DockedFieldPreviewProps {
    * 2026-08-13.
    */
   onInsertPill?: (text: string) => void;
+  /**
+   * Context-specific pills shown alongside (not instead of) the person's
+   * own general suggested phrases — e.g. the apology wording for messaging
+   * someone added via Reconnect's own "+", never the default. Purely
+   * additive at render time, not written into suggestedPhrasesService's
+   * own user-editable store — different lifecycle, this list is computed
+   * fresh by the caller from current context, not something to add/remove
+   * from Library's Templates tab. See docs/09-decision-log.md, 2026-08-20.
+   */
+  extraPhrases?: string[];
 }
 
 /**
@@ -54,17 +64,20 @@ export function DockedFieldPreview({
   isActive,
   accessibilityLabel,
   style,
-  onInsertPill
+  onInsertPill,
+  extraPhrases = []
 }: DockedFieldPreviewProps) {
   const { colors } = useAppTheme("normal");
   const styles = createStyles(colors);
   const hasValue = value.trim().length > 0;
-  const [phrases, setPhrases] = useState<string[]>([]);
+  const [savedPhrases, setSavedPhrases] = useState<string[]>([]);
 
   useEffect(() => {
     if (!onInsertPill) return;
-    void getSuggestedPhrases().then(setPhrases);
+    void getSuggestedPhrases().then(setSavedPhrases);
   }, [onInsertPill]);
+
+  const phrases = [...extraPhrases, ...savedPhrases];
 
   return (
     <View>

@@ -5,6 +5,27 @@ const INDEX_KEY = "hold.circle.index";
 const GROUP_PREFIX = "hold.circle.group.";
 const CLOSE_CIRCLE_ID = "close-circle";
 const CLOSE_CIRCLE_NAME = "Close";
+/**
+ * Every pending (not-yet-real) Circle's id starts with this — moved here
+ * from GroupPicker.tsx (2026-08-20, still re-exported there for existing
+ * call sites) since holdHistoryService.ts now needs it too, for Reconnect's
+ * own "+"-added provisional Circle-of-one, and a service depending on a
+ * component file is backwards. Reconnect uses it to find which of a Hold
+ * period's audienceCircles are still pending an "add permanently?" answer,
+ * without needing a separate pending-circle list of its own. See
+ * docs/09-decision-log.md, 2026-08-10.
+ */
+export const PENDING_CIRCLE_ID_PREFIX = "pending-";
+
+/**
+ * Suggestion-pill wording for messaging someone added via Reconnect's own
+ * "+" — they never received a Going Quiet message, so they don't know time
+ * has passed. Available wherever a `newlyAdded` (pending-prefixed) Circle
+ * can be messaged — Reconnect's instant/group reply and Conversations —
+ * offered as one option among the docked bar's own suggestion pills, never
+ * the default wording. See docs/09-decision-log.md, 2026-08-20.
+ */
+export const NEWLY_ADDED_APOLOGY_PHRASE = "Sorry I wasn't able to let you know, I've been taking some quiet time.";
 /** Pre-rename default, kept only to migrate already-persisted installs — see ensureCloseCircle(). */
 const LEGACY_CLOSE_CIRCLE_NAME = "Close Circle";
 

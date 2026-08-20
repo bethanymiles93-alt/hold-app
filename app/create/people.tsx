@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { router, useFocusEffect } from "expo-router";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
 import { GroupPicker, PENDING_CIRCLE_ID_PREFIX } from "@/components/GroupPicker";
 import { ChoiceCard } from "@/components/ChoiceCard";
+import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
 import { RecipientPersonalisation } from "@/components/RecipientPersonalisation";
 import { SecondaryButton } from "@/components/SecondaryButton";
 import { CompactSendButton } from "@/components/CompactSendButton";
@@ -16,6 +18,7 @@ import { WiderWorldStatus } from "@/components/WiderWorldStatus";
 import { SafeguardingBanner } from "@/components/SafeguardingBanner";
 import { useSafeguardingCheck } from "@/hooks/useSafeguardingCheck";
 import { HOLD_INTENTS } from "@/constants/copy";
+import { HAS_SEEN_EXCLUDED_LINE_NOTE_KEY } from "@/constants/storageKeys";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { buildAudienceCircles, useHoldFlow } from "@/context/HoldFlowContext";
@@ -301,6 +304,22 @@ export default function HoldPeopleScreen() {
           routeToPersonalise: false
         }));
 
+  /**
+   * "So it's clear at a glance who's no longer included for this flow"
+   * (2026-08-20) — scoped to currently-selected Circles only, merged into
+   * one line regardless of which one is expanded, since a message can span
+   * several selected Circles at once. Deliberately separate from
+   * `removedPeople` (the persistent, unscoped roster the "+" bundle action
+   * reads from below) — that one stays exactly as it was, still reachable
+   * regardless of selection, since its own job (re-bundling anyone,
+   * eventually) is different from this line's job (at-a-glance visibility
+   * for the current send). Both read from the same underlying exclusion,
+   * just scoped differently. See docs/09-decision-log.md.
+   */
+  const excludedFromSelected = goingQuietRecipients.filter(
+    (recipient) => !recipient.included && selectedGroups.some((group) => group.id === recipient.circleId)
+  );
+
   const activeOooAccountMessageId = activeField?.startsWith("ooo-account-message:")
     ? activeField.slice("ooo-account-message:".length)
     : null;
@@ -469,10 +488,25 @@ export default function HoldPeopleScreen() {
     (useSameEmailMessage ? sharedEmailMessage : account.message).trim();
 
   /** Excludes a recipient from the current group message and moves them into the screen-level removed-people roster. See docs/09-decision-log.md, 2026-08-11. */
+  /** First-use explainer for the excluded-line/temporary-Circle pattern — same gated-Alert shape as PersonaliseAccordion's own retention-note explainer, not assumed self-evident on first encounter. See docs/09-decision-log.md, 2026-08-20. */
+  const showExcludedLineExplainerOnce = () => {
+    void (async () => {
+      const hasSeen = await AsyncStorage.getItem(HAS_SEEN_EXCLUDED_LINE_NOTE_KEY);
+      if (hasSeen) return;
+
+      await AsyncStorage.setItem(HAS_SEEN_EXCLUDED_LINE_NOTE_KEY, "true");
+      Alert.alert(
+        "Excluded for now",
+        "Anyone you untap shows up here, greyed once they're settled into their own Circle. Tap the \"+\" to give one or more of them their own Circle whenever you're ready — untapping never sends anything on its own."
+      );
+    })();
+  };
+
   const handleRemoveRecipient = (contactId: string, group: CircleGroup) => {
     const recipient = goingQuietRecipients.find((r) => r.contactId === contactId);
     if (!recipient) return;
 
+    showExcludedLineExplainerOnce();
     toggleRecipientIncluded(contactId, message);
     setRemovedPeople((current) =>
       current.some((person) => person.contactId === contactId)
@@ -792,6 +826,12 @@ export default function HoldPeopleScreen() {
                     bundleSelectedIds.has(person.contactId) && styles.removedNameSelected
                   ]}
                 >
+                  {/* "✓" prefix, not just the muted colour, marks "claimed" —
+                      colour alone isn't a colour-blindness-safe distinction.
+                      Fixed alongside the new excluded line below, per the
+                      app's standing accessibility rule. See
+                      docs/09-decision-log.md, 2026-08-20. */}
+                  {person.claimed ? "✓ " : ""}
                   {person.name}
                   {index < removedPeople.length - 1 ? "," : ""}
                 </Text>
@@ -812,6 +852,37 @@ export default function HoldPeopleScreen() {
             <Text style={styles.removedBundleButtonText}>+</Text>
           </Pressable>
         </View>
+      ) : null}
+
+      {/* At-a-glance excluded-for-this-send line — scoped to currently
+          selected Circles only, merged into one line (2026-08-20). Distinct
+          from the roster above: read-only, no bundling action of its own,
+          just visibility. "✓" marks anyone already claimed into a
+          provisional Circle — greyed AND marked, not colour alone. See
+          docs/09-decision-log.md. */}
+      {excludedFromSelected.length > 0 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.excludedLineRow}
+        >
+          {excludedFromSelected.map((recipient) => {
+            const claimed = removedPeople.find((person) => person.contactId === recipient.contactId)?.claimed ?? false;
+            return (
+              <AdaptiveCircleChip
+                key={recipient.contactId}
+                label={claimed ? `✓ ${recipient.name}` : recipient.name}
+                compact
+                isSelected={false}
+                onPress={() => {}}
+                accessibilityRole="text"
+                accessibilityLabel={
+                  claimed ? `${recipient.name}, excluded, already in their own Circle` : `${recipient.name}, excluded`
+                }
+              />
+            );
+          })}
+        </ScrollView>
       ) : null}
 
       {expandedGroup ? (
@@ -1032,6 +1103,11 @@ function createStyles(colors: ThemeColors) {
       gap: theme.spacing.sm
     },
     removedRosterRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xs
+    },
+    excludedLineRow: {
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.xs

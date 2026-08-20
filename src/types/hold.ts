@@ -99,6 +99,25 @@ export interface StoredReply {
  */
 export type ReconnectStep = "instant_message_sent" | "personalise_completed";
 
+/**
+ * How a specific person was reached this Reconnect session — per-person,
+ * matching `reconnectContactedIds`' own existing granularity (corrected
+ * from per-Circle to per-person on 2026-08-13), not per-Circle. Layered
+ * alongside `reconnectContactedIds` (which keeps doing exactly its
+ * existing job: gate satisfaction) rather than replacing it — this map
+ * adds the "how and when" dimension for Reconnect History.
+ * - "sent": a real instant message went out — written by markReconnectContacted.
+ * - "marked_no_send": "I've already told them" in Reconnect — satisfies
+ *   the same completion gate as "sent", without an actual send.
+ * - "marked_elsewhere": "Conversation complete" in Conversations, only
+ *   ever attached while inside an active Continue-reconnecting session for
+ *   this period (no lookup, no guessing — see markConversationComplete).
+ * - "period_superseded": reserved for a future "restart Going Quiet
+ *   mid-Taking-Time" feature — not written by anything yet.
+ * See docs/09-decision-log.md, 2026-08-20.
+ */
+export type ReachedVia = "sent" | "marked_no_send" | "marked_elsewhere" | "period_superseded";
+
 export interface HoldPeriod {
   id: string;
   startedAt: number;
@@ -130,6 +149,8 @@ export interface HoldPeriod {
   sendChannels?: Record<string, string>;
   /** Which Reconnect steps this period reached this session — see ReconnectStep. Written incrementally as each step happens, not just a final summary, so it survives a force-quit mid-flow. */
   reconnectStepsReached?: ReconnectStep[];
+  /** How each person was reached this session — see ReachedVia. Keyed by phone number. */
+  reconnectReachedVia?: Record<string, { at: number; via: ReachedVia }>;
 }
 
 export interface CircleContact {

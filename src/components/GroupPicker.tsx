@@ -4,16 +4,11 @@ import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-nat
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
-import { getGroups } from "@/services/circleService";
+import { getGroups, PENDING_CIRCLE_ID_PREFIX } from "@/services/circleService";
 import type { CircleGroup } from "@/types/hold";
 
-/**
- * Every pending (not-yet-real) Circle's id starts with this — Reconnect uses
- * it to find which of a Hold period's audienceCircles are still pending an
- * "add permanently?" answer, without needing a separate pending-circle list
- * of its own. See docs/09-decision-log.md, 2026-08-10.
- */
-export const PENDING_CIRCLE_ID_PREFIX = "pending-";
+/** Re-exported for existing call sites — moved to circleService.ts, 2026-08-20, see there. */
+export { PENDING_CIRCLE_ID_PREFIX };
 
 interface GroupPickerProps {
   selectedGroupIds: string[];
@@ -221,9 +216,14 @@ export function GroupPicker({
                   isSelected={isSelected}
                   hasSentThisSession={hasSentThisSession}
                   labelBold={group.isCloseCircle}
+                  provisional={group.id.startsWith(PENDING_CIRCLE_ID_PREFIX)}
                   onPress={() => void onToggle(group)}
                   accessibilityLabel={
-                    sentLook ? `${group.name}, already sent. Tap to send another message.` : group.name
+                    sentLook
+                      ? `${group.name}, already sent. Tap to send another message.`
+                      : group.id.startsWith(PENDING_CIRCLE_ID_PREFIX)
+                        ? `${group.name}, a temporary Circle`
+                        : group.name
                   }
                 />
                 {/* Independent of selection — opens/closes this one Circle's

@@ -20,10 +20,16 @@ import {
   toggleComplete,
   type ConversationPerson
 } from "@/services/conversationService";
-import { addContactToGroup, createGroup, getGroups } from "@/services/circleService";
+import {
+  addContactToGroup,
+  createGroup,
+  getGroups,
+  NEWLY_ADDED_APOLOGY_PHRASE,
+  PENDING_CIRCLE_ID_PREFIX
+} from "@/services/circleService";
 import { pickContact } from "@/services/contactPickerService";
 import { sendOrShare } from "@/services/smsService";
-import { getReconnectingPeriod } from "@/services/holdHistoryService";
+import { clearReachedVia, getReconnectingPeriod, recordReachedVia } from "@/services/holdHistoryService";
 import { getAllTemplates, saveCircleTemplate } from "@/services/templateService";
 import type { ReturnStyle } from "@/types/hold";
 
@@ -320,9 +326,34 @@ export default function LibraryScreen() {
     })();
   };
 
-  const toggleCompletePerson = (person: ConversationPerson) => {
+  /**
+   * "Conversation complete" — Conversations-only, standalone completion
+   * log, never gating Reconnect's own completion (that's Trigger 2, a
+   * separate Reconnect-only action). Covers: replied in Hold, replied
+   * elsewhere, phone call, saw them in person, or no further reply needed
+   * (04-ux-content/01-core-journeys.md:217) — one mark for all of them,
+   * not a reason picker. Only attaches to a Hold period's own History
+   * (`marked_elsewhere`) while inside an active Continue-reconnecting
+   * session for that period — no lookup-by-phone-number, no guessing at
+   * "most recent period" (2026-08-20, settled after considering and
+   * rejecting that approach). Un-marking retracts the reachedVia entry
+   * too, so History doesn't keep a stale record of something no longer
+   * true. See docs/09-decision-log.md.
+   */
+  const markConversationComplete = (person: ConversationPerson) => {
     void (async () => {
-      await toggleComplete(person.id, !person.completed);
+      const nextCompleted = !person.completed;
+      await toggleComplete(person.id, nextCompleted);
+
+      const reconnectingPeriod = await getReconnectingPeriod();
+      if (reconnectingPeriod) {
+        if (nextCompleted) {
+          await recordReachedVia(reconnectingPeriod.id, person.phoneNumber, "marked_elsewhere");
+        } else {
+          await clearReachedVia(reconnectingPeriod.id, person.phoneNumber);
+        }
+      }
+
       await refresh();
     })();
   };
@@ -397,6 +428,13 @@ export default function LibraryScreen() {
                 friendMessage: personaliseReplyTarget.friendMessage
               }
             }}
+            extraPhrases={
+              people.find((person) => person.id === personaliseReplyTarget.personId)?.circleId?.startsWith(
+                PENDING_CIRCLE_ID_PREFIX
+              )
+                ? [NEWLY_ADDED_APOLOGY_PHRASE]
+                : []
+            }
           />
         ) : activeField ? (
           <DockedInputBar
@@ -414,6 +452,9 @@ export default function LibraryScreen() {
                 : activeTemplateId
                   ? { surface: "template" }
                   : undefined
+            }
+            extraPhrases={
+              activeIndividualPerson?.circleId?.startsWith(PENDING_CIRCLE_ID_PREFIX) ? [NEWLY_ADDED_APOLOGY_PHRASE] : []
             }
           />
         ) : null
@@ -643,14 +684,29 @@ export default function LibraryScreen() {
                       {person.name}
                     </Text>
                   </Pressable>
+                  {/* First visible label this control has ever had — was a
+                      bare, unlabelled checkbox (accessibility-text only).
+                      "Conversation complete" per
+                      04-ux-content/01-core-journeys.md:217, covering
+                      replied-in-Hold/elsewhere/phone/in-person/no-further-
+                      reply-needed as one mark, not a reason picker. See
+                      docs/09-decision-log.md, 2026-08-20. */}
                   <Pressable
                     accessibilityRole="checkbox"
-                    accessibilityLabel={`Mark ${person.name} complete`}
+                    accessibilityLabel={`${person.name}: Conversation complete`}
                     accessibilityState={{ checked: person.completed }}
-                    onPress={() => toggleCompletePerson(person)}
+                    onPress={() => markConversationComplete(person)}
                     hitSlop={8}
+                    style={styles.conversationCompleteRow}
                   >
-                    <View style={[styles.checkbox, person.completed && styles.checkboxChecked]} />
+                    <View style={[styles.checkbox, person.completed && styles.checkboxChecked]}>
+                      {/* "✓" glyph, not just the fill colour, marks checked
+                          — colour-blindness-safe per the app's standing
+                          rule, same fix as the excluded-line/roster work.
+                          See docs/09-decision-log.md, 2026-08-20. */}
+                      {person.completed ? <Text style={styles.checkboxGlyph}>✓</Text> : null}
+                    </View>
+                    <Text style={styles.conversationCompleteLabel}>Conversation complete</Text>
                   </Pressable>
                 </View>
 
@@ -929,10 +985,27 @@ function createStyles(colors: ThemeColors) {
     height: 22,
     borderRadius: theme.radius.sm,
     borderWidth: 1.5,
-    borderColor: colors.primary
+    borderColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center"
   },
   checkboxChecked: {
     backgroundColor: colors.primary
+  },
+  checkboxGlyph: {
+    color: colors.onPrimary,
+    fontSize: 14,
+    fontWeight: "700"
+  },
+  conversationCompleteRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.xs
+  },
+  conversationCompleteLabel: {
+    color: colors.textMuted,
+    fontSize: 13,
+    fontWeight: "600"
   },
   createCirclePrompt: {
     gap: theme.spacing.sm,

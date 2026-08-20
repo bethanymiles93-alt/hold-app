@@ -4,6 +4,7 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  View,
   type NativeSyntheticEvent,
   type TextLayoutEventData
 } from "react-native";
@@ -59,6 +60,25 @@ interface AdaptiveCircleChipProps {
    * language unchanged. See docs/09-decision-log.md, 2026-08-14.
    */
   compact?: boolean;
+  /**
+   * A provisional/temporary Circle — bundled ad-hoc from Going Quiet's
+   * removed-people roster, not yet a considered, final grouping. Distinct
+   * coloured border (colors.focus, not primary/error/link, so it can't be
+   * confused with any other chip meaning) paired with the border itself
+   * being a shape change from the standard filled look — colour is never
+   * the only signal, per the app's colour-blindness-safe rule. See
+   * docs/09-decision-log.md, 2026-08-20.
+   */
+  provisional?: boolean;
+  /**
+   * A Circle/person added mid-Reconnect via "+" — wasn't part of the
+   * original Going Quiet audience, so they don't know time has passed.
+   * Double-line border, deliberately distinct from `provisional`'s single
+   * coloured border (a different situation: this isn't "not yet decided
+   * on," it's "this specific person needs different wording"). See
+   * docs/09-decision-log.md, 2026-08-20.
+   */
+  newlyAdded?: boolean;
 }
 
 /**
@@ -120,7 +140,9 @@ export function AdaptiveCircleChip({
   expanded,
   labelFontSize,
   labelBold,
-  compact = false
+  compact = false,
+  provisional = false,
+  newlyAdded = false
 }: AdaptiveCircleChipProps) {
   const { colors } = useAppTheme("normal");
   const styles = createStyles(colors);
@@ -179,7 +201,7 @@ export function AdaptiveCircleChip({
   // 2026-08-11) rather than just thin.
   const selectedRingStyle = outline ? styles.chipSelectedOutline : styles.chipSelected;
 
-  return (
+  const chip = (
     <Pressable
       accessibilityRole={accessibilityRole}
       accessibilityLabel={accessibilityLabel ?? displayLabel}
@@ -193,6 +215,14 @@ export function AdaptiveCircleChip({
         shapeStyle,
         variantStyle,
         isSelected && selectedRingStyle,
+        // Provisional wins over the selected ring — a temporary Circle
+        // needs to keep reading as temporary even while selected, not
+        // have that signal disappear the moment it's picked. Not paired
+        // with newlyAdded's double border in the same chip — the two
+        // situations (not-yet-decided-on vs. needs-different-wording)
+        // are deliberately kept visually distinct. See
+        // docs/09-decision-log.md, 2026-08-20.
+        provisional && styles.chipProvisional,
         pressed && styles.chipPressed
       ]}
     >
@@ -210,6 +240,12 @@ export function AdaptiveCircleChip({
       </Text>
     </Pressable>
   );
+
+  // Double-line border, simulated via an outer ring wrapping the chip's own
+  // — RN's borderStyle has no "double" value. Deliberately not combined
+  // with `provisional`'s single coloured border at any call site (see the
+  // comment above): different meanings, different treatments.
+  return newlyAdded ? <View style={styles.newlyAddedRing}>{chip}</View> : chip;
 }
 
 function createStyles(colors: ThemeColors) {
@@ -267,6 +303,23 @@ function createStyles(colors: ThemeColors) {
       backgroundColor: colors.surfaceStrong,
       borderWidth: 3,
       borderColor: colors.primary
+    },
+    // colors.focus, not primary/error/link — a distinct "temporary,
+    // provisional" meaning of its own, not borrowed from an existing one.
+    // The border itself (vs. the standard fill-only look) is the shape
+    // change pairing with this colour, per the app's colour-blindness-safe
+    // rule. See docs/09-decision-log.md, 2026-08-20.
+    chipProvisional: {
+      borderWidth: 2,
+      borderColor: colors.focus
+    },
+    // Outer ring + inner padding + the chip's own border together read as
+    // two concentric lines — RN has no native "double" borderStyle.
+    newlyAddedRing: {
+      borderWidth: 1.5,
+      borderColor: colors.focus,
+      borderRadius: theme.radius.pill,
+      padding: 3
     },
     chipPressed: {
       opacity: 0.7

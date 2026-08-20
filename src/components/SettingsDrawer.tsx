@@ -175,8 +175,9 @@ export function SettingsDrawer() {
                 setMemoryEnabled(false),
                 setHoldPlusActive(false),
                 deleteAiInstallId()
-                // Deliberately NOT cleared: hasSeenWelcome / hasSeenRetentionNote.
-                // "Delete my data" wipes content, not app state — see docs/09-decision-log.md.
+                // Deliberately NOT cleared: hasSeenWelcome / hasSeenRetentionNote /
+                // hasSeenExcludedLineNote. "Delete my data" wipes content, not app
+                // state — see docs/09-decision-log.md.
               ]);
               resetFlow("hold");
               router.replace("/");

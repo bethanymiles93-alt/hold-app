@@ -1,5 +1,6 @@
 import * as SecureStore from "expo-secure-store";
-import type { AudienceCircle, HoldPeriod, ReconnectStep } from "@/types/hold";
+import { initialsPlaceholderName, PENDING_CIRCLE_ID_PREFIX } from "@/services/circleService";
+import type { AudienceCircle, HoldPeriod, ReachedVia, ReconnectStep } from "@/types/hold";
 
 const INDEX_KEY = "hold.history.index";
 const OPEN_KEY = "hold.history.open";
@@ -107,13 +108,24 @@ export async function addCircleToAudience(circle: AudienceCircle): Promise<void>
 }
 
 /**
- * Appends someone new to a specific period's audience, ungrouped — the
- * Reconnect-screen equivalent of `addToAudience` above, which only ever
- * targets the currently-OPEN period and so can't be reused here: by the
- * time someone's on the Reconnect screen, that period is no longer open
- * (`beginReconnecting` has already fired). Takes the period id directly
- * rather than re-deriving it from a marker, since the caller already has
- * it. See docs/09-decision-log.md, 2026-08-13.
+ * Adds someone new to a specific period's audience mid-Reconnect, as their
+ * own provisional Circle-of-one — the Reconnect-screen equivalent of
+ * `addToAudience` above, which only ever targets the currently-OPEN period
+ * and so can't be reused here: by the time someone's on the Reconnect
+ * screen, that period is no longer open (`beginReconnecting` has already
+ * fired). Takes the period id directly rather than re-deriving it from a
+ * marker, since the caller already has it.
+ *
+ * **Changed 2026-08-20**, closing a previously-flagged inconsistency: this
+ * used to add the contact ungrouped (`audienceUngrouped`), the one place
+ * in the app that didn't follow the confirmed Circle-of-one convention
+ * (see docs/09-decision-log.md, 2026-08-13). Now reuses the same
+ * `PENDING_CIRCLE_ID_PREFIX` provisional-Circle convention Going Quiet's
+ * own bundling already uses, since this person genuinely wasn't part of
+ * the original Going Quiet audience and callers need a stable way to
+ * identify that (their circle's own distinct visual treatment, and a
+ * dedicated apology-wording suggestion — neither is meaningful for a
+ * plain ungrouped contact with no Circle to mark).
  */
 export async function addToReconnectingAudience(
   periodId: string,
@@ -129,7 +141,74 @@ export async function addToReconnectingAudience(
     ungrouped.some((existing) => existing.phoneNumber === contact.phoneNumber);
   if (alreadyPresent) return;
 
-  await writeRecord({ ...period, audienceUngrouped: [...ungrouped, contact] });
+  const newCircle: AudienceCircle = {
+    circleId: `${PENDING_CIRCLE_ID_PREFIX}${Date.now()}`,
+    circleName: initialsPlaceholderName([contact]),
+    contacts: [contact]
+  };
+
+  await writeRecord({ ...period, audienceCircles: [...circles, newCircle] });
+}
+
+/**
+ * Bundles one or more currently-excluded people (by phone number, not
+ * name — matching how ConversationPerson and everything else in Reconnect
+ * is already keyed) into ONE new provisional Circle, mirroring Going
+ * Quiet's own `bundleIntoNewCircle` — a lighter-capacity alternative to
+ * Reconnect's own auto-spin-into-Circle-of-one, since someone with more
+ * capacity mid-Reconnect may want to group several excluded people into
+ * one shared instant message rather than handling them one at a time
+ * (2026-08-20, corrects an earlier "automatic Circle-of-one on unselect"
+ * instruction that was reversed before being built). Removes each bundled
+ * contact from wherever they currently live (an existing Circle's
+ * `contacts`, or `audienceUngrouped`) so they aren't double-counted, then
+ * adds the new Circle. A no-op for any phone number not actually found in
+ * the current audience.
+ */
+export async function bundleIntoReconnectCircle(periodId: string, phoneNumbers: string[]): Promise<void> {
+  const period = await readRecord(periodId);
+  if (!period) return;
+
+  const targetSet = new Set(phoneNumbers);
+  const bundled: { name: string; phoneNumber: string }[] = [];
+
+  const remainingCircles = (period.audienceCircles ?? [])
+    .map((circle) => {
+      const [keep, remove] = circle.contacts.reduce<[AudienceCircle["contacts"], AudienceCircle["contacts"]]>(
+        ([keep, remove], contact) => {
+          if (targetSet.has(contact.phoneNumber)) {
+            remove.push(contact);
+          } else {
+            keep.push(contact);
+          }
+          return [keep, remove];
+        },
+        [[], []]
+      );
+      bundled.push(...remove);
+      return { ...circle, contacts: keep };
+    })
+    .filter((circle) => circle.contacts.length > 0);
+
+  const remainingUngrouped = (period.audienceUngrouped ?? []).filter((contact) => {
+    if (!targetSet.has(contact.phoneNumber)) return true;
+    bundled.push(contact);
+    return false;
+  });
+
+  if (bundled.length === 0) return;
+
+  const newCircle: AudienceCircle = {
+    circleId: `${PENDING_CIRCLE_ID_PREFIX}${Date.now()}`,
+    circleName: initialsPlaceholderName(bundled),
+    contacts: bundled
+  };
+
+  await writeRecord({
+    ...period,
+    audienceCircles: [...remainingCircles, newCircle],
+    audienceUngrouped: remainingUngrouped
+  });
 }
 
 /**
@@ -364,6 +443,66 @@ export async function recordReconnectStepReached(periodId: string, step: Reconne
   if (existing.includes(step)) return;
 
   await writeRecord({ ...period, reconnectStepsReached: [...existing, step] });
+}
+
+/**
+ * Records how a specific person was reached this session — see
+ * `ReachedVia` for the full set and what writes each value. Layered
+ * alongside `reconnectContactedIds` (untouched, still the sole source the
+ * completion gate reads) rather than replacing it. Overwrites any existing
+ * entry for this phone number — the most recent "how" wins, e.g. if
+ * someone marked without a send later gets a real send too.
+ */
+export async function recordReachedVia(periodId: string, phoneNumber: string, via: ReachedVia): Promise<void> {
+  const period = await readRecord(periodId);
+  if (!period) return;
+
+  const existing = period.reconnectReachedVia ?? {};
+  await writeRecord({
+    ...period,
+    reconnectReachedVia: { ...existing, [phoneNumber]: { at: Date.now(), via } }
+  });
+}
+
+/**
+ * Clears a previously-recorded reachedVia entry — un-marking "Conversation
+ * complete" should retract a `marked_elsewhere` write, not leave a stale
+ * record of something no longer true. See docs/09-decision-log.md, 2026-08-20.
+ */
+export async function clearReachedVia(periodId: string, phoneNumber: string): Promise<void> {
+  const period = await readRecord(periodId);
+  if (!period) return;
+
+  const existing = period.reconnectReachedVia ?? {};
+  if (!(phoneNumber in existing)) return;
+
+  const next = { ...existing };
+  delete next[phoneNumber];
+  await writeRecord({ ...period, reconnectReachedVia: next });
+}
+
+/**
+ * "I've already told them" — Reconnect-only, satisfies the same completion
+ * gate a real send does (appends to `reconnectContactedIds`, exactly like
+ * `markReconnectContacted`), but records `"marked_no_send"` as how, not
+ * "sent" — distinct code path from Conversations' own "Conversation
+ * complete" (`recordReachedVia` directly, gated on an active session, see
+ * `markConversationComplete` in library.tsx). See docs/09-decision-log.md,
+ * 2026-08-20.
+ */
+export async function markReconnectCoveredWithoutSend(periodId: string, phoneNumber: string): Promise<void> {
+  const period = await readRecord(periodId);
+  if (!period) return;
+
+  const existing = period.reconnectContactedIds ?? [];
+  const contactedIds = existing.includes(phoneNumber) ? existing : [...existing, phoneNumber];
+  const reachedVia = period.reconnectReachedVia ?? {};
+
+  await writeRecord({
+    ...period,
+    reconnectContactedIds: contactedIds,
+    reconnectReachedVia: { ...reachedVia, [phoneNumber]: { at: Date.now(), via: "marked_no_send" } }
+  });
 }
 
 /** Clears the reconnecting marker once Reconnect has genuinely finished. */
