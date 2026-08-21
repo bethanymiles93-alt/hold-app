@@ -1122,7 +1122,7 @@ export default function ReconnectScreen() {
                 return (
                   <View key={person.key} style={styles.excludedPersonUnit}>
                     <AdaptiveCircleChip
-                      label={hasSentThisSession ? `✓ ${person.name}` : person.name}
+                      label={person.name}
                       compact
                       isSelected={bundleSelectedIds.has(person.id)}
                       hasSentThisSession={hasSentThisSession}
@@ -1202,7 +1202,7 @@ export default function ReconnectScreen() {
                 return (
                   <View key={person.key} style={isGreyedOut && styles.chipGreyed}>
                     <AdaptiveCircleChip
-                      label={sentLook ? `✓ ${person.name}` : person.name}
+                      label={person.name}
                       compact
                       isSelected={isIncluded}
                       hasSentThisSession={hasSentThisSession}
@@ -1383,7 +1383,7 @@ export default function ReconnectScreen() {
                             return (
                               <AdaptiveCircleChip
                                 key={platform.id}
-                                label={takenDown ? `✓ ${platform.name}` : platform.name}
+                                label={platform.name}
                                 compact
                                 isSelected={false}
                                 hasSentThisSession={takenDown}

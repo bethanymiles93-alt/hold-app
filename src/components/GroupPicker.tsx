@@ -212,7 +212,7 @@ export function GroupPicker({
             return (
               <View key={group.id} style={[styles.circleUnit, isGreyedOut && styles.circleUnitGreyed]}>
                 <AdaptiveCircleChip
-                  label={sentLook ? `✓ ${group.name}` : group.name}
+                  label={group.name}
                   isSelected={isSelected}
                   hasSentThisSession={hasSentThisSession}
                   labelBold={group.isCloseCircle}

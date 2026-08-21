@@ -108,7 +108,7 @@ export function ConversationsView({ conversations: c, mode }: ConversationsViewP
               return (
                 <AdaptiveCircleChip
                   key={person.id}
-                  label={sentLook ? `✓ ${person.name}` : person.name}
+                  label={person.name}
                   compact
                   isSelected={isSelected}
                   hasSentThisSession={person.completed}
@@ -131,7 +131,7 @@ export function ConversationsView({ conversations: c, mode }: ConversationsViewP
             return (
               <AdaptiveCircleChip
                 key={person.id}
-                label={sentLook ? `✓ ${person.name}` : person.name}
+                label={person.name}
                 compact
                 isSelected={isOpen}
                 hasSentThisSession={person.completed}

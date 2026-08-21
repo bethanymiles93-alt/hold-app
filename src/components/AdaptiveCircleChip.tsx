@@ -147,7 +147,7 @@ export function AdaptiveCircleChip({
   const { colors } = useAppTheme("normal");
   const styles = createStyles(colors);
   const [measuredWidth, setMeasuredWidth] = useState<number | null>(null);
-  const displayLabel = stripEmoji(label);
+  const strippedLabel = stripEmoji(label);
 
   const onTextLayout = (event: NativeSyntheticEvent<TextLayoutEventData>) => {
     const line = event.nativeEvent.lines[0];
@@ -179,6 +179,16 @@ export function AdaptiveCircleChip({
   // of the three, and mutually exclusive with hasSentThisSession in practice.
   const showSentFill = !isSelected && hasSentThisSession;
   const showNotYetSentFill = !isSelected && !hasSentThisSession && notYetSent;
+
+  // "✓ " prefix now lives here, not left to each call site to remember —
+  // colour alone (the fill above) was never a colour-blindness-safe signal
+  // on its own (see the app's standing accessibility rule). Was previously
+  // done by hand at most, but not all, call sites (some correctly added
+  // "✓ " themselves, two never did, LinkedCircleCluster had no hook for it
+  // at all) — a real, found-in-audit gap. Centralising here fixes every
+  // consumer, including LinkedCircleCluster, with no call-site changes.
+  // See docs/09-decision-log.md, 2026-08-21.
+  const displayLabel = showSentFill ? `✓ ${strippedLabel}` : strippedLabel;
 
   const variantStyle = showSentFill
     ? styles.chipSent
@@ -273,11 +283,13 @@ function createStyles(colors: ThemeColors) {
       borderColor: colors.primary
     },
     // The app's one standard sent treatment: dark-green fill, white text,
-    // colour only, no glyph. Was wrongly using the same backgroundColor as
-    // the default unselected chip (colors.surfaceStrong) — a real
-    // regression, not a deliberate softened look, since this shared
-    // component is what Going Quiet/Reconnect/Taking Time's update all
-    // render sent chips through. See docs/09-decision-log.md, 2026-08-12.
+    // paired with a "✓ " label prefix (see displayLabel above, 2026-08-21 —
+    // this fill used to be colour-only, a real, audit-found accessibility
+    // gap). Was wrongly using the same backgroundColor as the default
+    // unselected chip (colors.surfaceStrong) — a real regression, not a
+    // deliberate softened look, since this shared component is what Going
+    // Quiet/Reconnect/Taking Time's update all render sent chips through.
+    // See docs/09-decision-log.md, 2026-08-12 and 2026-08-21.
     chipSent: {
       backgroundColor: colors.primary
     },
