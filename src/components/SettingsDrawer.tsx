@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { useHoldFlow } from "@/context/HoldFlowContext";
 import { useSettingsDrawer } from "@/context/SettingsDrawerContext";
 import { deleteAllCircles } from "@/services/circleService";
@@ -108,15 +109,19 @@ export function SettingsDrawer() {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const translateX = useRef(new Animated.Value(PANEL_WIDTH)).current;
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     Animated.timing(translateX, {
       toValue: isOpen ? 0 : PANEL_WIDTH,
-      duration: ANIMATION_MS,
+      // Instant snap instead of a slide when Reduce Motion is on — closes a
+      // real, audit-found gap: this drawer had no reduce-motion
+      // accommodation at all before. See docs/09-decision-log.md, 2026-08-21.
+      duration: reduceMotion ? 0 : ANIMATION_MS,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true
     }).start();
-  }, [isOpen, translateX]);
+  }, [isOpen, translateX, reduceMotion]);
 
   const backdropOpacity = translateX.interpolate({
     inputRange: [0, PANEL_WIDTH],

@@ -219,6 +219,18 @@ export function AdaptiveCircleChip({
         accessibilityRole === "text" ? undefined : expanded !== undefined ? { expanded } : { checked: isSelected }
       }
       disabled={accessibilityRole === "text"}
+      // Only compact chips need this — STANDARD_CHIP_DIAMETER ones are
+      // already 90/95pt, well over the accessible floor. Measured, not
+      // guessed: every compact-pill row in the app uses the same
+      // theme.spacing.sm (10pt) horizontal gap between chips, with no
+      // exceptions found — 4pt left/right keeps two neighbours' hit zones
+      // 2pt apart at their closest (2×4=8 of the 10pt gap), never
+      // touching or overlapping. Vertical isn't constrained by neighbours
+      // the same way (these are single-row horizontal scrolls, not a
+      // wrapping grid), so 8pt top/bottom actually clears the 44pt
+      // accessible floor (32 + 8 + 8 = 48) rather than just nudging it.
+      // See docs/09-decision-log.md, 2026-08-21.
+      hitSlop={compact ? { top: 8, bottom: 8, left: 4, right: 4 } : undefined}
       onPress={onPress}
       style={({ pressed }) => [
         styles.chip,

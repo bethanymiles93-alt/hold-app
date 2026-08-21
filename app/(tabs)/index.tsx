@@ -1,17 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect } from "expo-router";
-import {
-  AccessibilityInfo,
-  Alert,
-  Animated,
-  Easing,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View
-} from "react-native";
+import { Alert, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { HoldMark } from "@/components/HoldMark";
 import { SecondaryButton } from "@/components/SecondaryButton";
@@ -20,6 +10,7 @@ import { TakingTimeUpdateDrawer } from "@/components/TakingTimeUpdateDrawer";
 import { AddToGoingQuietDrawer } from "@/components/AddToGoingQuietDrawer";
 import { theme } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { useHoldFlow } from "@/context/HoldFlowContext";
 import { useQuietPalette } from "@/context/QuietPaletteContext";
 import {
@@ -95,16 +86,16 @@ export default function HomeScreen() {
     setIsQuiet(homeState === "taking-time");
   }, [homeState, setIsQuiet]);
   const [isAnimating, setIsAnimating] = useState(false);
-  const [reduceMotion, setReduceMotion] = useState(false);
+  // Was this screen's own inline check (one-time AccessibilityInfo.isReduceMotionEnabled(),
+  // no live-change listener) — now the shared app-wide hook instead, which
+  // also picks up the OS setting changing mid-session. See
+  // src/hooks/useReducedMotion.ts, docs/09-decision-log.md, 2026-08-21.
+  const reduceMotion = useReducedMotion();
 
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const rippleAnim = useRef(new Animated.Value(0)).current;
   const paletteAnim = useRef(new Animated.Value(0)).current;
   const breatheAnim = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    void AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
-  }, []);
 
   useEffect(() => {
     if (homeState === "taking-time" && !reduceMotion) {

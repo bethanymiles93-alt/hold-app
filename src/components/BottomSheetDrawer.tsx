@@ -4,6 +4,7 @@ import { Animated, Dimensions, Easing, Pressable, StyleSheet, Text, View } from 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 
 const PANEL_HEIGHT = Dimensions.get("window").height * 0.55;
 const ANIMATION_MS = 260;
@@ -36,15 +37,19 @@ export function BottomSheetDrawer({ visible, onClose, title, sendSlot, children 
   const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const translateY = useRef(new Animated.Value(PANEL_HEIGHT)).current;
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     Animated.timing(translateY, {
       toValue: visible ? 0 : PANEL_HEIGHT,
-      duration: ANIMATION_MS,
+      // Instant snap instead of a slide when Reduce Motion is on — closes a
+      // real, audit-found gap: this drawer had no reduce-motion
+      // accommodation at all before. See docs/09-decision-log.md, 2026-08-21.
+      duration: reduceMotion ? 0 : ANIMATION_MS,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true
     }).start();
-  }, [visible, translateY]);
+  }, [visible, translateY, reduceMotion]);
 
   const backdropOpacity = translateY.interpolate({
     inputRange: [0, PANEL_HEIGHT],
