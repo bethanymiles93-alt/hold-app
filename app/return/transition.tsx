@@ -20,12 +20,26 @@ export default function ReconnectTransitionScreen() {
       contentContainerStyle={styles.content}
       footer={<PrimaryButton label="Continue" onPress={goToReconnect} />}
     >
+      {/*
+       * Drafted replacement copy, confirmed directly — the previous
+       * "Welcome back. Reply however feels right today, whenever you're
+       * ready." copy is fully superseded, not amended, per hold-book
+       * 04-ux-content/04-navigation-architecture.md's "Reconnect landing
+       * moment" sequence. Three lines, no separate "Welcome back." title —
+       * the drafted sequence replaces the whole message block, matching
+       * Going Quiet's own equivalent transition screen's shape. Line 2's
+       * own citation marker ("Why this is true", linking to an anchored
+       * Research-page section) is deliberately not built here — its own
+       * dependency (individually addressable Research sections) is a
+       * separate, larger, explicitly-not-yet-built piece of
+       * infrastructure per that same hold-book section, not part of this
+       * copy change. See docs/09-decision-log.md.
+       */}
       <View style={styles.message}>
         <HoldMark size={64} />
-        <Text style={styles.title}>Welcome back.</Text>
-        <Text style={styles.subtitle}>
-          Reply however feels right today, whenever you’re ready.
-        </Text>
+        <Text style={styles.subtitle}>Coming back doesn’t need a perfect opening line.</Text>
+        <Text style={styles.subtitle}>Most people underestimate how much a message like this means.</Text>
+        <Text style={styles.subtitle}>It doesn’t need to be perfect. It just needs to be sent.</Text>
       </View>
     </Screen>
   );
@@ -39,13 +53,6 @@ function createStyles(colors: ThemeColors) {
     message: {
       alignItems: "center",
       gap: theme.spacing.md
-    },
-    title: {
-      color: colors.text,
-      fontSize: 22,
-      lineHeight: 28,
-      textAlign: "center",
-      fontWeight: "600"
     },
     subtitle: {
       color: colors.textMuted,

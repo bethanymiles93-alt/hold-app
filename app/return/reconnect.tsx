@@ -79,7 +79,8 @@ export default function ReconnectScreen() {
   useEffect(() => {
     void getWiderWorldPlatforms().then(setWiderWorldPlatforms);
   }, []);
-  const [suggestedPrompt, setSuggestedPrompt] = useState<string | undefined>(undefined);
+  /** A memory note's text, staged for a one-shot highlighted insert into the docked bar — see DockedInputBar's own pendingInsert prop. Corrected 2026-08-21: used to feed AI-amend's initialPrompt instead, which silently made stale note text an unreviewed AI input rather than clearly-marked inserted content. */
+  const [pendingMemoryInsert, setPendingMemoryInsert] = useState<string | undefined>(undefined);
   // Collapsed by default — 2026-08-13 confirmed correction, superseding
   // the 2026-08-12 entry that had flipped this to expanded for this exact
   // moment. Explicitly re-confirmed, not a silent re-reversal: an open
@@ -881,9 +882,10 @@ export default function ReconnectScreen() {
             }}
             placeholder="Message to send"
             accessibilityLabel="Message to send"
-            aiAmend={{ surface: "reconnect", initialPrompt: suggestedPrompt }}
+            aiAmend={{ surface: "reconnect" }}
             template={savedDefaultText !== null ? { text: savedDefaultText } : undefined}
             extraPhrases={messageExtraPhrases}
+            pendingInsert={pendingMemoryInsert}
             saveDefault={
               contributingCircleIds.length > 0
                 ? {
@@ -1153,9 +1155,9 @@ export default function ReconnectScreen() {
 
           {hasComposeTargets ? (
             <MemoryNoteSuggestion
-              onUseIt={(prompt) => {
-                setSuggestedPrompt(prompt);
+              onUseIt={(text) => {
                 openMessageField();
+                setPendingMemoryInsert(text);
               }}
             />
           ) : null}

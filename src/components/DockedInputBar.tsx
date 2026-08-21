@@ -94,6 +94,18 @@ interface DockedInputBarProps {
     unsavedLabel?: string;
     savedLabel?: string;
   };
+  /**
+   * A one-shot "insert this text as a highlighted, revert-on-edit block the
+   * moment the bar is showing it" trigger — the exact same mechanic
+   * Template's own button uses (`highlight.insertBlock`), just reachable
+   * from outside this component. Fires once per distinct value (mirrors
+   * `aiAmend.initialPrompt`'s own one-shot-effect shape). Built for
+   * `MemoryNoteSuggestion`'s "Use it" (2026-08-21 correction) — a memory
+   * note can be weeks stale, so it must land as clearly-marked,
+   * still-editable inserted content, never as a silently pre-filled AI
+   * prompt or as the box's raw starting value. See docs/09-decision-log.md.
+   */
+  pendingInsert?: string;
 }
 
 /**
@@ -137,7 +149,8 @@ export function DockedInputBar({
   suggestions,
   template,
   saveDefault,
-  extraPhrases = []
+  extraPhrases = [],
+  pendingInsert
 }: DockedInputBarProps) {
   const { colors, isDark } = useAppTheme("normal");
   const styles = createStyles(colors, isDark);
@@ -184,6 +197,19 @@ export function DockedInputBar({
   const scrollToEndSoon = () => {
     requestAnimationFrame(() => inputScrollRef.current?.scrollToEnd({ animated: false }));
   };
+
+  // One-shot: inserts pendingInsert as a highlighted block the moment it's
+  // given a value, same path as Template/a pill tap. The effect's own
+  // dependency array is what makes this one-shot — it only re-fires when
+  // the caller passes a genuinely new string, e.g. a second memory note
+  // (mirrors aiAmend.initialPrompt's own identical one-shot-effect shape,
+  // same characteristic, never flagged as an issue there either).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!pendingInsert) return;
+    highlight.insertBlock(pendingInsert);
+    scrollToEndSoon();
+  }, [pendingInsert]);
 
   const onTemplatePress = () => {
     if (!template) return;
