@@ -895,3 +895,17 @@ Six call sites' now-redundant manual `` `✓ ${name}` `` ternaries removed (`rec
 `tsc --noEmit` and `vitest run` (53/53) both pass.
 
 **hold-book**: no update — corrects an implementation gap against the app's own already-documented Reduce Motion/accessibility rules, not a new design decision.
+
+## 2026-08-21/22 — Sent-state chip treatment revised to bold+rim, not a checkmark; a real, separate contrast bug found and fixed in the same pass
+
+**Item 2 of the same six-part follow-up, resolved.** The same day's earlier "✓ " prefix fix (moved the checkmark into `AdaptiveCircleChip` itself, closing a real colour-only gap) had an unwanted side effect: the prefix measured into `fitsAsCircle`'s own width check, tipping names that used to render as a true circle into pill shape instead once sent. Reverted the label-text prefix entirely (`displayLabel` back to the plain stripped name); the non-colour sent signal now lives purely in chip decoration, not text content, so shape is unaffected either way.
+
+**Prototyped two alternatives before choosing, per direct instruction — reasoned through, not device-tested (no simulator access this session), decision made and confirmed against that reasoning:**
+- **Chosen: bold label text (`fontWeight: "800"`, matching the existing `labelBold` prop's own weight so the two never conflict) + a 2.5pt `chipSent` rim in `colors.onPrimary`.** Reuses the exact pattern `chipSelected`/`chipProvisional`/`newlyAddedRing` already use elsewhere on this same component — internally consistent, no new mechanism, no new render layer.
+- **Considered, not built: a low-opacity watermark tick rendered behind the label instead of appended to it.** Sketched but not implemented — judged more likely to either read as too faint to register or bright enough to interfere with the name text sitting on top of it, especially at the `compact` pill's 32pt height, where there's very little room to separate decoration from content.
+
+**Real, separate bug found and fixed while touching this exact block, not left for later per direct instruction: `labelTextSent` was `colors.textMuted` on the `chipSent` dark-green fill — computed contrast ≈1.4:1, nowhere near WCAG AA's 4.5:1 floor for normal text.** The style's own existing comment already said "white text," and `colors.onPrimary` is the pairing used everywhere else text sits on a `colors.primary` fill (≈9:1, per the same day's earlier accessibility audit's own contrast table) — `textMuted` reads as a copy-paste artifact unrelated to anything built today, not a deliberate choice. Fixed to `onPrimary`.
+
+`tsc --noEmit` and `vitest run` (53/53) both pass.
+
+**hold-book**: no update — corrects two implementation gaps (shape-expansion side effect, a real contrast failure) against the app's own already-documented rules, not new design decisions.

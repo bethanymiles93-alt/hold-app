@@ -180,15 +180,14 @@ export function AdaptiveCircleChip({
   const showSentFill = !isSelected && hasSentThisSession;
   const showNotYetSentFill = !isSelected && !hasSentThisSession && notYetSent;
 
-  // "✓ " prefix now lives here, not left to each call site to remember —
-  // colour alone (the fill above) was never a colour-blindness-safe signal
-  // on its own (see the app's standing accessibility rule). Was previously
-  // done by hand at most, but not all, call sites (some correctly added
-  // "✓ " themselves, two never did, LinkedCircleCluster had no hook for it
-  // at all) — a real, found-in-audit gap. Centralising here fixes every
-  // consumer, including LinkedCircleCluster, with no call-site changes.
-  // See docs/09-decision-log.md, 2026-08-21.
-  const displayLabel = showSentFill ? `✓ ${strippedLabel}` : strippedLabel;
+  // Reverted (2026-08-21, same day) — a "✓ " prefix here measured into
+  // fitsAsCircle's own width check below, tipping names that used to fit
+  // as a true circle into pill shape instead once sent. Non-colour signal
+  // for sent state now lives entirely in the fill/border/weight below
+  // (chipSent, labelBold when showSentFill), not the label text, so shape
+  // stays exactly what the name on its own would produce either way. See
+  // docs/09-decision-log.md.
+  const displayLabel = strippedLabel;
 
   const variantStyle = showSentFill
     ? styles.chipSent
@@ -295,15 +294,22 @@ function createStyles(colors: ThemeColors) {
       borderColor: colors.primary
     },
     // The app's one standard sent treatment: dark-green fill, white text,
-    // paired with a "✓ " label prefix (see displayLabel above, 2026-08-21 —
-    // this fill used to be colour-only, a real, audit-found accessibility
-    // gap). Was wrongly using the same backgroundColor as the default
-    // unselected chip (colors.surfaceStrong) — a real regression, not a
-    // deliberate softened look, since this shared component is what Going
-    // Quiet/Reconnect/Taking Time's update all render sent chips through.
-    // See docs/09-decision-log.md, 2026-08-12 and 2026-08-21.
+    // bold weight, plus a visibly thicker rim (2026-08-21, second pass —
+    // a "✓ " label prefix was tried first, reverted the same day: it
+    // measured into fitsAsCircle's own width check, tipping names that
+    // used to fit as a true circle into pill shape instead once sent,
+    // which wasn't wanted. Bold+rim carries the same non-colour signal
+    // without touching label width at all, since it's chip decoration,
+    // not text content). Was wrongly using the same backgroundColor as
+    // the default unselected chip (colors.surfaceStrong) — a real
+    // regression, not a deliberate softened look, since this shared
+    // component is what Going Quiet/Reconnect/Taking Time's update all
+    // render sent chips through. See docs/09-decision-log.md, 2026-08-12
+    // and 2026-08-21.
     chipSent: {
-      backgroundColor: colors.primary
+      backgroundColor: colors.primary,
+      borderWidth: 2.5,
+      borderColor: colors.onPrimary
     },
     // A third, distinct shade — paler than chipSecondary's default sage,
     // not a tint of chipSent's dark green. Alpha over surfaceStrong rather
@@ -361,8 +367,17 @@ function createStyles(colors: ThemeColors) {
     labelTextOutline: {
       color: colors.primary
     },
+    // colors.onPrimary, not textMuted — this used to be textMuted, which
+    // on chipSent's dark-green fill computes to roughly 1.4:1 contrast
+    // (WCAG AA needs 4.5:1 for normal text), nowhere close to legible.
+    // onPrimary is the pairing used everywhere else text sits on a
+    // colors.primary fill (~9:1) and matches this style's own original
+    // "white text" description above — found and fixed while touching
+    // this block for the bold-weight change, not a separate audit pass.
+    // See docs/09-decision-log.md, 2026-08-21.
     labelTextSent: {
-      color: colors.textMuted
+      color: colors.onPrimary,
+      fontWeight: "800"
     },
     labelTextNotYetSent: {
       color: colors.textMuted
