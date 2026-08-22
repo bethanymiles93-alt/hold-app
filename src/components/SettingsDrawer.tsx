@@ -141,6 +141,7 @@ export function SettingsDrawer() {
       | "/settings/circle"
       | "/settings/sending-channel"
       | "/settings/wider-world"
+      | "/settings/accessibility-display"
   ) => {
     close();
     router.push(path);
@@ -237,6 +238,7 @@ export function SettingsDrawer() {
             <NavRow label="Your Circles" onPress={() => goTo("/settings/circle")} />
             <NavRow label="Sending channel" onPress={() => goTo("/settings/sending-channel")} />
             <NavRow label="Your Wider World" onPress={() => goTo("/settings/wider-world")} />
+            <NavRow label="Accessibility & Display" onPress={() => goTo("/settings/accessibility-display")} />
             <ComingLaterRow label="Notifications" />
             <ComingLaterRow label="Language" />
             <ComingLaterRow label="Connected Accounts" />

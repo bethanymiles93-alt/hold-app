@@ -10,21 +10,42 @@ import { HoldFlowProvider } from "@/context/HoldFlowContext";
 import { QuietPaletteProvider } from "@/context/QuietPaletteContext";
 import { ComposingProvider } from "@/context/ComposingContext";
 import { SettingsDrawerProvider } from "@/context/SettingsDrawerContext";
+import { DisplaySettingsProvider } from "@/context/DisplaySettingsContext";
 import { useAppTheme } from "@/hooks/useAppTheme";
 
 export default function RootLayout() {
-  const { colors, isDark } = useAppTheme("normal");
-
   return (
     <SafeAreaProvider>
       {/* Required by react-native-keyboard-controller (DockedInputBar's
           KeyboardStickyView) — must wrap anything using its hooks/components,
           as high as the tree allows. */}
       <KeyboardProvider>
+        <DisplaySettingsProvider>
         <HoldFlowProvider>
           <QuietPaletteProvider>
           <ComposingProvider>
           <SettingsDrawerProvider>
+            <RootLayoutNav />
+          </SettingsDrawerProvider>
+          </ComposingProvider>
+          </QuietPaletteProvider>
+        </HoldFlowProvider>
+        </DisplaySettingsProvider>
+      </KeyboardProvider>
+    </SafeAreaProvider>
+  );
+}
+
+/**
+ * Split from RootLayout so useAppTheme (and, through it, useDisplaySettings)
+ * can be called from inside DisplaySettingsProvider — RootLayout itself
+ * renders the provider tree, so it can't consume its own context.
+ */
+function RootLayoutNav() {
+  const { colors, isDark } = useAppTheme("normal");
+
+  return (
+    <>
             <StatusBar style={isDark ? "light" : "dark"} />
             <Stack
               screenOptions={{
@@ -75,22 +96,18 @@ export default function RootLayout() {
               <Stack.Screen name="settings/sending-channel" options={{ title: "Sending channel" }} />
               <Stack.Screen name="settings/circle/index" options={{ title: "Your Circles" }} />
               <Stack.Screen name="settings/wider-world" options={{ title: "Your Wider World" }} />
+              <Stack.Screen name="settings/accessibility-display" options={{ title: "Accessibility & Display" }} />
             </Stack>
-            {/* Sibling to the Stack, not inside it — a root-level overlay so
-                it can show over any screen regardless of which navigator
-                owns it (Settings and Going Quiet/Reconnect/Transition are
-                all pushed root-stack screens, outside the Tabs group
-                entirely). Rendered before SettingsDrawer so an open drawer
-                visually covers it, matching the existing z-order between
-                screen content and the drawer. See docs/09-decision-log.md,
-                2026-08-13. */}
-            <BottomTabBar />
-            <SettingsDrawer />
-          </SettingsDrawerProvider>
-          </ComposingProvider>
-          </QuietPaletteProvider>
-        </HoldFlowProvider>
-      </KeyboardProvider>
-    </SafeAreaProvider>
+      {/* Sibling to the Stack, not inside it — a root-level overlay so
+          it can show over any screen regardless of which navigator
+          owns it (Settings and Going Quiet/Reconnect/Transition are
+          all pushed root-stack screens, outside the Tabs group
+          entirely). Rendered before SettingsDrawer so an open drawer
+          visually covers it, matching the existing z-order between
+          screen content and the drawer. See docs/09-decision-log.md,
+          2026-08-13. */}
+      <BottomTabBar />
+      <SettingsDrawer />
+    </>
   );
 }
