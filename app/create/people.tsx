@@ -33,6 +33,7 @@ import {
 } from "@/services/holdHistoryService";
 import { activateOutOfOffice } from "@/services/emailAccountService";
 import { getWiderWorldPlatforms } from "@/services/widerWorldSettingsService";
+import { getWiderWorldContexts } from "@/services/widerWorldContextService";
 import { copyToClipboard } from "@/services/clipboardService";
 import { channelKey, sendToCircles } from "@/services/smsService";
 import { getDefaultSendingChannel } from "@/services/sendingPreferencesService";
@@ -189,6 +190,15 @@ export default function HoldPeopleScreen() {
   const [widerWorldPlatforms, setWiderWorldPlatforms] = useState<WiderWorldPlatform[]>([]);
   const [widerWorldPostedTo, setWiderWorldPostedTo] = useState<Set<string>>(new Set());
   const [showWiderWorldPostedTo, setShowWiderWorldPostedTo] = useState(false);
+  /**
+   * Settings-authored per-context Wider World messages, offered on the
+   * status box as tap-to-insert pills (`extraPhrases`) — the same
+   * user-initiated, green-highlighted insertion mechanic Template/sentence
+   * pills already use, never auto-loaded as the box's starting value. A
+   * stale-but-silently-active default is exactly the risk that mechanic
+   * exists to avoid. See docs/09-decision-log.md.
+   */
+  const [widerWorldContextMessages, setWiderWorldContextMessages] = useState<string[]>([]);
 
   const toggleWiderWorldPostedTo = (platformId: string) => {
     setWiderWorldPostedTo((current) => {
@@ -211,12 +221,18 @@ export default function HoldPeopleScreen() {
     setWiderWorldPlatforms(await getWiderWorldPlatforms());
   }, []);
 
+  const refreshWiderWorldContextMessages = useCallback(async () => {
+    const contexts = await getWiderWorldContexts();
+    setWiderWorldContextMessages(contexts.map((context) => context.message.trim()).filter(Boolean));
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       void refreshPeriod();
       void refreshGroups();
       void refreshWiderWorldPlatforms();
-    }, [refreshPeriod, refreshGroups, refreshWiderWorldPlatforms])
+      void refreshWiderWorldContextMessages();
+    }, [refreshPeriod, refreshGroups, refreshWiderWorldPlatforms, refreshWiderWorldContextMessages])
   );
 
   // The queue only ever grows — every Circle id ever selected joins it and
@@ -811,6 +827,7 @@ export default function HoldPeopleScreen() {
                   }))
                 : undefined
             }
+            extraPhrases={activeField === "wider-world-status" ? widerWorldContextMessages : undefined}
             aiAmend={
               activeField === "group-message"
                 ? { surface: "going-quiet", context: { intent: intent ?? undefined, recipientLabel: joinedGroupNames } }

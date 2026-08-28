@@ -279,3 +279,65 @@ export interface WiderWorldPlatform {
   id: string;
   name: string;
 }
+
+/**
+ * A custom platform someone adds themselves via the "+" pill on a Wider
+ * World context row (see widerWorldContextService.ts) — deliberately a
+ * separate pool from the legacy WiderWorldPlatform list above, not merged
+ * into it, so this new Contexts system stays fully independent of the
+ * older flat list Going Quiet's "Where did you post this?" step and
+ * Reconnect's taken-down checklist still read (untouched this pass). Never
+ * has an icon — same text-only treatment as a preset with no bundled
+ * glyph (e.g. Substack).
+ */
+export interface WiderWorldCustomPlatform {
+  id: string;
+  name: string;
+}
+
+/**
+ * One "Wider World" context (Personal, Work, Side Hustle...) — a named
+ * bundle of platform selections and the one shared message that applies to
+ * all of them. The first context created stays unlabeled while it's the
+ * only one; the moment a second is added, the first retroactively reads as
+ * "Personal" — but the stored `label` is always a real string ("Personal"
+ * from creation), the unlabeled-while-alone behaviour is purely a display
+ * rule in the Settings screen, not a null/undefined state to handle
+ * elsewhere. `selectedPlatformIds` is an ordered array, not a Set — order
+ * is what "selected pills move to the front as a group, relative order
+ * preserved" (the inline row, a later pass) depends on.
+ */
+export interface WiderWorldContext {
+  id: string;
+  label: string;
+  selectedPlatformIds: string[];
+  message: string;
+  /**
+   * Manual "I've actually posted this" marker, reusing Conversations' own
+   * checkbox treatment exactly — Hold has no way to auto-detect a real
+   * post on any of these platforms, same reasoning as every other manual
+   * completion marker in the app. Whole-context, not per-platform: one
+   * shared message, one shared sent state. `null`/absent means not marked;
+   * a timestamp means marked, and un-marking clears it back to null rather
+   * than storing `false`, so there's one obvious way to check "is this
+   * marked" (truthy) rather than two.
+   */
+  sentAt?: number | null;
+}
+
+/**
+ * Opt-in reminder for a platform whose status genuinely expires (WhatsApp
+ * today) — keyed by contextId+platformId, not a single global flag, since
+ * the same platform can be selected across multiple contexts and each
+ * pairing is its own independent choice. Deliberately platform-agnostic in
+ * shape: nothing here names WhatsApp specifically — whether a pairing is
+ * eligible at all is driven entirely by the selected platform's own
+ * `expiresAfterHours` (see widerWorldPresets.ts), never a hardcoded check.
+ * Off by default; set only once the person explicitly opts in, while well,
+ * not mid-flow.
+ */
+export interface WiderWorldExpiryReminderOptIn {
+  contextId: string;
+  platformId: string;
+  optedInAt: number;
+}

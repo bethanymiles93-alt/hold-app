@@ -26,6 +26,7 @@ import { deleteAllCombinationTemplates, deleteAllTemplates } from "@/services/te
 import { deleteAllReconnectCombinationTemplates, deleteAllReconnectTemplates } from "@/services/reconnectTemplateService";
 import { deleteAllDrafts } from "@/services/messageDraftService";
 import { deleteAllWiderWorldPlatforms } from "@/services/widerWorldSettingsService";
+import { deleteAllWiderWorldContexts } from "@/services/widerWorldContextService";
 import { deleteAllEmailOAuthTokens } from "@/services/emailOAuthService";
 import { deleteAllSuggestedPhrases } from "@/services/suggestedPhrasesService";
 import { deleteAllUpdateCombinationTemplates, deleteAllUpdateTemplates } from "@/services/updateTemplateService";
@@ -180,6 +181,7 @@ export function SettingsDrawer() {
                 deleteAllReconnectCombinationTemplates(),
                 deleteAllDrafts(),
                 deleteAllWiderWorldPlatforms(),
+                deleteAllWiderWorldContexts(),
                 deleteAllEmailOAuthTokens(),
                 deleteAllSuggestedPhrases(),
                 deleteAllUpdateTemplates(),
