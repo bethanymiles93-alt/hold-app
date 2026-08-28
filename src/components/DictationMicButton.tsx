@@ -6,8 +6,17 @@ import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 
 interface DictationMicButtonProps {
-  /** Called with the final recognised phrase once dictation stops — the caller decides how to merge it into the current text (e.g. append with a space). */
-  onResult: (text: string) => void;
+  /**
+   * Called on every recognition update while dictating, live — `text` is
+   * the full transcript-so-far for the current utterance (not a delta), and
+   * `isFinal` distinguishes a still-updating interim result from the
+   * settled one. The caller should replace whatever it's shown for this
+   * dictation session on each call, not append, since each `text` already
+   * supersedes the previous one.
+   */
+  onResult: (text: string, isFinal: boolean) => void;
+  /** Fires when dictation starts, before any results arrive — lets the caller snapshot whatever text already existed prior to this dictation session. */
+  onStart?: () => void;
 }
 
 /**
@@ -23,16 +32,19 @@ interface DictationMicButtonProps {
  * guarantee; it just fails (the `error` event resets `listening`), same as
  * any other feature this app declines to weaken for the sake of coverage.
  */
-export function DictationMicButton({ onResult }: DictationMicButtonProps) {
+export function DictationMicButton({ onResult, onStart }: DictationMicButtonProps) {
   const { colors } = useAppTheme("normal");
   const styles = createStyles(colors);
   const [listening, setListening] = useState(false);
 
-  useSpeechRecognitionEvent("start", () => setListening(true));
+  useSpeechRecognitionEvent("start", () => {
+    setListening(true);
+    onStart?.();
+  });
   useSpeechRecognitionEvent("end", () => setListening(false));
   useSpeechRecognitionEvent("result", (event) => {
     const transcript = event.results[0]?.transcript;
-    if (transcript) onResult(transcript);
+    if (transcript) onResult(transcript, event.isFinal);
   });
   useSpeechRecognitionEvent("error", () => setListening(false));
 
@@ -48,7 +60,7 @@ export function DictationMicButton({ onResult }: DictationMicButtonProps) {
     ExpoSpeechRecognitionModule.start({
       lang: "en-US",
       requiresOnDeviceRecognition: true,
-      interimResults: false
+      interimResults: true
     });
   };
 

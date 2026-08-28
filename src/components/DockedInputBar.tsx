@@ -246,8 +246,24 @@ export function DockedInputBar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dismiss]);
 
-  const appendDictated = (text: string) => {
-    onChangeText(value.trim() ? `${value.trim()} ${text}` : text);
+  // Snapshotted on dictation start, then held fixed for the whole session so
+  // each live "result" event (interim or final) — which always carries the
+  // full transcript-so-far, not a delta — can be merged in by replacing the
+  // in-progress dictated segment rather than appending to it. Re-anchored to
+  // the merged text on each isFinal result, so a session that produces more
+  // than one settled phrase (a pause mid-dictation, on some platforms) keeps
+  // accumulating instead of overwriting what was already settled.
+  const dictationBaseRef = useRef("");
+
+  const handleDictationStart = () => {
+    dictationBaseRef.current = value;
+  };
+
+  const handleDictationResult = (text: string, isFinal: boolean) => {
+    const base = dictationBaseRef.current;
+    const merged = base.trim() ? `${base.trim()} ${text}` : text;
+    onChangeText(merged);
+    if (isFinal) dictationBaseRef.current = merged;
   };
 
   return (
@@ -419,7 +435,7 @@ export function DockedInputBar({
               </ScrollView>
             </View>
 
-            <DictationMicButton onResult={appendDictated} />
+            <DictationMicButton onResult={handleDictationResult} onStart={handleDictationStart} />
 
             <Pressable
               accessibilityRole="button"
