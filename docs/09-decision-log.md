@@ -938,3 +938,15 @@ Six call sites' now-redundant manual `` `✓ ${name}` `` ternaries removed (`rec
 JS/TS-only fix — no native config touched, no rebuild required, takes effect on next reload. `tsc --noEmit` and `vitest run` (59/59) both pass.
 
 **hold-book**: no update — corrects an implementation bug against the feature's own already-obvious intended behaviour (live dictation), not a new design decision.
+
+## 2026-08-28 — Dictation now inserts at the actual cursor position, not always at the end
+
+**Root cause, investigated and reported before building, per direct instruction.** Not a regression from the prior live-transcription fix — `DockedInputBar.tsx`'s `TextInput` never tracked cursor/selection at all (no `onSelectionChange`, no selection state), and `insertBlock` in `src/utils/highlightedInsertions.ts` (Template/suggestion-pill insertion) has the same "always insert at `value.length`" behaviour. Every insertion path in this shared component has always landed at the end; dictation just made it newly visible.
+
+**Fix, more involved than flipping a flag, as flagged before starting:** the `TextInput`'s `selection` is now controlled (`selection`/`onSelectionChange` state), since RN won't hold a remembered position unless it's actively told to — a value change alone snaps the native cursor to the end otherwise. `dictationBaseRef` (pre-dictation text) gained a matching `dictationRangeRef` ([start, end] — the cursor position, or the active selection if one existed, mirroring what typing over a selection does) snapshotted at dictation start. Each live result slices that same frozen base/range and re-inserts, rather than appending; `selection` state advances to sit right after the growing inserted text so the visible cursor tracks forward as speech continues. Re-anchors both refs on `isFinal`, same as before, so a session with more than one settled phrase keeps accumulating forward correctly.
+
+**One real edge case found and closed in the same pass, not asked for but adjacent enough to fix now rather than leave latent:** mid-text insertion (impossible before, when everything landed at the end) can now land before or inside an existing green Template/pill highlight. Routed the merge through `highlight.handleChangeText` (which already runs a generic diff-based range realignment, `rangesAfterEdit`, built for exactly this kind of arbitrary-position edit and already unit-tested) instead of calling the raw `onChangeText` prop directly, so an active highlight's position stays correct instead of desyncing.
+
+`tsc --noEmit` and `vitest run` (59/59) both pass. Not yet confirmed on-device — cursor-controlled `TextInput`s are a known-finicky area in RN; worth a real test of dictating mid-paragraph, and normal typing still behaving normally now that `selection` is controlled.
+
+**hold-book**: no update — implementation-level fix, not a design decision.

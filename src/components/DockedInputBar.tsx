@@ -246,24 +246,50 @@ export function DockedInputBar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dismiss]);
 
-  // Snapshotted on dictation start, then held fixed for the whole session so
-  // each live "result" event (interim or final) — which always carries the
-  // full transcript-so-far, not a delta — can be merged in by replacing the
-  // in-progress dictated segment rather than appending to it. Re-anchored to
-  // the merged text on each isFinal result, so a session that produces more
-  // than one settled phrase (a pause mid-dictation, on some platforms) keeps
-  // accumulating instead of overwriting what was already settled.
+  // Tracks the TextInput's real cursor/selection so dictation can insert at
+  // wherever it was placed, not just at the end — RN won't respect a
+  // position it isn't actively told to hold, so this has to be a controlled
+  // `selection` prop, not just something read once.
+  const [selection, setSelection] = useState({ start: 0, end: 0 });
+
+  // Snapshotted on dictation start, then held fixed for the whole session:
+  // `dictationBaseRef` is the pre-dictation text, `dictationRangeRef` is the
+  // [start, end] within it that live results replace (initially the cursor
+  // position, or the active selection if one existed — same as typing over
+  // a selection would). Each live "result" event (interim or final) always
+  // carries the full transcript-so-far for the utterance, not a delta, so
+  // it's merged by slicing that same fixed base/range on every call rather
+  // than appending. Re-anchored to a fresh collapsed range right after the
+  // inserted text on each isFinal result, so a session producing more than
+  // one settled phrase (a pause mid-dictation, on some platforms) keeps
+  // accumulating forward instead of overwriting what was already settled.
   const dictationBaseRef = useRef("");
+  const dictationRangeRef = useRef({ start: 0, end: 0 });
 
   const handleDictationStart = () => {
     dictationBaseRef.current = value;
+    dictationRangeRef.current = selection;
   };
 
   const handleDictationResult = (text: string, isFinal: boolean) => {
     const base = dictationBaseRef.current;
-    const merged = base.trim() ? `${base.trim()} ${text}` : text;
-    onChangeText(merged);
-    if (isFinal) dictationBaseRef.current = merged;
+    const { start, end } = dictationRangeRef.current;
+    const merged = base.slice(0, start) + text + base.slice(end);
+
+    // Routed through the highlight hook, not the raw onChangeText prop, so
+    // an existing green Template/pill block elsewhere in the text gets its
+    // range correctly shifted (rangesAfterEdit) if dictation inserts before
+    // or around it — a real edge case pure end-appending never hit, since
+    // nothing can sit after "the end."
+    highlight.handleChangeText(merged);
+
+    const cursor = start + text.length;
+    setSelection({ start: cursor, end: cursor });
+
+    if (isFinal) {
+      dictationBaseRef.current = merged;
+      dictationRangeRef.current = { start: cursor, end: cursor };
+    }
   };
 
   return (
@@ -425,10 +451,12 @@ export function DockedInputBar({
                       highlight.handleChangeText(text);
                       scrollToEndSoon();
                     }}
+                    onSelectionChange={(event) => setSelection(event.nativeEvent.selection)}
                     placeholder={placeholder}
                     placeholderTextColor={colors.textMuted}
                     cursorColor={colors.text}
                     style={[styles.input, styles.inputTransparent]}
+                    selection={selection}
                     value={value}
                   />
                 </View>
