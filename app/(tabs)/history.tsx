@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
@@ -13,7 +13,17 @@ import {
   summariseSendChannels
 } from "@/services/holdHistoryFormat";
 import { deleteHoldPeriod, getHistory } from "@/services/holdHistoryService";
+import { requestHistoryExport, type HistoryExportResult } from "@/services/historyExportService";
 import type { HoldPeriod } from "@/types/hold";
+
+const EXPORT_FAILURE_MESSAGES: Record<Exclude<HistoryExportResult, { ok: true }>["reason"], string> = {
+  "auth-unavailable":
+    "Face ID, Touch ID, or a device passcode needs to be set up to export your History.",
+  "auth-failed": "Authentication failed. Please try again.",
+  "auth-cancelled": "Export cancelled.",
+  "sharing-unavailable": "Sharing isn't available on this device.",
+  "no-cache-directory": "Couldn't prepare the export file. Please try again."
+};
 
 type Segment = "history" | "patterns";
 type ViewMode = "list" | "calendar";
@@ -203,6 +213,14 @@ export default function HoldHistoryScreen() {
     setPeriods((current) => current.filter((period) => period.id !== id));
   };
 
+  const exportHistory = async () => {
+    const result = await requestHistoryExport(periods);
+    if (!result.ok) {
+      if (result.reason === "auth-cancelled") return;
+      Alert.alert("Couldn't export History", EXPORT_FAILURE_MESSAGES[result.reason]);
+    }
+  };
+
   const closedPeriods = periods.filter((period) => period.endedAt !== null);
   const totalDurationMs = closedPeriods.reduce(
     (sum, period) => sum + (period.endedAt! - period.startedAt),
@@ -295,6 +313,19 @@ export default function HoldHistoryScreen() {
           ) : (
             <MonthCalendarView periods={periods} onDelete={remove} />
           )}
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Request History"
+            onPress={() => void exportHistory()}
+            style={({ pressed }) => [styles.exportRow, pressed && styles.exportRowPressed]}
+          >
+            <Text style={styles.exportRowText}>Request History</Text>
+          </Pressable>
+          <Text style={styles.exportRowNote}>
+            A plain-text export of your full History, for your own records — confirmed with Face ID or your
+            passcode, since this is the point it leaves your device.
+          </Text>
         </>
       ) : (
         <View style={styles.patternsSection}>
@@ -391,6 +422,28 @@ function createStyles(colors: ThemeColors) {
   },
   list: {
     gap: theme.spacing.md
+  },
+  exportRow: {
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: theme.radius.md,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    marginTop: theme.spacing.sm
+  },
+  exportRowPressed: {
+    opacity: 0.6
+  },
+  exportRowText: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: "600"
+  },
+  exportRowNote: {
+    color: colors.textMuted,
+    fontSize: 13,
+    lineHeight: 18
   },
   item: {
     gap: 2,

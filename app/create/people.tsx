@@ -629,10 +629,22 @@ export default function HoldPeopleScreen() {
     };
 
     const nextGroups = [...selectedGroups, newGroup];
-    const targetIds = targets.map((person) => person.contactId);
+
+    // Matched by phone number, not just the explicitly-targeted contactIds
+    // — a contact can be in more than one Circle, each membership its own
+    // contactId, so bundling "Sasha from Book Club" must also reconcile
+    // "Sasha from Core" if that's the same real person, not leave a second,
+    // stale record still showing them excluded. Single source of truth per
+    // person: excluded, or covered by a circle, never both, never drifting.
+    // See docs/09-decision-log.md, 2026-08-29.
+    const targetPhoneNumbers = new Set(targets.map((person) => person.phoneNumber));
+    const targetIds = goingQuietRecipients
+      .filter((recipient) => targetPhoneNumbers.has(recipient.phoneNumber))
+      .map((recipient) => recipient.contactId);
+
     splitRecipientsIntoNewCircle(targetIds, newGroup);
     setRemovedPeople((current) =>
-      current.map((person) => (targetIds.includes(person.contactId) ? { ...person, claimed: true } : person))
+      current.map((person) => (targetPhoneNumbers.has(person.phoneNumber) ? { ...person, claimed: true } : person))
     );
     setBundleSelectedIds(new Set());
     await loadMessageForSelection(nextGroups, message);
@@ -922,34 +934,23 @@ export default function HoldPeopleScreen() {
       ) : null}
 
       {/* At-a-glance excluded-for-this-send line — scoped to currently
-          selected Circles only, merged into one line (2026-08-20). Distinct
-          from the roster above: read-only, no bundling action of its own,
-          just visibility. "✓" marks anyone already claimed into a
-          provisional Circle — greyed AND marked, not colour alone. See
+          selected Circles only, merged into one line. Plain text only, no
+          chip/pill styling, no border, no background, not tappable —
+          purely a passive glance-list, per direct instruction (2026-08-29):
+          previously chip-styled, corrected here. "✓" still marks anyone
+          already claimed into a provisional Circle, since colour alone
+          isn't a colour-blindness-safe distinction — text prefix, not
+          fill, carries that signal now that there's no fill at all. See
           docs/09-decision-log.md. */}
       {excludedFromSelected.length > 0 ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.excludedLineRow}
-        >
-          {excludedFromSelected.map((recipient) => {
-            const claimed = removedPeople.find((person) => person.contactId === recipient.contactId)?.claimed ?? false;
-            return (
-              <AdaptiveCircleChip
-                key={recipient.contactId}
-                label={claimed ? `✓ ${recipient.name}` : recipient.name}
-                compact
-                isSelected={false}
-                onPress={() => {}}
-                accessibilityRole="text"
-                accessibilityLabel={
-                  claimed ? `${recipient.name}, excluded, already in their own Circle` : `${recipient.name}, excluded`
-                }
-              />
-            );
-          })}
-        </ScrollView>
+        <Text style={styles.excludedLineText} accessibilityRole="text">
+          {excludedFromSelected
+            .map((recipient) => {
+              const claimed = removedPeople.find((person) => person.contactId === recipient.contactId)?.claimed ?? false;
+              return claimed ? `✓ ${recipient.name}` : recipient.name;
+            })
+            .join(", ")}
+        </Text>
       ) : null}
 
       {expandedGroup ? (
@@ -1214,10 +1215,10 @@ function createStyles(colors: ThemeColors) {
       alignItems: "center",
       gap: theme.spacing.xs
     },
-    excludedLineRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.xs
+    excludedLineText: {
+      color: colors.textMuted,
+      fontSize: 14,
+      lineHeight: 20
     },
     removedName: {
       color: colors.text,

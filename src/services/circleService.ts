@@ -3,7 +3,8 @@ import type { CircleGroup } from "@/types/hold";
 
 const INDEX_KEY = "hold.circle.index";
 const GROUP_PREFIX = "hold.circle.group.";
-const CLOSE_CIRCLE_ID = "close-circle";
+/** Exported so screens holding a frozen AudienceCircle snapshot (no isCloseCircle field of its own) can still identify Core by id — see the Core-lock rule, docs/09-decision-log.md, 2026-08-29. */
+export const CLOSE_CIRCLE_ID = "close-circle";
 const CLOSE_CIRCLE_NAME = "Close";
 /**
  * Every pending (not-yet-real) Circle's id starts with this — moved here

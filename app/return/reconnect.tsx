@@ -42,7 +42,7 @@ import {
   markContacted,
   seedFromAudience
 } from "@/services/conversationService";
-import { addContactToGroup, createGroup, getGroups, renameGroup } from "@/services/circleService";
+import { addContactToGroup, CLOSE_CIRCLE_ID, createGroup, getGroups, renameGroup } from "@/services/circleService";
 import { pickContact } from "@/services/contactPickerService";
 import { deactivateOutOfOffice } from "@/services/emailAccountService";
 import { getWiderWorldPlatforms } from "@/services/widerWorldSettingsService";
@@ -1086,17 +1086,23 @@ export default function ReconnectScreen() {
                               : `${circle.circleName}. Tap to include everyone.`
                         }
                       />
-                      <DropdownArrowBadge
-                        expanded={isExpanded}
-                        checked={sentLook}
-                        onPress={() => toggleCircleArrow(circle.circleId)}
-                        accessibilityLabel={
-                          sentLook
-                            ? `${circle.circleName}, already sent. ${isExpanded ? "Hide" : "Show"} people.`
-                            : `${circle.circleName}, ${isExpanded ? "hide" : "show"} people`
-                        }
-                        style={styles.arrowButton}
-                      />
+                      {/* Core (Close) never gets this arrow, in-flow, no
+                          exceptions — same rule as Going Quiet's own
+                          Circle row. See docs/09-decision-log.md,
+                          2026-08-29. */}
+                      {circle.circleId !== CLOSE_CIRCLE_ID ? (
+                        <DropdownArrowBadge
+                          expanded={isExpanded}
+                          checked={sentLook}
+                          onPress={() => toggleCircleArrow(circle.circleId)}
+                          accessibilityLabel={
+                            sentLook
+                              ? `${circle.circleName}, already sent. ${isExpanded ? "Hide" : "Show"} people.`
+                              : `${circle.circleName}, ${isExpanded ? "hide" : "show"} people`
+                          }
+                          style={styles.arrowButton}
+                        />
+                      ) : null}
                     </View>
                   );
                 });

@@ -49,7 +49,9 @@
           "speechRecognitionPermission": "Hold uses on-device speech recognition only when you tap the dictation button, to turn your speech into text."
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-sharing",
+      "expo-local-authentication"
     ],
     "experiments": {
       "typedRoutes": true

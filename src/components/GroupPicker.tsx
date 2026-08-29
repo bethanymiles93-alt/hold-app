@@ -231,18 +231,26 @@ export function GroupPicker({
                     member list, closing any other Circle's list that was
                     open (see onToggleExpanded in the parent screen).
                     Positioned inside the chip's own right edge so it never
-                    reads as ambiguous about which circle it belongs to. */}
-                <DropdownArrowBadge
-                  expanded={isExpanded}
-                  checked={sentLook}
-                  onPress={() => onToggleExpanded(group.id)}
-                  accessibilityLabel={
-                    sentLook
-                      ? `${group.name}, already sent. ${isExpanded ? "Hide" : "Show"} recipients.`
-                      : `${group.name}, ${isExpanded ? "hide" : "show"} recipients`
-                  }
-                  style={styles.arrowButton}
-                />
+                    reads as ambiguous about which circle it belongs to.
+                    Core (Close) never gets this arrow at all, in-flow, no
+                    exceptions — a deliberate capability restriction, not a
+                    default-hidden state: Core should always be messaged,
+                    with no in-the-moment choice to exclude it while
+                    unwell. Stays fully editable in Manage Circles. See
+                    docs/09-decision-log.md, 2026-08-29. */}
+                {!group.isCloseCircle ? (
+                  <DropdownArrowBadge
+                    expanded={isExpanded}
+                    checked={sentLook}
+                    onPress={() => onToggleExpanded(group.id)}
+                    accessibilityLabel={
+                      sentLook
+                        ? `${group.name}, already sent. ${isExpanded ? "Hide" : "Show"} recipients.`
+                        : `${group.name}, ${isExpanded ? "hide" : "show"} recipients`
+                    }
+                    style={styles.arrowButton}
+                  />
+                ) : null}
               </View>
             );
           })}
