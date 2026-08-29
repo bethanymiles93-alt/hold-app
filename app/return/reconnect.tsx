@@ -1066,6 +1066,7 @@ export default function ReconnectScreen() {
                   const hasSentThisSession =
                     circle.contacts.length > 0 &&
                     circle.contacts.every((contact) => coverage.contactedIds.includes(contact.phoneNumber));
+                  const sentLook = hasSentThisSession && !allIncluded;
 
                   return (
                     <View key={circle.circleId} style={styles.circleUnit}>
@@ -1087,8 +1088,13 @@ export default function ReconnectScreen() {
                       />
                       <DropdownArrowBadge
                         expanded={isExpanded}
+                        checked={sentLook}
                         onPress={() => toggleCircleArrow(circle.circleId)}
-                        accessibilityLabel={`${circle.circleName}, ${isExpanded ? "hide" : "show"} people`}
+                        accessibilityLabel={
+                          sentLook
+                            ? `${circle.circleName}, already sent. ${isExpanded ? "Hide" : "Show"} people.`
+                            : `${circle.circleName}, ${isExpanded ? "hide" : "show"} people`
+                        }
                         style={styles.arrowButton}
                       />
                     </View>
@@ -1521,8 +1527,8 @@ function createStyles(colors: ThemeColors) {
     },
     arrowButton: {
       position: "absolute",
-      right: 6,
-      bottom: 8,
+      right: 10,
+      bottom: 12,
       alignItems: "center",
       justifyContent: "center"
     },

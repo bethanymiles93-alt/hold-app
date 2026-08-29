@@ -48,29 +48,38 @@ export function LinkedCircleCluster({ members, onToggle, onToggleArrow }: Linked
     <View style={styles.clusterUnit}>
       <View style={clusterLineStyle(colors, isSelected)} />
       <View style={styles.clusterRow}>
-        {members.map((member, index) => (
-          <View
-            key={member.circleId}
-            style={[styles.clusterChip, index > 0 && styles.clusterChipOverlap, { zIndex: index }]}
-          >
-            <AdaptiveCircleChip
-              label={member.circleName}
-              isSelected={member.isSelected}
-              hasSentThisSession={member.hasSentThisSession}
-              notYetSent={member.notYetSent}
-              newlyAdded={member.newlyAdded}
-              clusterSeam
-              onPress={onToggle}
-              accessibilityRole="button"
-            />
-            <DropdownArrowBadge
-              expanded={member.isExpanded}
-              onPress={() => onToggleArrow(member.circleId)}
-              accessibilityLabel={`${member.circleName}, ${member.isExpanded ? "hide" : "show"} people`}
-              style={styles.arrowButton}
-            />
-          </View>
-        ))}
+        {members.map((member, index) => {
+          const sentLook = member.hasSentThisSession && !member.isSelected;
+
+          return (
+            <View
+              key={member.circleId}
+              style={[styles.clusterChip, index > 0 && styles.clusterChipOverlap, { zIndex: index }]}
+            >
+              <AdaptiveCircleChip
+                label={member.circleName}
+                isSelected={member.isSelected}
+                hasSentThisSession={member.hasSentThisSession}
+                notYetSent={member.notYetSent}
+                newlyAdded={member.newlyAdded}
+                clusterSeam
+                onPress={onToggle}
+                accessibilityRole="button"
+              />
+              <DropdownArrowBadge
+                expanded={member.isExpanded}
+                checked={sentLook}
+                onPress={() => onToggleArrow(member.circleId)}
+                accessibilityLabel={
+                  sentLook
+                    ? `${member.circleName}, already sent. ${member.isExpanded ? "Hide" : "Show"} people.`
+                    : `${member.circleName}, ${member.isExpanded ? "hide" : "show"} people`
+                }
+                style={styles.arrowButton}
+              />
+            </View>
+          );
+        })}
       </View>
     </View>
   );
@@ -145,8 +154,8 @@ function createStyles(colors: ThemeColors) {
     // docs/09-decision-log.md, 2026-08-29.
     arrowButton: {
       position: "absolute",
-      left: 6,
-      bottom: 8,
+      left: 10,
+      bottom: 12,
       alignItems: "center",
       justifyContent: "center"
     },

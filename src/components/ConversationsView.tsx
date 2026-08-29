@@ -295,8 +295,8 @@ function createStyles(colors: ThemeColors) {
     },
     arrowButton: {
       position: "absolute",
-      right: 6,
-      bottom: 8,
+      right: 10,
+      bottom: 12,
       alignItems: "center",
       justifyContent: "center"
     },

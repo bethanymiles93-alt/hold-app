@@ -234,8 +234,13 @@ export function GroupPicker({
                     reads as ambiguous about which circle it belongs to. */}
                 <DropdownArrowBadge
                   expanded={isExpanded}
+                  checked={sentLook}
                   onPress={() => onToggleExpanded(group.id)}
-                  accessibilityLabel={`${group.name}, ${isExpanded ? "hide" : "show"} recipients`}
+                  accessibilityLabel={
+                    sentLook
+                      ? `${group.name}, already sent. ${isExpanded ? "Hide" : "Show"} recipients.`
+                      : `${group.name}, ${isExpanded ? "hide" : "show"} recipients`
+                  }
                   style={styles.arrowButton}
                 />
               </View>
@@ -312,13 +317,17 @@ function createStyles(colors: ThemeColors) {
     // Positioned toward the BOTTOM of the circle, not vertically centred —
     // centred (the original placement) put it directly over the centred
     // label text for any name long enough to need the space (2026-08-11
-    // fix; grown-circle was the alternative considered and rejected, since
-    // the diameter was already increased three times this session and a
-    // fourth would cost more than repositioning the arrow does).
+    // fix). That same fix rejected growing the diameter further, on-device
+    // testing later showed repositioning alone didn't hold (still
+    // overlapped the circle's true edge and the label text) — reopened,
+    // diameter grown a fifth time, and this offset increased alongside it
+    // (see STANDARD_CHIP_DIAMETER's own comment in AdaptiveCircleChip.tsx
+    // for the full reasoning, including why the offset had to move too,
+    // not just the diameter). 2026-08-29, item 8.
     arrowButton: {
       position: "absolute",
-      right: 6,
-      bottom: 8,
+      right: 10,
+      bottom: 12,
       alignItems: "center",
       justifyContent: "center"
     },

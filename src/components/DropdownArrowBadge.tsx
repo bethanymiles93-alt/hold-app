@@ -7,6 +7,18 @@ interface DropdownArrowBadgeProps {
   accessibilityLabel: string;
   /** Positions the badge absolutely, overlapping its parent's corner — omit for a badge sitting in normal flow (e.g. beside a year label). */
   style?: StyleProp<ViewStyle>;
+  /**
+   * The chip this badge belongs to is currently showing AdaptiveCircleChip's
+   * own sent fill (`hasSentThisSession && !isSelected`) — swaps the arrow
+   * for a checkmark and the neutral translucent fill for the app's own
+   * sent colours (solid `colors.primary`, white glyph), so the same corner
+   * slot reads as "complete" instead of "expand/collapse." Never both at
+   * once — a sent chip shows the checkmark, never the arrow, in the same
+   * position. Still fully tappable and still expands/collapses exactly as
+   * before: sent is never a locked state, this only changes which glyph
+   * shows. See docs/09-decision-log.md, 2026-08-29 (item 14).
+   */
+  checked?: boolean;
 }
 
 /**
@@ -19,7 +31,7 @@ interface DropdownArrowBadgeProps {
  * (GroupPicker, Going Quiet's own Circle row) already used. See
  * docs/09-decision-log.md.
  */
-export function DropdownArrowBadge({ expanded, onPress, accessibilityLabel, style }: DropdownArrowBadgeProps) {
+export function DropdownArrowBadge({ expanded, onPress, accessibilityLabel, style, checked = false }: DropdownArrowBadgeProps) {
   const { colors } = useAppTheme("normal");
   const styles = createStyles();
 
@@ -27,14 +39,22 @@ export function DropdownArrowBadge({ expanded, onPress, accessibilityLabel, styl
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
-      accessibilityState={{ expanded }}
+      accessibilityState={{ expanded, checked }}
       hitSlop={8}
       onPress={onPress}
       style={style ?? styles.inlinePosition}
     >
       {({ pressed }) => (
-        <View style={[styles.badge, pressed && styles.pressed]}>
-          <Text style={[styles.glyph, { color: colors.textMuted }]}>{expanded ? "▲" : "▼"}</Text>
+        <View
+          style={[
+            styles.badge,
+            checked ? { backgroundColor: colors.primary } : null,
+            pressed && styles.pressed
+          ]}
+        >
+          <Text style={[styles.glyph, { color: checked ? colors.onPrimary : colors.textMuted }]}>
+            {checked ? "✓" : expanded ? "▲" : "▼"}
+          </Text>
         </View>
       )}
     </Pressable>
@@ -60,7 +80,7 @@ function createStyles() {
     },
     glyph: {
       fontSize: 13,
-      fontWeight: "600"
+      fontWeight: "700"
     }
   });
 }

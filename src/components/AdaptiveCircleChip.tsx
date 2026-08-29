@@ -93,17 +93,35 @@ interface AdaptiveCircleChipProps {
 }
 
 /**
- * One fixed height for every chip in the row. Increased a fourth time
- * (2026-08-11, confirmed intentional, final number given directly) from
- * 72pt/76dp to **90pt (iOS) / 95dp (Android)**, a +25% jump — Circles are
- * core to how the app is used, and the previous size left essentially no
- * margin for the longest common arrow-chip label. The dropdown arrow is no
- * longer part of this measurement at all as of the same pass (see
- * `expanded`/arrow split in GroupPicker.tsx) — it's now a separate element
- * beside the chip, not appended into the label text — so this diameter only
- * needs to fit the Circle name itself, not name+arrow.
+ * One fixed height for every chip in the row. Increased a FIFTH time
+ * (2026-08-29, item 8, a deliberate reversal of the 2026-08-11 "final"
+ * call) from 90pt/95dp to **104pt (iOS) / 109dp (Android)**. The
+ * 2026-08-11 decision explicitly considered and rejected a further
+ * increase, choosing to reposition the dropdown-arrow badge toward the
+ * bottom instead — reopened because on-device testing now shows that fix
+ * alone doesn't hold: the badge still overlaps both the circle's true
+ * edge and the label text. The 2026-08-11 number was finalised out of
+ * amendment fatigue after several rounds of changes that same day, not
+ * because it was verified correct — flagged explicitly here, not silently
+ * revised, per direct instruction.
+ *
+ * Diameter alone doesn't fully solve the edge-overlap, though — worked
+ * through the geometry: a corner badge positioned via a FIXED pixel
+ * offset from the bounding box's corner (e.g. `right: 6, bottom: 8`) sits
+ * on the corner of the SQUARE the circle is inscribed in, and a square's
+ * corner is always outside its inscribed circle, by an amount that
+ * actually *grows* as the diameter grows with the offset held fixed (the
+ * overflow trends toward the offset's own magnitude times (√2 − 1) as
+ * diameter increases, not toward zero). Diameter growth alone would have
+ * made the edge-overlap worse, not better. Fixed by growing both this
+ * value AND the badge's own offset together (see DropdownArrowBadge call
+ * sites) — the offset increase is what actually closes the edge-overflow
+ * to a small, reasoned-not-measured residual (~1–2pt); diameter growth is
+ * what gives "Book Club" (the longest common name, used as the test case
+ * per direct instruction) enough available width to fit as a true circle
+ * without crowding the badge. Not verified on a real device.
  */
-const STANDARD_CHIP_DIAMETER = Platform.OS === "android" ? 95 : 90;
+const STANDARD_CHIP_DIAMETER = Platform.OS === "android" ? 109 : 104;
 // Kept tight so short labels can still plausibly become circles — this is
 // NOT the same value as a pill's own rendered padding (below), decoupled
 // on purpose: the circle-fit check needs to stay strict, but a pill's

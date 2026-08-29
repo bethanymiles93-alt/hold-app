@@ -262,6 +262,7 @@ export function TakingTimeUpdateDrawer({ visible, onClose, period, onSent }: Tak
               const isSelected = selectedCircleIds.has(circle.circleId);
               const hasSent = sentCircleIds.includes(circle.circleId);
               const isExpanded = expandedCircleIds.has(circle.circleId);
+              const sentLook = hasSent && !isSelected;
 
               return (
                 <View key={circle.circleId} style={styles.circleUnit}>
@@ -274,8 +275,13 @@ export function TakingTimeUpdateDrawer({ visible, onClose, period, onSent }: Tak
                   />
                   <DropdownArrowBadge
                     expanded={isExpanded}
+                    checked={sentLook}
                     onPress={() => toggleArrow(circle.circleId)}
-                    accessibilityLabel={`${circle.circleName}, ${isExpanded ? "hide" : "show"} people`}
+                    accessibilityLabel={
+                      sentLook
+                        ? `${circle.circleName}, already sent. ${isExpanded ? "Hide" : "Show"} people.`
+                        : `${circle.circleName}, ${isExpanded ? "hide" : "show"} people`
+                    }
                     style={styles.arrowButton}
                   />
                 </View>
@@ -374,8 +380,8 @@ function createStyles(colors: ThemeColors) {
     },
     arrowButton: {
       position: "absolute",
-      right: 6,
-      bottom: 8,
+      right: 10,
+      bottom: 12,
       alignItems: "center",
       justifyContent: "center"
     },
