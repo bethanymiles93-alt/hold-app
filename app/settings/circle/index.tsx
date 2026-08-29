@@ -6,6 +6,7 @@ import { StepHeader } from "@/components/StepHeader";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { SelectionCircle } from "@/components/SelectionCircle";
 import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
+import { DropdownArrowBadge } from "@/components/DropdownArrowBadge";
 import { DockedInputBar } from "@/components/DockedInputBar";
 import { DockedFieldPreview } from "@/components/DockedFieldPreview";
 import { HeaderAddButton } from "@/components/HeaderAddButton";
@@ -243,14 +244,21 @@ export default function CircleIndexScreen() {
   const renderPill = (group: CircleGroup) => {
     const selected = expandedIds.has(group.id);
     return (
-      <AdaptiveCircleChip
-        key={group.id}
-        label={`${group.name} ${selected ? "▲" : "▼"}`}
-        isSelected={selected}
-        labelBold={group.isCloseCircle}
-        onPress={() => toggleExpanded(group)}
-        accessibilityRole="button"
-      />
+      <View key={group.id} style={styles.circleUnit}>
+        <AdaptiveCircleChip
+          label={group.name}
+          isSelected={selected}
+          labelBold={group.isCloseCircle}
+          onPress={() => toggleExpanded(group)}
+          accessibilityRole="button"
+        />
+        <DropdownArrowBadge
+          expanded={selected}
+          onPress={() => toggleExpanded(group)}
+          accessibilityLabel={`${group.name}, ${selected ? "hide" : "show"} people`}
+          style={styles.arrowButton}
+        />
+      </View>
     );
   };
 
@@ -455,6 +463,17 @@ function createStyles(colors: ThemeColors) {
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing.sm
+  },
+  circleUnit: {
+    position: "relative",
+    alignSelf: "flex-start"
+  },
+  arrowButton: {
+    position: "absolute",
+    right: 6,
+    bottom: 8,
+    alignItems: "center",
+    justifyContent: "center"
   },
   coreSection: {
     gap: theme.spacing.xs

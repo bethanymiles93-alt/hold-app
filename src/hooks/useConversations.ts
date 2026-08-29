@@ -84,6 +84,8 @@ export interface PersonaliseReplyTarget {
   personId: string;
   onChangeText: (text: string) => void;
   friendMessage: string;
+  /** Calls this instance's own PersonaliseAccordion.sendNow — what the docked bar's Send icon actually triggers, not just a field-close. See docs/09-decision-log.md, 2026-08-29. */
+  onSend: () => void;
 }
 
 /**

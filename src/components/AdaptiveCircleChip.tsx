@@ -79,6 +79,17 @@ interface AdaptiveCircleChipProps {
    * docs/09-decision-log.md, 2026-08-20.
    */
   newlyAdded?: boolean;
+  /**
+   * A neutral, always-on border (`colors.border`, not any state-meaning
+   * colour) — for chips rendered overlapping inside `LinkedCircleCluster`,
+   * where two adjacent same-fill chips with no state-driven border
+   * (neither selected/sent/provisional) had no visible seam between them
+   * at all, reading as one fused pill rather than two overlapping circles.
+   * Lower priority than every state-driven border above — this only fills
+   * the gap when nothing else is already drawing one. See
+   * docs/09-decision-log.md, 2026-08-29.
+   */
+  clusterSeam?: boolean;
 }
 
 /**
@@ -142,7 +153,8 @@ export function AdaptiveCircleChip({
   labelBold,
   compact = false,
   provisional = false,
-  newlyAdded = false
+  newlyAdded = false,
+  clusterSeam = false
 }: AdaptiveCircleChipProps) {
   const { colors } = useAppTheme("normal");
   const styles = createStyles(colors);
@@ -209,6 +221,9 @@ export function AdaptiveCircleChip({
   // this, "+"'s active/selected state was invisible (see decision log,
   // 2026-08-11) rather than just thin.
   const selectedRingStyle = outline ? styles.chipSelectedOutline : styles.chipSelected;
+  // Only fills the gap when nothing state-driven is already drawing a
+  // border — never overrides isSelected/sent/provisional's own treatment.
+  const showClusterSeam = clusterSeam && !isSelected && !showSentFill && !provisional;
 
   const chip = (
     <Pressable
@@ -236,6 +251,7 @@ export function AdaptiveCircleChip({
         shapeStyle,
         variantStyle,
         isSelected && selectedRingStyle,
+        showClusterSeam && styles.chipClusterSeam,
         // Provisional wins over the selected ring — a temporary Circle
         // needs to keep reading as temporary even while selected, not
         // have that signal disappear the moment it's picked. Not paired
@@ -322,6 +338,13 @@ function createStyles(colors: ThemeColors) {
     chipSelected: {
       borderWidth: 2,
       borderColor: colors.text
+    },
+    // Neutral border colour — never colors.text/primary/focus, which all
+    // already mean something (selected/sent/provisional) elsewhere on this
+    // component. This is purely a seam, not a state signal.
+    chipClusterSeam: {
+      borderWidth: 1.5,
+      borderColor: colors.border
     },
     // "+"'s own active-state ring — a filled tint plus a visibly thicker
     // border, since its normal outline treatment (chipOutline) is already a

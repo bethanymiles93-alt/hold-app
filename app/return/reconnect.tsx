@@ -9,6 +9,7 @@ import { DockedInputBar } from "@/components/DockedInputBar";
 import { DockedFieldPreview } from "@/components/DockedFieldPreview";
 import { MemoryNoteSuggestion } from "@/components/MemoryNoteSuggestion";
 import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
+import { DropdownArrowBadge } from "@/components/DropdownArrowBadge";
 import { HoldMark } from "@/components/HoldMark";
 import { ConversationsView } from "@/components/ConversationsView";
 import { LinkedCircleCluster, LinkGroupToggle, type LinkedClusterMember } from "@/components/LinkedCircleCluster";
@@ -67,7 +68,13 @@ const DEFAULT_RECONNECT_MESSAGE = "I'm getting there, will send a proper respons
 export default function ReconnectScreen() {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const { reconnectPeriodId } = useHoldFlow();
+  const { reconnectPeriodId, resetFlow } = useHoldFlow();
+
+  /** Always a brand-new Going Quiet flow, never a variant of "Add to Going Quiet" — matches Home's own "start" function exactly (same resetFlow + push pair). See docs/09-decision-log.md, 2026-08-29 (item 4). */
+  const goQuietAgain = () => {
+    resetFlow("hold");
+    router.push("/create/people");
+  };
 
   const [period, setPeriod] = useState<HoldPeriod | null>(null);
   const [message, setMessage] = useState(DEFAULT_RECONNECT_MESSAGE);
@@ -831,9 +838,16 @@ export default function ReconnectScreen() {
   // matching that established single-toggle-for-the-current-selection
   // shape even though Reconnect's own selection is derived from per-person
   // inclusion rather than an explicit Set of selected Circle ids.
-  const fullySelectedCluster =
-    linkedClusters.find((circleIds) => !ungroupedLinkKeys.has(combinationKey(circleIds)) && clusterFullyIncluded(circleIds)) ??
-    null;
+  //
+  // Deliberately NOT filtered by ungroupedLinkKeys (2026-08-29 fix, item
+  // 10) — the earlier version excluded any already-ungrouped cluster here,
+  // which made LinkGroupToggle stop rendering the moment someone ungrouped
+  // once, with no way back to "Group" ever again for that cluster. This
+  // must resolve in both states; the toggle's own `grouped` prop (below,
+  // at the render site) is what actually reflects current state, matching
+  // TakingTimeUpdateDrawer's own `showGroupToggle`, which never had this
+  // filter and has always supported both directions.
+  const fullySelectedCluster = linkedClusters.find((circleIds) => clusterFullyIncluded(circleIds)) ?? null;
 
   const toggleLinkGroup = (circleIds: string[]) => {
     if (!period) return;
@@ -901,7 +915,15 @@ export default function ReconnectScreen() {
           <DockedInputBar
             value={conversations.personaliseDrafts[conversations.personaliseReplyTarget.personId] ?? ""}
             onChangeText={conversations.personaliseReplyTarget.onChangeText}
-            onDone={() => conversations.setPersonaliseReplyTarget(null)}
+            onDone={() => {
+              // Was just closing the field — the docked bar's Send icon
+              // never actually sent anything, matching Box A's own Send
+              // button. Fixed 2026-08-29: onSend closes over this
+              // instance's own PersonaliseAccordion.sendNow. See
+              // docs/09-decision-log.md.
+              conversations.personaliseReplyTarget?.onSend();
+              conversations.setPersonaliseReplyTarget(null);
+            }}
             placeholder="Your reply"
             accessibilityLabel="Your reply"
             aiAmend={{
@@ -1063,20 +1085,12 @@ export default function ReconnectScreen() {
                               : `${circle.circleName}. Tap to include everyone.`
                         }
                       />
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={`${circle.circleName}, ${isExpanded ? "hide" : "show"} people`}
-                        accessibilityState={{ expanded: isExpanded }}
-                        hitSlop={8}
+                      <DropdownArrowBadge
+                        expanded={isExpanded}
                         onPress={() => toggleCircleArrow(circle.circleId)}
+                        accessibilityLabel={`${circle.circleName}, ${isExpanded ? "hide" : "show"} people`}
                         style={styles.arrowButton}
-                      >
-                        {({ pressed }) => (
-                          <View style={[styles.arrowBadge, pressed && styles.arrowPressed]}>
-                            <Text style={styles.arrowGlyph}>{isExpanded ? "▲" : "▼"}</Text>
-                          </View>
-                        )}
-                      </Pressable>
+                      />
                     </View>
                   );
                 });
@@ -1142,7 +1156,7 @@ export default function ReconnectScreen() {
                         accessibilityLabel={`I've already told ${person.name}`}
                         hitSlop={8}
                         onPress={() => markSinglePersonAlreadyTold(person.id)}
-                        style={({ pressed }) => [styles.alreadyToldBadge, pressed && styles.arrowPressed]}
+                        style={({ pressed }) => [styles.alreadyToldBadge, pressed && styles.alreadyToldPressed]}
                       >
                         <Text style={styles.alreadyToldGlyph}>✓</Text>
                       </Pressable>
@@ -1324,7 +1338,7 @@ export default function ReconnectScreen() {
                   <Text style={styles.gatePrompt}>Want to reply to anyone properly?</Text>
                   <View style={styles.actions}>
                     <SecondaryButton
-                      label={showPersonalise ? "Hide" : "Personalise"}
+                      label={showPersonalise ? "Hide" : "Conversations"}
                       onPress={() => (showPersonalise ? setShowPersonalise(false) : openPersonalise())}
                     />
                     <SecondaryButton label="Not now" onPress={() => setNotNowCollapsed(true)} />
@@ -1332,86 +1346,6 @@ export default function ReconnectScreen() {
                 </>
               )}
             </View>
-          ) : null}
-
-          {coverage.complete && showOoo ? (
-            <>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityState={{ expanded: oooExpanded }}
-                onPress={() => setOooExpanded((current) => !current)}
-                style={styles.oooHeader}
-              >
-                <Text style={styles.oooHeaderText}>Wider World</Text>
-                <Text style={styles.oooChevron}>{oooExpanded ? "▲" : "▼"}</Text>
-              </Pressable>
-
-              {/*
-               * Same two options as Going Quiet — Email, Status — mirrored
-               * here in Reconnect's own "turned off/amended" mode rather
-               * than Going Quiet's "turned on/drafted" one. See
-               * docs/09-decision-log.md, 2026-08-21.
-               */}
-              {oooExpanded ? (
-                <View style={styles.oooBody}>
-                  {period.emailOutOfOfficeEnabled ? (
-                    <View style={styles.widerWorldOption}>
-                      <Text style={styles.widerWorldOptionLabel}>Email</Text>
-                      {emailOff ? (
-                        <Text style={styles.settledText}>Out-of-office turned off.</Text>
-                      ) : (period.emailLinkedAccounts?.length ?? 0) > 0 ? (
-                        <Pressable accessibilityRole="button" onPress={turnOffEmail}>
-                          <Text style={styles.linkText}>Turn off out-of-office</Text>
-                        </Pressable>
-                      ) : (
-                        <Pressable accessibilityRole="button" onPress={turnOffEmail}>
-                          <Text style={styles.linkText}>Remember to remove your manual out-of-office</Text>
-                        </Pressable>
-                      )}
-                    </View>
-                  ) : null}
-
-                  {period.widerWorldStatusEnabled ? (
-                    <View style={styles.widerWorldOption}>
-                      <Text style={styles.widerWorldOptionLabel}>Status</Text>
-                      {postedPlatforms.length > 0 ? (
-                        <ScrollView
-                          horizontal
-                          showsHorizontalScrollIndicator={false}
-                          contentContainerStyle={styles.chipRow}
-                        >
-                          {postedPlatforms.map((platform) => {
-                            const takenDown = takenDownPlatformIds.has(platform.id);
-                            return (
-                              <AdaptiveCircleChip
-                                key={platform.id}
-                                label={platform.name}
-                                compact
-                                isSelected={false}
-                                hasSentThisSession={takenDown}
-                                onPress={() => (takenDown ? undefined : markPlatformTakenDown(platform.id))}
-                                accessibilityRole="checkbox"
-                                accessibilityLabel={
-                                  takenDown
-                                    ? `${platform.name}, taken down`
-                                    : `${platform.name}, not yet taken down. Tap once you have.`
-                                }
-                              />
-                            );
-                          })}
-                        </ScrollView>
-                      ) : statusCleared ? (
-                        <Text style={styles.settledText}>Status cleared.</Text>
-                      ) : (
-                        <Pressable accessibilityRole="button" onPress={clearStatus}>
-                          <Text style={styles.linkText}>Clear my status</Text>
-                        </Pressable>
-                      )}
-                    </View>
-                  ) : null}
-                </View>
-              ) : null}
-            </>
           ) : null}
         </View>
 
@@ -1423,6 +1357,91 @@ export default function ReconnectScreen() {
             the onPersonAction callback passed to useConversations above.
             See docs/09-decision-log.md, 2026-08-20. */}
         {showPersonalise ? <ConversationsView conversations={conversations} mode="flat" /> : null}
+
+        {/* Wider World, after Conversations — matching the confirmed
+            completion-screen order (2026-08-13): circle row → Conversations
+            → Wider World → Done. Was rendering before Conversations, the
+            reverse of spec — moved 2026-08-29 (item 5); nothing else about
+            this block changed. */}
+        {coverage.complete && showOoo ? (
+          <>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ expanded: oooExpanded }}
+              onPress={() => setOooExpanded((current) => !current)}
+              style={styles.oooHeader}
+            >
+              <Text style={styles.oooHeaderText}>Wider World</Text>
+              <Text style={styles.oooChevron}>{oooExpanded ? "▲" : "▼"}</Text>
+            </Pressable>
+
+            {/*
+             * Same two options as Going Quiet — Email, Status — mirrored
+             * here in Reconnect's own "turned off/amended" mode rather
+             * than Going Quiet's "turned on/drafted" one. See
+             * docs/09-decision-log.md, 2026-08-21.
+             */}
+            {oooExpanded ? (
+              <View style={styles.oooBody}>
+                {period.emailOutOfOfficeEnabled ? (
+                  <View style={styles.widerWorldOption}>
+                    <Text style={styles.widerWorldOptionLabel}>Email</Text>
+                    {emailOff ? (
+                      <Text style={styles.settledText}>Out-of-office turned off.</Text>
+                    ) : (period.emailLinkedAccounts?.length ?? 0) > 0 ? (
+                      <Pressable accessibilityRole="button" onPress={turnOffEmail}>
+                        <Text style={styles.linkText}>Turn off out-of-office</Text>
+                      </Pressable>
+                    ) : (
+                      <Pressable accessibilityRole="button" onPress={turnOffEmail}>
+                        <Text style={styles.linkText}>Remember to remove your manual out-of-office</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                ) : null}
+
+                {period.widerWorldStatusEnabled ? (
+                  <View style={styles.widerWorldOption}>
+                    <Text style={styles.widerWorldOptionLabel}>Status</Text>
+                    {postedPlatforms.length > 0 ? (
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.chipRow}
+                      >
+                        {postedPlatforms.map((platform) => {
+                          const takenDown = takenDownPlatformIds.has(platform.id);
+                          return (
+                            <AdaptiveCircleChip
+                              key={platform.id}
+                              label={platform.name}
+                              compact
+                              isSelected={false}
+                              hasSentThisSession={takenDown}
+                              onPress={() => (takenDown ? undefined : markPlatformTakenDown(platform.id))}
+                              accessibilityRole="checkbox"
+                              accessibilityLabel={
+                                takenDown
+                                  ? `${platform.name}, taken down`
+                                  : `${platform.name}, not yet taken down. Tap once you have.`
+                              }
+                            />
+                          );
+                        })}
+                      </ScrollView>
+                    ) : statusCleared ? (
+                      <Text style={styles.settledText}>Status cleared.</Text>
+                    ) : (
+                      <Pressable accessibilityRole="button" onPress={clearStatus}>
+                        <Text style={styles.linkText}>Clear my status</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+          </>
+        ) : null}
 
         <View style={styles.sendRow}>
           {/* The one exit control on this screen — never a send trigger.
@@ -1487,6 +1506,9 @@ function createStyles(colors: ThemeColors) {
       fontSize: 13,
       fontWeight: "700"
     },
+    alreadyToldPressed: {
+      opacity: 0.6
+    },
     chipGreyed: {
       opacity: 0.4
     },
@@ -1503,22 +1525,6 @@ function createStyles(colors: ThemeColors) {
       bottom: 8,
       alignItems: "center",
       justifyContent: "center"
-    },
-    arrowBadge: {
-      width: 22,
-      height: 22,
-      borderRadius: 11,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: "rgba(0, 0, 0, 0.12)"
-    },
-    arrowPressed: {
-      opacity: 0.6
-    },
-    arrowGlyph: {
-      color: colors.textMuted,
-      fontSize: 13,
-      fontWeight: "600"
     },
     sendRow: {
       flexDirection: "row",

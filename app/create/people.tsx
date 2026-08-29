@@ -1081,11 +1081,6 @@ export default function HoldPeopleScreen() {
             </View>
           )}
 
-          {/* Done — a genuinely separate concept from Send (early exit vs.
-              the compose row's own primary action), kept on its own row
-              rather than folded into Template/Send/Save. Only ever
-              renders once something's actually been sent this session. */}
-          {doneButton ? <View style={styles.sendRow}>{doneButton}</View> : null}
         </>
       ) : justSentText !== null ? (
         <View style={styles.messageBlock}>
@@ -1109,10 +1104,6 @@ export default function HoldPeopleScreen() {
                 <Text style={styles.savedPillText}>✓ Saved as Template</Text>
               </View>
             )}
-          </View>
-
-          <View style={styles.sendRow}>
-            {doneButton}
           </View>
         </View>
       ) : null}
@@ -1195,6 +1186,15 @@ export default function HoldPeopleScreen() {
           ) : null}
         </>
       ) : null}
+
+      {/* Done — a genuinely separate concept from Send (early exit vs. the
+          compose row's own primary action). One render site, after Wider
+          World, matching the confirmed completion-screen order (2026-08-13):
+          collapsed instant-message area → circle row → Wider World → Done.
+          Previously rendered twice, both times before Wider World —
+          consolidated 2026-08-29 (item 5). Only ever renders once
+          something's actually been sent this session. */}
+      {doneButton ? <View style={styles.sendRow}>{doneButton}</View> : null}
     </Screen>
   );
 }

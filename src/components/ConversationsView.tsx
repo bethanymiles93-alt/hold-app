@@ -2,6 +2,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
+import { DropdownArrowBadge } from "@/components/DropdownArrowBadge";
 import { PersonaliseAccordion } from "@/components/PersonaliseAccordion";
 import { DockedFieldPreview } from "@/components/DockedFieldPreview";
 import { CompactSendButton } from "@/components/CompactSendButton";
@@ -83,20 +84,12 @@ export function ConversationsView({ conversations: c, mode }: ConversationsViewP
                     accessibilityRole="button"
                     accessibilityLabel={`${section.circleName}, ${isExpanded ? "hide" : "show"} people`}
                   />
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`${section.circleName}, ${isExpanded ? "hide" : "show"} people`}
-                    accessibilityState={{ expanded: isExpanded }}
-                    hitSlop={8}
+                  <DropdownArrowBadge
+                    expanded={isExpanded}
                     onPress={() => c.toggleCircleExpanded(section.circleId)}
+                    accessibilityLabel={`${section.circleName}, ${isExpanded ? "hide" : "show"} people`}
                     style={styles.arrowButton}
-                  >
-                    {({ pressed }) => (
-                      <View style={[styles.arrowBadge, pressed && styles.arrowPressed]}>
-                        <Text style={styles.arrowGlyph}>{isExpanded ? "▲" : "▼"}</Text>
-                      </View>
-                    )}
-                  </Pressable>
+                  />
                 </View>
               );
             })}
@@ -252,7 +245,7 @@ export function ConversationsView({ conversations: c, mode }: ConversationsViewP
                       onPress={() => c.sendIndividual(person)}
                     />
                     <Pressable accessibilityRole="button" onPress={() => c.togglePersonaliseSwap(person.id)}>
-                      <Text style={styles.linkText}>Personalise</Text>
+                      <Text style={styles.linkText}>Conversations</Text>
                     </Pressable>
                   </View>
                 </>
@@ -306,22 +299,6 @@ function createStyles(colors: ThemeColors) {
       bottom: 8,
       alignItems: "center",
       justifyContent: "center"
-    },
-    arrowBadge: {
-      width: 22,
-      height: 22,
-      borderRadius: 11,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: "rgba(0, 0, 0, 0.12)"
-    },
-    arrowPressed: {
-      opacity: 0.6
-    },
-    arrowGlyph: {
-      color: colors.textMuted,
-      fontSize: 13,
-      fontWeight: "600"
     },
     cardList: {
       gap: theme.spacing.lg

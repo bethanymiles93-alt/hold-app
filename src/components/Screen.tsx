@@ -1,4 +1,4 @@
-import type { PropsWithChildren, ReactNode } from "react";
+import type { PropsWithChildren, ReactNode, RefObject } from "react";
 import { useMemo } from "react";
 import {
   Keyboard,
@@ -38,9 +38,18 @@ interface ScreenProps extends PropsWithChildren {
    * moment), though nothing enforces that structurally.
    */
   dockedInput?: ReactNode;
+  /**
+   * Exposes the internal ScrollView so a screen can scroll itself to a
+   * specific child on demand (e.g. History's "tap a date, jump the list to
+   * it" — see HistoryCalendar.tsx) — plain RN `ref` prop passthrough, not
+   * `forwardRef`/`useImperativeHandle`, since `ScrollView` already accepts
+   * a ref directly. Optional; every existing caller is unaffected. See
+   * docs/09-decision-log.md, 2026-08-29.
+   */
+  scrollRef?: RefObject<ScrollView | null>;
 }
 
-export function Screen({ children, contentContainerStyle, footer, dockedInput }: ScreenProps) {
+export function Screen({ children, contentContainerStyle, footer, dockedInput, scrollRef }: ScreenProps) {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
   const pathname = usePathname();
@@ -87,6 +96,7 @@ export function Screen({ children, contentContainerStyle, footer, dockedInput }:
                 input-light ones (Hold+, Research) didn't — this removes the
                 shared cause instead of patching each screen individually. */}
             <ScrollView
+              ref={scrollRef}
               style={styles.flex}
               keyboardShouldPersistTaps="handled"
               automaticallyAdjustKeyboardInsets

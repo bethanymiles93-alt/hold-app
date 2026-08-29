@@ -125,7 +125,15 @@ export default function LibraryScreen() {
           <DockedInputBar
             value={conversations.personaliseDrafts[conversations.personaliseReplyTarget.personId] ?? ""}
             onChangeText={conversations.personaliseReplyTarget.onChangeText}
-            onDone={() => conversations.setPersonaliseReplyTarget(null)}
+            onDone={() => {
+              // Was just closing the field — the docked bar's Send icon
+              // never actually sent anything, matching Box A's own Send
+              // button. Fixed 2026-08-29: onSend closes over this
+              // instance's own PersonaliseAccordion.sendNow. See
+              // docs/09-decision-log.md.
+              conversations.personaliseReplyTarget?.onSend();
+              conversations.setPersonaliseReplyTarget(null);
+            }}
             placeholder="Your reply"
             accessibilityLabel="Your reply"
             aiAmend={{

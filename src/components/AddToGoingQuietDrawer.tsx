@@ -4,6 +4,7 @@ import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { BottomSheetDrawer } from "@/components/BottomSheetDrawer";
 import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
+import { DropdownArrowBadge } from "@/components/DropdownArrowBadge";
 import { CompactSendButton } from "@/components/CompactSendButton";
 import type { CircleGroup } from "@/types/hold";
 
@@ -146,9 +147,12 @@ export function AddToGoingQuietDrawer({
                     onPress={() => toggleCircle(circle.id)}
                     accessibilityRole="button"
                   />
-                  <Text accessibilityRole="button" onPress={() => toggleArrow(circle.id)} style={styles.arrow}>
-                    {isExpanded ? "▲" : "▼"}
-                  </Text>
+                  <DropdownArrowBadge
+                    expanded={isExpanded}
+                    onPress={() => toggleArrow(circle.id)}
+                    accessibilityLabel={`${circle.name}, ${isExpanded ? "hide" : "show"} people`}
+                    style={styles.arrowButton}
+                  />
                 </View>
               );
             })}
@@ -218,13 +222,15 @@ function createStyles(colors: ThemeColors) {
       gap: theme.spacing.sm
     },
     circleUnit: {
-      alignItems: "center",
-      gap: 2
+      position: "relative",
+      alignSelf: "flex-start"
     },
-    arrow: {
-      fontSize: 12,
-      color: colors.textMuted,
-      textAlign: "center"
+    arrowButton: {
+      position: "absolute",
+      right: 6,
+      bottom: 8,
+      alignItems: "center",
+      justifyContent: "center"
     },
     textBox: {
       minHeight: 100,

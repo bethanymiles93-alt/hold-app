@@ -4,6 +4,7 @@ import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { BottomSheetDrawer } from "@/components/BottomSheetDrawer";
 import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
+import { DropdownArrowBadge } from "@/components/DropdownArrowBadge";
 import { LinkedCircleCluster, LinkGroupToggle, type LinkedClusterMember } from "@/components/LinkedCircleCluster";
 import { CompactSendButton } from "@/components/CompactSendButton";
 import { combinationKey } from "@/services/templateService";
@@ -271,15 +272,12 @@ export function TakingTimeUpdateDrawer({ visible, onClose, period, onSent }: Tak
                     onPress={() => toggleCircle(circle.circleId)}
                     accessibilityRole="button"
                   />
-                  <Text
-                    accessibilityRole="button"
-                    accessibilityLabel={`${circle.circleName}, ${isExpanded ? "hide" : "show"} people`}
-                    accessibilityState={{ expanded: isExpanded }}
+                  <DropdownArrowBadge
+                    expanded={isExpanded}
                     onPress={() => toggleArrow(circle.circleId)}
-                    style={styles.arrow}
-                  >
-                    {isExpanded ? "▲" : "▼"}
-                  </Text>
+                    accessibilityLabel={`${circle.circleName}, ${isExpanded ? "hide" : "show"} people`}
+                    style={styles.arrowButton}
+                  />
                 </View>
               );
             });
@@ -371,13 +369,15 @@ function createStyles(colors: ThemeColors) {
       gap: theme.spacing.md
     },
     circleUnit: {
-      alignItems: "center",
-      gap: 2
+      position: "relative",
+      alignSelf: "flex-start"
     },
-    arrow: {
-      fontSize: 12,
-      color: colors.textMuted,
-      textAlign: "center"
+    arrowButton: {
+      position: "absolute",
+      right: 6,
+      bottom: 8,
+      alignItems: "center",
+      justifyContent: "center"
     },
     pillRow: {
       flexDirection: "row",

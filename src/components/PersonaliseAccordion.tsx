@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SecondaryButton } from "@/components/SecondaryButton";
@@ -31,11 +31,16 @@ export interface PersonaliseAccordionProps {
   isReplyActive: boolean;
   /**
    * Hands the parent this instance's own changeDraft (which also persists
-   * to storage, using friendMessage/sentAt only this instance has) — the
-   * parent's shared DockedInputBar calls it directly rather than a bare
-   * setter, so autosave-on-keystroke keeps working through the docked bar.
+   * to storage, using friendMessage/sentAt only this instance has) and
+   * sendNow — the parent's shared DockedInputBar calls both directly
+   * rather than bare setters, so autosave-on-keystroke and the docked
+   * bar's own Send icon both keep working through the docked bar. `onSend`
+   * closing over this instance's own sendNow is what makes Box B's Send
+   * icon actually send (2026-08-29 fix — it previously only closed the
+   * field, since the docked bar had no way to reach this instance's local
+   * send logic at all). See docs/09-decision-log.md.
    */
-  onActivateReply: (bundle: { onChangeText: (text: string) => void; friendMessage: string }) => void;
+  onActivateReply: (bundle: { onChangeText: (text: string) => void; friendMessage: string; onSend: () => void }) => void;
 }
 
 /**
@@ -73,6 +78,16 @@ export function PersonaliseAccordion({
   /** Threaded through every persist() call, same as sentAt above, so it survives the record being rebuilt on every keystroke autosave. See docs/09-decision-log.md, 2026-08-21. */
   const [headsUpShownAt, setHeadsUpShownAt] = useState<number | undefined>(undefined);
   const safeguardingTriggered = useSafeguardingCheck(draft);
+
+  // The `onSend` handed to the parent's docked bar (below) is captured once,
+  // at the moment the box is tapped open — a closure over that render's
+  // `draft` prop would go stale the instant the person typed anything
+  // afterward in the now-open docked bar, since re-activating isn't what
+  // updates it. A ref sidesteps that: always the latest value, regardless
+  // of which render's closure ends up calling it. See docs/09-decision-log.md,
+  // 2026-08-29.
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
 
   useEffect(() => {
     if (!isOpen || loaded) return;
@@ -188,7 +203,11 @@ export function PersonaliseAccordion({
   const sendNow = () => {
     void (async () => {
       const now = Date.now();
-      const record = await persist(now);
+      // Explicit override, not persist()'s own draft-prop default — see
+      // draftRef's own comment above: this can be called from a stale
+      // closure (the docked bar's Send icon), so it must read the ref, not
+      // whatever `draft` this particular closure remembers.
+      const record = await persist(now, { draftReply: draftRef.current });
       try {
         await sendOrShare([person.phoneNumber], record.draftReply.trim());
       } catch {
@@ -206,7 +225,7 @@ export function PersonaliseAccordion({
       ? formatSentLabel(sentAt, "Sent. They'll hear from you properly.")
       : status === "draft"
         ? "Continue draft"
-        : "Personalise";
+        : "Conversations";
 
   return (
     <View style={styles.personaliseBlock}>
@@ -265,7 +284,20 @@ export function PersonaliseAccordion({
             value={draft}
             placeholder="Your reply"
             isActive={isReplyActive}
-            onPress={() => onActivateReply({ onChangeText: changeDraft, friendMessage })}
+            onPress={() =>
+              onActivateReply({
+                onChangeText: changeDraft,
+                friendMessage,
+                // Guards empty-draft sends itself — the docked bar's Send
+                // icon has no disabled state of its own, unlike
+                // CompactSendButton just below, which this instance's own
+                // inline send already correctly disables on an empty draft.
+                // Reads draftRef, not draft — see draftRef's own comment.
+                onSend: () => {
+                  if (draftRef.current.trim()) sendNow();
+                }
+              })
+            }
             accessibilityLabel="Your reply"
           />
 

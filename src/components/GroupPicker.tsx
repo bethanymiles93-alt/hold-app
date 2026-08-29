@@ -4,6 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-nat
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
+import { DropdownArrowBadge } from "@/components/DropdownArrowBadge";
 import { getGroups, PENDING_CIRCLE_ID_PREFIX } from "@/services/circleService";
 import type { CircleGroup } from "@/types/hold";
 
@@ -231,20 +232,12 @@ export function GroupPicker({
                     open (see onToggleExpanded in the parent screen).
                     Positioned inside the chip's own right edge so it never
                     reads as ambiguous about which circle it belongs to. */}
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`${group.name}, ${isExpanded ? "hide" : "show"} recipients`}
-                  accessibilityState={{ expanded: isExpanded }}
-                  hitSlop={8}
+                <DropdownArrowBadge
+                  expanded={isExpanded}
                   onPress={() => onToggleExpanded(group.id)}
+                  accessibilityLabel={`${group.name}, ${isExpanded ? "hide" : "show"} recipients`}
                   style={styles.arrowButton}
-                >
-                  {({ pressed }) => (
-                    <View style={[styles.arrowBadge, pressed && styles.arrowPressed]}>
-                      <Text style={styles.arrowGlyph}>{isExpanded ? "▲" : "▼"}</Text>
-                    </View>
-                  )}
-                </Pressable>
+                />
               </View>
             );
           })}
@@ -328,22 +321,6 @@ function createStyles(colors: ThemeColors) {
       bottom: 8,
       alignItems: "center",
       justifyContent: "center"
-    },
-    arrowBadge: {
-      width: 22,
-      height: 22,
-      borderRadius: 11,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: "rgba(0, 0, 0, 0.12)"
-    },
-    arrowPressed: {
-      opacity: 0.6
-    },
-    arrowGlyph: {
-      color: colors.textMuted,
-      fontSize: 13,
-      fontWeight: "600"
     },
     prompt: {
       color: colors.textMuted,

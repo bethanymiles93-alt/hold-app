@@ -2,6 +2,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
+import { DropdownArrowBadge } from "@/components/DropdownArrowBadge";
 
 export interface LinkedClusterMember {
   circleId: string;
@@ -48,25 +49,26 @@ export function LinkedCircleCluster({ members, onToggle, onToggleArrow }: Linked
       <View style={clusterLineStyle(colors, isSelected)} />
       <View style={styles.clusterRow}>
         {members.map((member, index) => (
-          <View key={member.circleId} style={[styles.clusterChip, index > 0 && styles.clusterChipOverlap]}>
+          <View
+            key={member.circleId}
+            style={[styles.clusterChip, index > 0 && styles.clusterChipOverlap, { zIndex: index }]}
+          >
             <AdaptiveCircleChip
               label={member.circleName}
               isSelected={member.isSelected}
               hasSentThisSession={member.hasSentThisSession}
               notYetSent={member.notYetSent}
               newlyAdded={member.newlyAdded}
+              clusterSeam
               onPress={onToggle}
               accessibilityRole="button"
             />
-            <Text
-              accessibilityRole="button"
-              accessibilityLabel={`${member.circleName}, ${member.isExpanded ? "hide" : "show"} people`}
-              accessibilityState={{ expanded: member.isExpanded }}
+            <DropdownArrowBadge
+              expanded={member.isExpanded}
               onPress={() => onToggleArrow(member.circleId)}
-              style={styles.arrow}
-            >
-              {member.isExpanded ? "▲" : "▼"}
-            </Text>
+              accessibilityLabel={`${member.circleName}, ${member.isExpanded ? "hide" : "show"} people`}
+              style={styles.arrowButton}
+            />
           </View>
         ))}
       </View>
@@ -126,16 +128,27 @@ function createStyles(colors: ThemeColors) {
       alignItems: "center"
     },
     clusterChip: {
-      alignItems: "center",
-      gap: 2
+      position: "relative",
+      alignItems: "center"
     },
     clusterChipOverlap: {
       marginLeft: -18
     },
-    arrow: {
-      fontSize: 12,
-      color: colors.textMuted,
-      textAlign: "center"
+    // Left, not right like every other DropdownArrowBadge in the app — a
+    // deliberate exception, not a drift from the standard. A cluster chip's
+    // RIGHT edge is where the next chip overlaps it (marginLeft: -18,
+    // higher zIndex) — a right-anchored badge there would sit partly
+    // underneath that next chip for every member except the last one. The
+    // left edge is never covered by anything (only the previous chip's own
+    // overlap onto IT, never the reverse), so it's the one corner that
+    // stays fully clear for every chip in the row. See
+    // docs/09-decision-log.md, 2026-08-29.
+    arrowButton: {
+      position: "absolute",
+      left: 6,
+      bottom: 8,
+      alignItems: "center",
+      justifyContent: "center"
     },
     groupToggle: {
       alignSelf: "flex-start",
