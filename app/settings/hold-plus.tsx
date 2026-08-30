@@ -32,6 +32,20 @@ const PRICING_ROWS = [
   { label: "Then, yearly", value: "£19.99/year" }
 ];
 
+/**
+ * Separate, standalone one-time purchases — not Hold+ subscription tiers,
+ * so kept in their own table rather than appended to PRICING_ROWS above
+ * (conflating a subscription price ladder with unrelated one-off purchases
+ * would read as one continuous pricing scheme when it isn't). Patterns
+ * Report is free with any active Hold+ subscription, including during the
+ * intro period — the AI credit pack is not a Hold+ perk at any tier. See
+ * hold-book's 07-business/02-pricing-principles.md, 2026-08-20.
+ */
+const OTHER_PURCHASE_ROWS = [
+  { label: "Patterns Report", value: "£2.50 — free with Hold+" },
+  { label: "AI credit pack", value: "£2.99" }
+];
+
 export default function HoldPlusScreen() {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -123,6 +137,21 @@ export default function HoldPlusScreen() {
           </Text>
           <View style={styles.pricingTable}>
             {PRICING_ROWS.map((row) => (
+              <View key={row.label} style={styles.pricingRow}>
+                <Text style={styles.pricingLabelCell}>{row.label}</Text>
+                <Text style={styles.pricingValueCell}>{row.value}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.title}>Other purchases</Text>
+          <Text style={styles.body}>
+            Separate one-time purchases, available whether or not you have Hold+.
+          </Text>
+          <View style={styles.pricingTable}>
+            {OTHER_PURCHASE_ROWS.map((row) => (
               <View key={row.label} style={styles.pricingRow}>
                 <Text style={styles.pricingLabelCell}>{row.label}</Text>
                 <Text style={styles.pricingValueCell}>{row.value}</Text>
