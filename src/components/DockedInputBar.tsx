@@ -240,9 +240,33 @@ export function DockedInputBar({
   // it, a field like new-Circle naming would need its own explicit Cancel
   // button to avoid trapping the user in a half-open bar. See
   // docs/09-decision-log.md, 2026-08-11.
+  //
+  // Guarded on a real keyboardDidShow having actually fired for THIS mount
+  // first (2026-08-30 fix, real on-device bug: "+ New Circle" opened this
+  // bar then closed it again within about a second, on every attempt).
+  // This bar mixes react-native-keyboard-controller's own keyboard tracking
+  // (KeyboardStickyView below) with React Native's separate legacy Keyboard
+  // API for this one listener — two different keyboard-event sources are a
+  // plausible source of an out-of-order or spurious first "hide" firing
+  // right as the keyboard is still animating in on a fresh mount, before a
+  // real "show" has actually happened for this instance. Without this
+  // guard, that spurious hide reads as "the user dismissed the keyboard"
+  // and immediately closes the bar it only just opened. A field with
+  // autoFocus (every current field) always gets a real show event first in
+  // ordinary use, so this doesn't change intended behaviour once the
+  // keyboard has genuinely appeared at least once.
   useEffect(() => {
-    const subscription = Keyboard.addListener("keyboardDidHide", dismiss);
-    return () => subscription.remove();
+    let hasShownKeyboard = false;
+    const showSubscription = Keyboard.addListener("keyboardDidShow", () => {
+      hasShownKeyboard = true;
+    });
+    const hideSubscription = Keyboard.addListener("keyboardDidHide", () => {
+      if (hasShownKeyboard) dismiss();
+    });
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dismiss]);
 

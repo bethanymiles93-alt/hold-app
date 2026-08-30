@@ -4,6 +4,19 @@ const WARMTH_OFFSET_KEY = "hold.display.warmthOffset";
 const COLOR_SCHEME_OVERRIDE_KEY = "hold.display.colorSchemeOverride";
 const DISPLAY_THEME_KEY = "hold.display.theme";
 const MOON_PHASE_ENABLED_KEY = "hold.display.moonPhaseEnabled";
+/**
+ * One-time migration flag (2026-08-30 base-colour change) — a persisted
+ * warmthOffset from before this change means something completely
+ * different now: the whole scale was redefined (old max "Warm" is the new
+ * zero-point base; cool removed entirely), not just re-clamped at one end.
+ * Simply clamping a legacy value into the new [0,1] range (as the old
+ * negative-only migration did) left any pre-existing POSITIVE value
+ * (0.5 or 1, common — "Warm"/"Warm+" were the two old warm pill options)
+ * silently reinterpreted as "already near/at the new maximum," reading as
+ * "stuck at the far right" on the new slider — confirmed on-device. This
+ * flag makes the reset happen exactly once, ever, per install.
+ */
+const WARMTH_BASE_MIGRATED_KEY = "hold.display.warmthBaseMigrated";
 
 export type ColorSchemeOverride = "light" | "dark" | "system";
 
@@ -36,14 +49,14 @@ const DEFAULTS: DisplaySettings = {
 };
 
 export async function getDisplaySettings(): Promise<DisplaySettings> {
-  const [warmthRaw, schemeRaw, themeRaw, moonRaw] = await Promise.all([
+  const [warmthRaw, schemeRaw, themeRaw, moonRaw, warmthMigrated] = await Promise.all([
     SecureStore.getItemAsync(WARMTH_OFFSET_KEY),
     SecureStore.getItemAsync(COLOR_SCHEME_OVERRIDE_KEY),
     SecureStore.getItemAsync(DISPLAY_THEME_KEY),
-    SecureStore.getItemAsync(MOON_PHASE_ENABLED_KEY)
+    SecureStore.getItemAsync(MOON_PHASE_ENABLED_KEY),
+    SecureStore.getItemAsync(WARMTH_BASE_MIGRATED_KEY)
   ]);
 
-  const warmthOffset = warmthRaw ? Number(warmthRaw) : DEFAULTS.warmthOffset;
   const colorSchemeOverride =
     schemeRaw === "light" || schemeRaw === "dark" || schemeRaw === "system" ? schemeRaw : DEFAULTS.colorSchemeOverride;
   const displayTheme: DisplayTheme =
@@ -51,6 +64,20 @@ export async function getDisplaySettings(): Promise<DisplaySettings> {
       ? themeRaw
       : DEFAULTS.displayTheme;
   const moonPhaseEnabled = moonRaw === "true";
+
+  if (!warmthMigrated) {
+    // First load since the base-colour change — any persisted value is
+    // guaranteed to be from the old scale (this migration ships in the
+    // same build as the new slider, so nothing could have set a
+    // new-scale value yet). Reset unconditionally rather than clamp.
+    await Promise.all([
+      SecureStore.setItemAsync(WARMTH_OFFSET_KEY, String(DEFAULTS.warmthOffset)),
+      SecureStore.setItemAsync(WARMTH_BASE_MIGRATED_KEY, "true")
+    ]);
+    return { warmthOffset: DEFAULTS.warmthOffset, colorSchemeOverride, displayTheme, moonPhaseEnabled };
+  }
+
+  const warmthOffset = warmthRaw ? Number(warmthRaw) : DEFAULTS.warmthOffset;
 
   return {
     warmthOffset: Number.isFinite(warmthOffset) ? Math.max(0, Math.min(1, warmthOffset)) : DEFAULTS.warmthOffset,
@@ -92,6 +119,7 @@ export async function deleteAllDisplaySettings(): Promise<void> {
     SecureStore.deleteItemAsync(WARMTH_OFFSET_KEY),
     SecureStore.deleteItemAsync(COLOR_SCHEME_OVERRIDE_KEY),
     SecureStore.deleteItemAsync(DISPLAY_THEME_KEY),
-    SecureStore.deleteItemAsync(MOON_PHASE_ENABLED_KEY)
+    SecureStore.deleteItemAsync(MOON_PHASE_ENABLED_KEY),
+    SecureStore.deleteItemAsync(WARMTH_BASE_MIGRATED_KEY)
   ]);
 }

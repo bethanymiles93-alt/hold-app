@@ -31,6 +31,17 @@ const CHANNEL_LABELS: Record<"default" | SendingChannel, string> = {
   whatsapp: "WhatsApp"
 };
 
+/**
+ * Suggested tappable names at the naming step of "+ New Circle" (2026-08-30),
+ * drawn from the app's own founding circle taxonomy (Core/Close, Friends,
+ * Care, Community, Professional, Social — see Your Circles' own Core
+ * section copy). Deliberately excludes "Friends": that's already a
+ * separate, pre-seeded starter circle (`ensureFriendsCircleSeeded`) —
+ * suggesting it again here risks someone creating a duplicate "Friends"
+ * circle instead of populating the one that already exists.
+ */
+const SUGGESTED_NEW_CIRCLE_NAMES = ["Care", "Community", "Professional", "Social"];
+
 /** Default → Text → WhatsApp → Default. Applies immediately, unlike the rest of this card's staged/"Update circle" changes — there's no meaningful "undo before saving" state for a preference this small. */
 function nextChannel(current: SendingChannel | undefined): SendingChannel | undefined {
   if (current === undefined) return "sms";
@@ -302,6 +313,10 @@ export default function CircleIndexScreen() {
             onDone={() => setActiveField(null)}
             placeholder="Circle name, e.g. School friends"
             accessibilityLabel="New Circle name"
+            suggestions={SUGGESTED_NEW_CIRCLE_NAMES.map((name) => ({
+              label: name,
+              onPress: () => setNewCircleName(name)
+            }))}
           />
         ) : null
       }

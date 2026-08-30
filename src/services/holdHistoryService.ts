@@ -443,6 +443,27 @@ export async function resolvePendingCircleInPeriod(
   });
 }
 
+/**
+ * Marks the "remove from Circle going forward?" prompt as answered for one
+ * phone number this period — called on both Yes and No/dismiss, since
+ * either way the gentle, easily-declinable prompt shouldn't ask again about
+ * the same excluded person on a later visit to this same period. The
+ * caller is responsible for actually editing the real Circle first
+ * (`removeContactFromGroup`) when the answer is Yes — this only ever
+ * records that the prompt has been resolved, matching
+ * resolvePendingCircleInPeriod's own separation of concerns. See
+ * docs/09-decision-log.md, 2026-08-30.
+ */
+export async function markRemovalPromptResolved(periodId: string, phoneNumber: string): Promise<void> {
+  const period = await readRecord(periodId);
+  if (!period) return;
+
+  const resolved = period.removalPromptResolvedPhoneNumbers ?? [];
+  if (resolved.includes(phoneNumber)) return;
+
+  await writeRecord({ ...period, removalPromptResolvedPhoneNumbers: [...resolved, phoneNumber] });
+}
+
 /** Syncs a Circle's current name into this period's own audienceCircles snapshot — used after a rename, so the current Reconnect session's display updates without needing a fresh visit. */
 export async function renameCircleInPeriod(periodId: string, circleId: string, circleName: string): Promise<void> {
   const period = await readRecord(periodId);

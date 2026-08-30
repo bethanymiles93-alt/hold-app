@@ -8,6 +8,7 @@ import { SecondaryButton } from "@/components/SecondaryButton";
 import { DockedInputBar } from "@/components/DockedInputBar";
 import { DockedFieldPreview } from "@/components/DockedFieldPreview";
 import { MemoryNoteSuggestion } from "@/components/MemoryNoteSuggestion";
+import { RemovalPromptSuggestion } from "@/components/RemovalPromptSuggestion";
 import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
 import { DropdownArrowBadge } from "@/components/DropdownArrowBadge";
 import { HoldMark } from "@/components/HoldMark";
@@ -29,6 +30,7 @@ import {
   getReconnectingPeriod,
   markEmailAccountTurnedOff,
   markReconnectContacted,
+  markRemovalPromptResolved,
   markWiderWorldTakenDown,
   recordReconnectStepReached,
   recordSendChannel,
@@ -209,6 +211,22 @@ export default function ReconnectScreen() {
    */
   const [stagedExcludedByCircle, setStagedExcludedByCircle] = useState<Record<string, Set<string>>>({});
   const [stagedAdditionsByCircle, setStagedAdditionsByCircle] = useState<Record<string, AudienceContact[]>>({});
+  /**
+   * Follow-on to the frozen-audience fix (2026-08-13, confirmed still
+   * correct before building this): someone excluded at Going Quiet is
+   * dropped from THIS period's own persisted audienceCircles snapshot
+   * entirely, so they never appear anywhere in Reconnect's own UI — the
+   * only way to find them is by diffing each real Circle's live
+   * (circleService) membership against this period's own frozen snapshot.
+   * One candidate at a time, gentle — not a batch list. See
+   * docs/09-decision-log.md, 2026-08-30.
+   */
+  const [removalCandidate, setRemovalCandidate] = useState<{
+    phoneNumber: string;
+    name: string;
+    circleId: string;
+    circleName: string;
+  } | null>(null);
 
   /**
    * Circles freshly made real from Going Quiet's ad-hoc bundling flow,
@@ -581,6 +599,77 @@ export default function ReconnectScreen() {
       await updateAudienceCircleContacts(period.id, circle.circleId, nextContacts);
 
       clearStagedFor(circle.circleId);
+      await refresh();
+    })();
+  };
+
+  /**
+   * Finds the first not-yet-resolved excluded-at-Going-Quiet person, if
+   * any, by diffing each real Circle's live membership against this
+   * period's own frozen `audienceCircles` snapshot — see
+   * `removalCandidate`'s own comment above for why this is the only way to
+   * find them. Pending Circles are skipped (nothing to diff against yet —
+   * `resolvePendingCircleInPeriod` makes them real before this could ever
+   * find a gap). Re-runs whenever the period reloads (e.g. after `refresh()`).
+   */
+  useEffect(() => {
+    if (!period) {
+      setRemovalCandidate(null);
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      const resolved = new Set(period.removalPromptResolvedPhoneNumbers ?? []);
+      for (const circle of period.audienceCircles ?? []) {
+        if (circle.circleId.startsWith(PENDING_CIRCLE_ID_PREFIX)) continue;
+
+        const liveGroup = await getGroup(circle.circleId);
+        if (!liveGroup) continue;
+
+        const snapshotPhoneNumbers = new Set(circle.contacts.map((contact) => contact.phoneNumber));
+        const found = liveGroup.contacts.find(
+          (contact) => !snapshotPhoneNumbers.has(contact.phoneNumber) && !resolved.has(contact.phoneNumber)
+        );
+        if (found) {
+          if (!cancelled) {
+            setRemovalCandidate({
+              phoneNumber: found.phoneNumber,
+              name: found.name,
+              circleId: circle.circleId,
+              circleName: circle.circleName
+            });
+          }
+          return;
+        }
+      }
+      if (!cancelled) setRemovalCandidate(null);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [period]);
+
+  const removeCandidatePermanently = () => {
+    if (!removalCandidate || !period) return;
+    const candidate = removalCandidate;
+    void (async () => {
+      const liveGroup = await getGroup(candidate.circleId);
+      const liveContact = liveGroup?.contacts.find((contact) => contact.phoneNumber === candidate.phoneNumber);
+      if (liveContact) await removeContactFromGroup(candidate.circleId, liveContact.id);
+      await markRemovalPromptResolved(period.id, candidate.phoneNumber);
+      setRemovalCandidate(null);
+      await refresh();
+    })();
+  };
+
+  const declineRemovalCandidate = () => {
+    if (!removalCandidate || !period) return;
+    const candidate = removalCandidate;
+    void (async () => {
+      await markRemovalPromptResolved(period.id, candidate.phoneNumber);
+      setRemovalCandidate(null);
       await refresh();
     })();
   };
@@ -1356,6 +1445,15 @@ export default function ReconnectScreen() {
             <Text style={styles.excludedLineText} accessibilityRole="text">
               {excludedPillPeople.map((person) => person.name).join(", ")}
             </Text>
+          ) : null}
+
+          {removalCandidate ? (
+            <RemovalPromptSuggestion
+              personName={removalCandidate.name}
+              circleName={removalCandidate.circleName}
+              onRemove={removeCandidatePermanently}
+              onDecline={declineRemovalCandidate}
+            />
           ) : null}
 
           {hasComposeTargets ? (

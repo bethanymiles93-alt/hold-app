@@ -62,6 +62,12 @@ export function AddToGoingQuietDrawer({
   }, [visible, circles]);
 
   const allSelected = circles.length > 0 && circles.every((circle) => selectedCircleIds.has(circle.id));
+  // Same "All" gate as GroupPicker.tsx/Manage Circles/Reconnect's own
+  // circle row (2026-08-30 sweep, found via the same anti-pattern already
+  // fixed elsewhere tonight): with only one non-empty Circle to act on,
+  // "All" is redundant with tapping that Circle's own chip directly. See
+  // docs/09-decision-log.md.
+  const nonEmptyCircleCount = circles.filter((circle) => circle.contacts.length > 0).length;
 
   const toggleAll = () => {
     setSelectedCircleIds(allSelected ? new Set() : new Set(circles.map((circle) => circle.id)));
@@ -134,7 +140,7 @@ export function AddToGoingQuietDrawer({
             onPress={onAddAnother}
           />
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-            {circles.length > 0 ? (
+            {nonEmptyCircleCount >= 2 ? (
               <AdaptiveCircleChip label="All" isSelected={allSelected} labelBold onPress={toggleAll} accessibilityRole="button" />
             ) : null}
             {circles.map((circle) => {

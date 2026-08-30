@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { PanResponder, View, StyleSheet, type GestureResponderEvent } from "react-native";
+import { PanResponder, View, StyleSheet, type GestureResponderEvent, type PanResponderGestureState } from "react-native";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 
@@ -20,25 +20,45 @@ const A11Y_STEP = 0.05;
  * is installed in this app, so this is a plain PanResponder drag over a
  * track, not react-native-community/slider or similar. `value`/`onChange`
  * are fully controlled by the caller, same pattern as any other input here.
+ *
+ * Uses `gestureState.moveX`/`x0` (absolute screen coordinates PanResponder
+ * itself tracks) against the track's own measured screen position — NOT
+ * `nativeEvent.locationX`, which a first build used and turned out to be
+ * unreliable during `onPanResponderMove` (a known RN gotcha: locationX
+ * during a move event isn't consistently relative to the responder view,
+ * so the slider didn't visibly move while dragging). `.measure()` gives an
+ * absolute `pageX` to anchor against instead. See docs/09-decision-log.md,
+ * 2026-08-30.
  */
 export function WarmthSlider({ value, onChange }: WarmthSliderProps) {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const trackRef = useRef<View>(null);
   const [trackWidth, setTrackWidth] = useState(0);
+  const [trackPageX, setTrackPageX] = useState(0);
 
   const clamp = (n: number) => Math.max(0, Math.min(1, n));
 
-  const updateFromTouch = (event: GestureResponderEvent) => {
+  const measureTrack = () => {
+    trackRef.current?.measure((_x, _y, width, _height, pageX) => {
+      setTrackWidth(width);
+      setTrackPageX(pageX);
+    });
+  };
+
+  const updateFromPageX = (pageX: number) => {
     if (trackWidth <= 0) return;
-    onChange(clamp(event.nativeEvent.locationX / trackWidth));
+    onChange(clamp((pageX - trackPageX) / trackWidth));
   };
 
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: updateFromTouch,
-      onPanResponderMove: updateFromTouch
+      onPanResponderGrant: (_event: GestureResponderEvent, gestureState: PanResponderGestureState) =>
+        updateFromPageX(gestureState.x0),
+      onPanResponderMove: (_event: GestureResponderEvent, gestureState: PanResponderGestureState) =>
+        updateFromPageX(gestureState.moveX)
     })
   ).current;
 
@@ -46,8 +66,9 @@ export function WarmthSlider({ value, onChange }: WarmthSliderProps) {
 
   return (
     <View
+      ref={trackRef}
       style={styles.hitArea}
-      onLayout={(event) => setTrackWidth(event.nativeEvent.layout.width)}
+      onLayout={measureTrack}
       {...panResponder.panHandlers}
       accessibilityRole="adjustable"
       accessibilityLabel="Warmth"

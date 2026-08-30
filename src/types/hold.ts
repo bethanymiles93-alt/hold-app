@@ -192,6 +192,15 @@ export interface HoldPeriod {
    */
   ungroupedLinkKeys?: string[];
   /**
+   * Phone numbers whose "remove from Circle going forward?" prompt
+   * (2026-08-30) has already been answered this period, Yes or No either
+   * way — keeps a gentle, easily-declinable prompt from re-asking about
+   * the same excluded person again on a later Reconnect visit for the
+   * *same* period. A new Hold period starts with none resolved, same
+   * period-scoping convention as resolvedPendingCircleIds above.
+   */
+  removalPromptResolvedPhoneNumbers?: string[];
+  /**
    * WiderWorldPlatform ids the person said, at Going Quiet, they posted
    * their status to (the "Where did you post this?" step, offered once
    * the status text is copied) — this is what Reconnect's own taken-down
