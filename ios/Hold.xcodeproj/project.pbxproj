@@ -7,31 +7,31 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0893574CAA33420CB918B705 /* ShareExtensionViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A964F9F550544BD82A5F0A9 /* ShareExtensionViewController.swift */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
-		1AF35EA565D87208C77F1FFF /* libPods-HoldShareExtension.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 8363083A4EBF7A9B9582C7B8 /* libPods-HoldShareExtension.a */; };
-		1B4E8FE56C7988C35B417327 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 862FC61F7A6B1577492327CC /* PrivacyInfo.xcprivacy */; };
+		2800E2F71BCFDA3E2F853530 /* libPods-Hold.a in Frameworks */ = {isa = PBXBuildFile; fileRef = DC311B3D1BFA5666FCDC013A /* libPods-Hold.a */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
-		45B009DEB468001827F61A37 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3E387E7557AC9C6E3E1B5AA /* ExpoModulesProvider.swift */; };
-		53485824F4C1445F9A2ADA9B /* ShareExtensionViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18EC5219F1CF4DACB539683A /* ShareExtensionViewController.swift */; };
-		58394330F0F840C48587474F /* HoldShareExtension.appex in Copy Files */ = {isa = PBXBuildFile; fileRef = CCADA1D0901F462581D515FE /* HoldShareExtension.appex */; };
-		92DFA2C74A0549EFC79FDA22 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6084ECCC22A6F15AC479754 /* ExpoModulesProvider.swift */; };
-		99346D703A51248022B055D6 /* libPods-Hold.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 87BC82400D2FD0017E9A5D7A /* libPods-Hold.a */; };
+		9F117AD7732DC44CDE2EE348 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 717DDC733B2B5F077D9B80DD /* ExpoModulesProvider.swift */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
+		D36B14844A50C2BA6A4D83A3 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5F5DAC2F32E5331ECB87793 /* ExpoModulesProvider.swift */; };
+		E330FA4DD244443886AE8AA8 /* HoldShareExtension.appex in Copy Files */ = {isa = PBXBuildFile; fileRef = CCD0519C027F47FA92711072 /* HoldShareExtension.appex */; };
+		EDE0562BCB70E91969698078 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 2AD6DA1D802103B77225B601 /* PrivacyInfo.xcprivacy */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
+		FDEF4DABBA0710CAC1744044 /* libPods-HoldShareExtension.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5388506824C958DA60D1B7AE /* libPods-HoldShareExtension.a */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		2B6E669FBDB84949B6DDFFD2 /* PBXContainerItemProxy */ = {
+		702080E6B7FD424AB3D6D1ED /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = A2628DC776004311BDC32F48;
+			remoteGlobalIDString = E87875416EC54E95A21B62EE;
 			remoteInfo = HoldShareExtension;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
-		277BDAF97DAA40FCB26F37EE /* Embed Foundation Extensions */ = {
+		215515E94E3F4390856C956F /* Embed Foundation Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = "";
@@ -41,13 +41,13 @@
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		7E6814D412194B938FC569B4 /* Copy Files */ = {
+		935AEA39703E4E2FA21A7BDD /* Copy Files */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
-				58394330F0F840C48587474F /* HoldShareExtension.appex in Copy Files */,
+				E330FA4DD244443886AE8AA8 /* HoldShareExtension.appex in Copy Files */,
 			);
 			name = "Copy Files";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -58,24 +58,24 @@
 		13B07F961A680F5B00A75B9A /* Hold.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Hold.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = Hold/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = Hold/Info.plist; sourceTree = "<group>"; };
-		18EC5219F1CF4DACB539683A /* ShareExtensionViewController.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = ShareExtensionViewController.swift; path = ShareExtensionViewController.swift; sourceTree = "<group>"; };
-		75CEB9A717CF46EDB9884E04 /* HoldShareExtension.entitlements */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = HoldShareExtension.entitlements; path = HoldShareExtension.entitlements; sourceTree = "<group>"; };
-		8363083A4EBF7A9B9582C7B8 /* libPods-HoldShareExtension.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-HoldShareExtension.a"; sourceTree = BUILT_PRODUCTS_DIR; };
-		862FC61F7A6B1577492327CC /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = Hold/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		87BC82400D2FD0017E9A5D7A /* libPods-Hold.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-Hold.a"; sourceTree = BUILT_PRODUCTS_DIR; };
-		966D8F6D5EB34240AC311C20 /* Info.plist */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.xml; name = Info.plist; path = Info.plist; sourceTree = "<group>"; };
-		A2A73DA1DD3F2F7E1622FB2E /* Pods-HoldShareExtension.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-HoldShareExtension.release.xcconfig"; path = "Target Support Files/Pods-HoldShareExtension/Pods-HoldShareExtension.release.xcconfig"; sourceTree = "<group>"; };
-		A6084ECCC22A6F15AC479754 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-HoldShareExtension/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		2AD6DA1D802103B77225B601 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = Hold/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		3AEA256FA99582927F870E78 /* Pods-Hold.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Hold.release.xcconfig"; path = "Target Support Files/Pods-Hold/Pods-Hold.release.xcconfig"; sourceTree = "<group>"; };
+		442E6D3431B2281DF718D949 /* Pods-HoldShareExtension.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-HoldShareExtension.debug.xcconfig"; path = "Target Support Files/Pods-HoldShareExtension/Pods-HoldShareExtension.debug.xcconfig"; sourceTree = "<group>"; };
+		4BD56135BF1048EC9DCFBEB5 /* Info.plist */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.xml; name = Info.plist; path = Info.plist; sourceTree = "<group>"; };
+		5388506824C958DA60D1B7AE /* libPods-HoldShareExtension.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-HoldShareExtension.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		70555157B9470435D274149F /* Pods-Hold.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Hold.debug.xcconfig"; path = "Target Support Files/Pods-Hold/Pods-Hold.debug.xcconfig"; sourceTree = "<group>"; };
+		717DDC733B2B5F077D9B80DD /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-HoldShareExtension/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		86F61D423B65535EA5885071 /* Pods-HoldShareExtension.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-HoldShareExtension.release.xcconfig"; path = "Target Support Files/Pods-HoldShareExtension/Pods-HoldShareExtension.release.xcconfig"; sourceTree = "<group>"; };
+		8A964F9F550544BD82A5F0A9 /* ShareExtensionViewController.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = ShareExtensionViewController.swift; path = ShareExtensionViewController.swift; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = Hold/SplashScreen.storyboard; sourceTree = "<group>"; };
-		ABCBA7CA5A0458A208552DFF /* Pods-HoldShareExtension.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-HoldShareExtension.debug.xcconfig"; path = "Target Support Files/Pods-HoldShareExtension/Pods-HoldShareExtension.debug.xcconfig"; sourceTree = "<group>"; };
-		B04C6743EB04274ABF7F0E2F /* Pods-Hold.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Hold.debug.xcconfig"; path = "Target Support Files/Pods-Hold/Pods-Hold.debug.xcconfig"; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
-		C3E387E7557AC9C6E3E1B5AA /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-Hold/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
-		CCADA1D0901F462581D515FE /* HoldShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = undefined; name = HoldShareExtension.appex; path = HoldShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		CCD0519C027F47FA92711072 /* HoldShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = undefined; name = HoldShareExtension.appex; path = HoldShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		D5F5DAC2F32E5331ECB87793 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-Hold/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		D9CD28FBF31742F095052FCB /* HoldShareExtension.entitlements */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = HoldShareExtension.entitlements; path = HoldShareExtension.entitlements; sourceTree = "<group>"; };
+		DC311B3D1BFA5666FCDC013A /* libPods-Hold.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-Hold.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = Hold/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* Hold-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "Hold-Bridging-Header.h"; path = "Hold/Hold-Bridging-Header.h"; sourceTree = "<group>"; };
-		F5AA9163869A443614469475 /* Pods-Hold.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Hold.release.xcconfig"; path = "Target Support Files/Pods-Hold/Pods-Hold.release.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -83,15 +83,15 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				99346D703A51248022B055D6 /* libPods-Hold.a in Frameworks */,
+				2800E2F71BCFDA3E2F853530 /* libPods-Hold.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		2F6A59CFD10E46D380BFF604 /* Frameworks */ = {
+		95AC8C77B138471B8C4D850C /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				1AF35EA565D87208C77F1FFF /* libPods-HoldShareExtension.a in Frameworks */,
+				FDEF4DABBA0710CAC1744044 /* libPods-HoldShareExtension.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -107,7 +107,7 @@
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
-				862FC61F7A6B1577492327CC /* PrivacyInfo.xcprivacy */,
+				2AD6DA1D802103B77225B601 /* PrivacyInfo.xcprivacy */,
 			);
 			name = Hold;
 			sourceTree = "<group>";
@@ -116,30 +116,30 @@
 			isa = PBXGroup;
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				87BC82400D2FD0017E9A5D7A /* libPods-Hold.a */,
-				8363083A4EBF7A9B9582C7B8 /* libPods-HoldShareExtension.a */,
+				DC311B3D1BFA5666FCDC013A /* libPods-Hold.a */,
+				5388506824C958DA60D1B7AE /* libPods-HoldShareExtension.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
-		3B0FFD48A283403DB0142159 /* HoldShareExtension */ = {
+		441F5E9BE4962BD502609000 /* HoldShareExtension */ = {
 			isa = PBXGroup;
 			children = (
-				18EC5219F1CF4DACB539683A /* ShareExtensionViewController.swift */,
-				966D8F6D5EB34240AC311C20 /* Info.plist */,
-				75CEB9A717CF46EDB9884E04 /* HoldShareExtension.entitlements */,
+				717DDC733B2B5F077D9B80DD /* ExpoModulesProvider.swift */,
 			);
 			name = HoldShareExtension;
-			path = HoldShareExtension;
 			sourceTree = "<group>";
 		};
-		5B6097C3126B45CC08159CF7 /* ExpoModulesProviders */ = {
+		7E18CAB2CE31E4C3D91E5BA3 /* Pods */ = {
 			isa = PBXGroup;
 			children = (
-				ED850DA4295B8AFAC39CD9E4 /* Hold */,
-				DD2ED759BAD95C72B78C3F37 /* HoldShareExtension */,
+				70555157B9470435D274149F /* Pods-Hold.debug.xcconfig */,
+				3AEA256FA99582927F870E78 /* Pods-Hold.release.xcconfig */,
+				442E6D3431B2281DF718D949 /* Pods-HoldShareExtension.debug.xcconfig */,
+				86F61D423B65535EA5885071 /* Pods-HoldShareExtension.release.xcconfig */,
 			);
-			name = ExpoModulesProviders;
+			name = Pods;
+			path = Pods;
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
@@ -156,9 +156,9 @@
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
-				3B0FFD48A283403DB0142159 /* HoldShareExtension */,
-				E2183FB029D2F71210D949A1 /* Pods */,
-				5B6097C3126B45CC08159CF7 /* ExpoModulesProviders */,
+				F761229F7A4342B39BDC7852 /* HoldShareExtension */,
+				7E18CAB2CE31E4C3D91E5BA3 /* Pods */,
+				FF0FB2AABA3A6E5613313B1E /* ExpoModulesProviders */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -169,7 +169,7 @@
 			isa = PBXGroup;
 			children = (
 				13B07F961A680F5B00A75B9A /* Hold.app */,
-				CCADA1D0901F462581D515FE /* HoldShareExtension.appex */,
+				CCD0519C027F47FA92711072 /* HoldShareExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -183,32 +183,32 @@
 			path = Hold/Supporting;
 			sourceTree = "<group>";
 		};
-		DD2ED759BAD95C72B78C3F37 /* HoldShareExtension */ = {
+		CE1A47FBC7829562FDFFA32A /* Hold */ = {
 			isa = PBXGroup;
 			children = (
-				A6084ECCC22A6F15AC479754 /* ExpoModulesProvider.swift */,
-			);
-			name = HoldShareExtension;
-			sourceTree = "<group>";
-		};
-		E2183FB029D2F71210D949A1 /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				B04C6743EB04274ABF7F0E2F /* Pods-Hold.debug.xcconfig */,
-				F5AA9163869A443614469475 /* Pods-Hold.release.xcconfig */,
-				ABCBA7CA5A0458A208552DFF /* Pods-HoldShareExtension.debug.xcconfig */,
-				A2A73DA1DD3F2F7E1622FB2E /* Pods-HoldShareExtension.release.xcconfig */,
-			);
-			name = Pods;
-			path = Pods;
-			sourceTree = "<group>";
-		};
-		ED850DA4295B8AFAC39CD9E4 /* Hold */ = {
-			isa = PBXGroup;
-			children = (
-				C3E387E7557AC9C6E3E1B5AA /* ExpoModulesProvider.swift */,
+				D5F5DAC2F32E5331ECB87793 /* ExpoModulesProvider.swift */,
 			);
 			name = Hold;
+			sourceTree = "<group>";
+		};
+		F761229F7A4342B39BDC7852 /* HoldShareExtension */ = {
+			isa = PBXGroup;
+			children = (
+				8A964F9F550544BD82A5F0A9 /* ShareExtensionViewController.swift */,
+				4BD56135BF1048EC9DCFBEB5 /* Info.plist */,
+				D9CD28FBF31742F095052FCB /* HoldShareExtension.entitlements */,
+			);
+			name = HoldShareExtension;
+			path = HoldShareExtension;
+			sourceTree = "<group>";
+		};
+		FF0FB2AABA3A6E5613313B1E /* ExpoModulesProviders */ = {
+			isa = PBXGroup;
+			children = (
+				CE1A47FBC7829562FDFFA32A /* Hold */,
+				441F5E9BE4962BD502609000 /* HoldShareExtension */,
+			);
+			name = ExpoModulesProviders;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -219,39 +219,39 @@
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "Hold" */;
 			buildPhases = (
 				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
-				D23A0F254969E997DEDB737D /* [Expo] Configure project */,
+				894D8399BB518617C11DB3F2 /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
-				C2C3EB4AFF624B99AB62B37E /* [Expo Dev Launcher] Strip Local Network Keys for Release */,
-				277BDAF97DAA40FCB26F37EE /* Embed Foundation Extensions */,
-				7E6814D412194B938FC569B4 /* Copy Files */,
-				67A5F6532A38BBFAECEC4820 /* [CP] Embed Pods Frameworks */,
+				9A2E0ED08A3A4C0C9E27CA04 /* [Expo Dev Launcher] Strip Local Network Keys for Release */,
+				215515E94E3F4390856C956F /* Embed Foundation Extensions */,
+				935AEA39703E4E2FA21A7BDD /* Copy Files */,
+				2EDBDACB5C08ABC911D234DB /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				E50937BA3BA349B7B40976BB /* PBXTargetDependency */,
+				933DADBDC80E49BCAAD39DC4 /* PBXTargetDependency */,
 			);
 			name = Hold;
 			productName = Hold;
 			productReference = 13B07F961A680F5B00A75B9A /* Hold.app */;
 			productType = "com.apple.product-type.application";
 		};
-		A2628DC776004311BDC32F48 /* HoldShareExtension */ = {
+		E87875416EC54E95A21B62EE /* HoldShareExtension */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 196FD2DDCB5A4C2DA95FED4C /* Build configuration list for PBXNativeTarget "HoldShareExtension" */;
+			buildConfigurationList = C8EDA02750ED4EB2AE1E5760 /* Build configuration list for PBXNativeTarget "HoldShareExtension" */;
 			buildPhases = (
-				F47DE84BDB95F498C5A7D63E /* [CP] Check Pods Manifest.lock */,
-				19602DE8658744D99AD99467 /* Start Packager */,
-				6A41775129756D467E3C3571 /* [Expo] Configure project */,
-				3E44B319B45C4FB999965E4D /* Sources */,
-				2F6A59CFD10E46D380BFF604 /* Frameworks */,
-				1A800E72C0024A96AFCC9611 /* Resources */,
-				390AA02DD5814D63A9FC3320 /* Bundle React Native code and images */,
-				3B3D57C1A9D31CD2879E0DA4 /* [CP] Copy Pods Resources */,
+				A9A3E907BF0954C6E600EF72 /* [CP] Check Pods Manifest.lock */,
+				11E9AE518B8C44A9A48F158A /* Start Packager */,
+				44815D52AEB10E3DE132EAF3 /* [Expo] Configure project */,
+				693C4774BCF64DFC83147FEF /* Sources */,
+				95AC8C77B138471B8C4D850C /* Frameworks */,
+				95B4295BF45B4809A30C6E5A /* Resources */,
+				D7A0A350A9DB4D84A2F1BE3B /* Bundle React Native code and images */,
+				5194EB4308B4ADCF4E0357E1 /* [CP] Copy Pods Resources */,
 			);
 			buildRules = (
 			);
@@ -259,7 +259,7 @@
 			);
 			name = HoldShareExtension;
 			productName = HoldShareExtension;
-			productReference = CCADA1D0901F462581D515FE /* HoldShareExtension.appex */;
+			productReference = CCD0519C027F47FA92711072 /* HoldShareExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
@@ -273,7 +273,7 @@
 					13B07F861A680F5B00A75B9A = {
 						LastSwiftMigration = 1250;
 					};
-					A2628DC776004311BDC32F48 = {
+					E87875416EC54E95A21B62EE = {
 						LastSwiftMigration = 1250;
 					};
 				};
@@ -292,7 +292,7 @@
 			projectRoot = "";
 			targets = (
 				13B07F861A680F5B00A75B9A /* Hold */,
-				A2628DC776004311BDC32F48 /* HoldShareExtension */,
+				E87875416EC54E95A21B62EE /* HoldShareExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -305,11 +305,11 @@
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
-				1B4E8FE56C7988C35B417327 /* PrivacyInfo.xcprivacy in Resources */,
+				EDE0562BCB70E91969698078 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		1A800E72C0024A96AFCC9611 /* Resources */ = {
+		95B4295BF45B4809A30C6E5A /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -358,7 +358,7 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		19602DE8658744D99AD99467 /* Start Packager */ = {
+		11E9AE518B8C44A9A48F158A /* Start Packager */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -372,21 +372,55 @@
 			shellPath = /bin/sh;
 			shellScript = "export RCT_METRO_PORT=\"${RCT_METRO_PORT:=8081}\"\necho \"export RCT_METRO_PORT=${RCT_METRO_PORT}\" > \"${SRCROOT}/../node_modules/react-native/scripts/.packager.env\"\nif [ -z \"${RCT_NO_LAUNCH_PACKAGER+xxx}\" ] ; then\n  if nc -w 5 -z localhost ${RCT_METRO_PORT} ; then\n    if ! curl -s \"http://localhost:${RCT_METRO_PORT}/status\" | grep -q \"packager-status:running\" ; then\n      echo \"Port ${RCT_METRO_PORT} already in use, packager is either not running or not running correctly\"\n      exit 2\n    fi\n  else\n    open \"$SRCROOT/../node_modules/react-native/scripts/launchPackager.command\" || echo \"Can't start packager automatically\"\n  fi\nfi\n";
 		};
-		390AA02DD5814D63A9FC3320 /* Bundle React Native code and images */ = {
+		2EDBDACB5C08ABC911D234DB /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			inputPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-Hold/Pods-Hold-frameworks.sh",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/ExpoModulesJSI/ExpoModulesJSI.framework/ExpoModulesJSI",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/React-Core-prebuilt/React.framework/React",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/ReactNativeDependencies/ReactNativeDependencies.framework/ReactNativeDependencies",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermesvm.framework/hermesvm",
 			);
-			name = "Bundle React Native code and images";
+			name = "[CP] Embed Pods Frameworks";
 			outputPaths = (
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/ExpoModulesJSI.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/React.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/ReactNativeDependencies.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermesvm.framework",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -e\n  NODE_BINARY=${NODE_BINARY:-node}\n  \n  # Source environment files\n  if [[ -f \"$PODS_ROOT/../.xcode.env\" ]]; then\n    source \"$PODS_ROOT/../.xcode.env\"\n  fi\n  if [[ -f \"$PODS_ROOT/../.xcode.env.local\" ]]; then\n    source \"$PODS_ROOT/../.xcode.env.local\"\n  fi\n  \n  # Set project root\n  export PROJECT_ROOT=\"$PROJECT_DIR\"/..\n  \n  # Set entry file\n  export ENTRY_FILE=\"$PROJECT_ROOT/index.share.js\"\n  \n  # Set up Expo CLI\n  if [[ -z \"$CLI_PATH\" ]]; then\n    export CLI_PATH=\"$(\"$NODE_BINARY\" --print \"require.resolve('@expo/cli', { paths: [require.resolve('expo/package.json')] })\")\"\n  fi\n  \n  if [[ -z \"$BUNDLE_COMMAND\" ]]; then\n    export BUNDLE_COMMAND=\"export:embed\"\n  fi\n  \n  REACT_NATIVE_SCRIPTS_PATH=$(\"$NODE_BINARY\" --print \"require('path').dirname(require.resolve('react-native/package.json')) + '/scripts'\")\n  WITH_ENVIRONMENT=\"$REACT_NATIVE_SCRIPTS_PATH/xcode/with-environment.sh\"\n  REACT_NATIVE_XCODE=\"$REACT_NATIVE_SCRIPTS_PATH/react-native-xcode.sh\"\n  \n  /bin/sh -c \"$WITH_ENVIRONMENT $REACT_NATIVE_XCODE\"";
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Hold/Pods-Hold-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
 		};
-		3B3D57C1A9D31CD2879E0DA4 /* [CP] Copy Pods Resources */ = {
+		44815D52AEB10E3DE132EAF3 /* [Expo] Configure project */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/.xcode.env",
+				"$(SRCROOT)/.xcode.env.local",
+				"$(SRCROOT)/HoldShareExtension/HoldShareExtension.entitlements",
+				"$(SRCROOT)/Pods/Target Support Files/Pods-HoldShareExtension/expo-configure-project.sh",
+			);
+			name = "[Expo] Configure project";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/Pods/Target Support Files/Pods-HoldShareExtension/ExpoModulesProvider.swift",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-HoldShareExtension/expo-configure-project.sh\"\n";
+		};
+		5194EB4308B4ADCF4E0357E1 /* [CP] Copy Pods Resources */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -421,54 +455,6 @@
 			shellPath = /bin/sh;
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-HoldShareExtension/Pods-HoldShareExtension-resources.sh\"\n";
 			showEnvVarsInLog = 0;
-		};
-		67A5F6532A38BBFAECEC4820 /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-Hold/Pods-Hold-frameworks.sh",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/ExpoModulesJSI/ExpoModulesJSI.framework/ExpoModulesJSI",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/React-Core-prebuilt/React.framework/React",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/ReactNativeDependencies/ReactNativeDependencies.framework/ReactNativeDependencies",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermesvm.framework/hermesvm",
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputPaths = (
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/ExpoModulesJSI.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/React.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/ReactNativeDependencies.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermesvm.framework",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Hold/Pods-Hold-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
-		6A41775129756D467E3C3571 /* [Expo] Configure project */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"$(SRCROOT)/.xcode.env",
-				"$(SRCROOT)/.xcode.env.local",
-				"$(SRCROOT)/HoldShareExtension/HoldShareExtension.entitlements",
-				"$(SRCROOT)/Pods/Target Support Files/Pods-HoldShareExtension/expo-configure-project.sh",
-			);
-			name = "[Expo] Configure project";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-				"$(SRCROOT)/Pods/Target Support Files/Pods-HoldShareExtension/ExpoModulesProvider.swift",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-HoldShareExtension/expo-configure-project.sh\"\n";
 		};
 		800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -506,21 +492,7 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Hold/Pods-Hold-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		C2C3EB4AFF624B99AB62B37E /* [Expo Dev Launcher] Strip Local Network Keys for Release */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-			);
-			name = "[Expo Dev Launcher] Strip Local Network Keys for Release";
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "# Strip dev-launcher-specific local network permission keys from non-Debug builds\n# This only removes _expo._tcp Bonjour services and the dev-launcher usage description.\n# Other Bonjour services and custom descriptions are preserved for production use.\n\nif [ \"$CONFIGURATION\" != \"Debug\" ]; then\n  PLIST_PATH=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\n  if [ -f \"$PLIST_PATH\" ]; then\n    # Check if NSBonjourServices exists\n    if /usr/libexec/PlistBuddy -c \"Print :NSBonjourServices\" \"$PLIST_PATH\" >/dev/null 2>&1; then\n      # Get the count of services\n      COUNT=$(/usr/libexec/PlistBuddy -c \"Print :NSBonjourServices\" \"$PLIST_PATH\" 2>/dev/null | grep \"^    \" | wc -l | tr -d ' ')\n\n      # Remove _expo._tcp\n      for ((i=COUNT-1; i>=0; i--)); do\n        SERVICE=$(/usr/libexec/PlistBuddy -c \"Print :NSBonjourServices:$i\" \"$PLIST_PATH\" 2>/dev/null || echo \"\")\n        if echo \"$SERVICE\" | grep -q \"_expo._tcp\"; then\n          /usr/libexec/PlistBuddy -c \"Delete :NSBonjourServices:$i\" \"$PLIST_PATH\" 2>/dev/null || true\n        fi\n      done\n\n      # If the array is now empty, remove it entirely\n      REMAINING=$(/usr/libexec/PlistBuddy -c \"Print :NSBonjourServices\" \"$PLIST_PATH\" 2>/dev/null | grep \"^    \" | wc -l | tr -d ' ')\n      if [ \"$REMAINING\" -eq \"0\" ]; then\n        /usr/libexec/PlistBuddy -c \"Delete :NSBonjourServices\" \"$PLIST_PATH\" 2>/dev/null || true\n      fi\n    fi\n\n    # Only delete the description if it matches the dev-launcher default text\n    DESC=$(/usr/libexec/PlistBuddy -c \"Print :NSLocalNetworkUsageDescription\" \"$PLIST_PATH\" 2>/dev/null || echo \"\")\n    if echo \"$DESC\" | grep -q \"Expo Dev Launcher\"; then\n      /usr/libexec/PlistBuddy -c \"Delete :NSLocalNetworkUsageDescription\" \"$PLIST_PATH\" 2>/dev/null || true\n    fi\n  fi\nfi\n";
-		};
-		D23A0F254969E997DEDB737D /* [Expo] Configure project */ = {
+		894D8399BB518617C11DB3F2 /* [Expo] Configure project */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -544,7 +516,21 @@
 			shellPath = /bin/sh;
 			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-Hold/expo-configure-project.sh\"\n";
 		};
-		F47DE84BDB95F498C5A7D63E /* [CP] Check Pods Manifest.lock */ = {
+		9A2E0ED08A3A4C0C9E27CA04 /* [Expo Dev Launcher] Strip Local Network Keys for Release */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "[Expo Dev Launcher] Strip Local Network Keys for Release";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Strip dev-launcher-specific local network permission keys from non-Debug builds\n# This only removes _expo._tcp Bonjour services and the dev-launcher usage description.\n# Other Bonjour services and custom descriptions are preserved for production use.\n\nif [ \"$CONFIGURATION\" != \"Debug\" ]; then\n  PLIST_PATH=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\n  if [ -f \"$PLIST_PATH\" ]; then\n    # Check if NSBonjourServices exists\n    if /usr/libexec/PlistBuddy -c \"Print :NSBonjourServices\" \"$PLIST_PATH\" >/dev/null 2>&1; then\n      # Get the count of services\n      COUNT=$(/usr/libexec/PlistBuddy -c \"Print :NSBonjourServices\" \"$PLIST_PATH\" 2>/dev/null | grep \"^    \" | wc -l | tr -d ' ')\n\n      # Remove _expo._tcp\n      for ((i=COUNT-1; i>=0; i--)); do\n        SERVICE=$(/usr/libexec/PlistBuddy -c \"Print :NSBonjourServices:$i\" \"$PLIST_PATH\" 2>/dev/null || echo \"\")\n        if echo \"$SERVICE\" | grep -q \"_expo._tcp\"; then\n          /usr/libexec/PlistBuddy -c \"Delete :NSBonjourServices:$i\" \"$PLIST_PATH\" 2>/dev/null || true\n        fi\n      done\n\n      # If the array is now empty, remove it entirely\n      REMAINING=$(/usr/libexec/PlistBuddy -c \"Print :NSBonjourServices\" \"$PLIST_PATH\" 2>/dev/null | grep \"^    \" | wc -l | tr -d ' ')\n      if [ \"$REMAINING\" -eq \"0\" ]; then\n        /usr/libexec/PlistBuddy -c \"Delete :NSBonjourServices\" \"$PLIST_PATH\" 2>/dev/null || true\n      fi\n    fi\n\n    # Only delete the description if it matches the dev-launcher default text\n    DESC=$(/usr/libexec/PlistBuddy -c \"Print :NSLocalNetworkUsageDescription\" \"$PLIST_PATH\" 2>/dev/null || echo \"\")\n    if echo \"$DESC\" | grep -q \"Expo Dev Launcher\"; then\n      /usr/libexec/PlistBuddy -c \"Delete :NSLocalNetworkUsageDescription\" \"$PLIST_PATH\" 2>/dev/null || true\n    fi\n  fi\nfi\n";
+		};
+		A9A3E907BF0954C6E600EF72 /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -566,6 +552,20 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
+		D7A0A350A9DB4D84A2F1BE3B /* Bundle React Native code and images */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Bundle React Native code and images";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\n  NODE_BINARY=${NODE_BINARY:-node}\n  \n  # Source environment files\n  if [[ -f \"$PODS_ROOT/../.xcode.env\" ]]; then\n    source \"$PODS_ROOT/../.xcode.env\"\n  fi\n  if [[ -f \"$PODS_ROOT/../.xcode.env.local\" ]]; then\n    source \"$PODS_ROOT/../.xcode.env.local\"\n  fi\n  \n  # Set project root\n  export PROJECT_ROOT=\"$PROJECT_DIR\"/..\n  \n  # Set entry file\n  export ENTRY_FILE=\"$PROJECT_ROOT/index.share.js\"\n  \n  # Set up Expo CLI\n  if [[ -z \"$CLI_PATH\" ]]; then\n    export CLI_PATH=\"$(\"$NODE_BINARY\" --print \"require.resolve('@expo/cli', { paths: [require.resolve('expo/package.json')] })\")\"\n  fi\n  \n  if [[ -z \"$BUNDLE_COMMAND\" ]]; then\n    export BUNDLE_COMMAND=\"export:embed\"\n  fi\n  \n  REACT_NATIVE_SCRIPTS_PATH=$(\"$NODE_BINARY\" --print \"require('path').dirname(require.resolve('react-native/package.json')) + '/scripts'\")\n  WITH_ENVIRONMENT=\"$REACT_NATIVE_SCRIPTS_PATH/xcode/with-environment.sh\"\n  REACT_NATIVE_XCODE=\"$REACT_NATIVE_SCRIPTS_PATH/react-native-xcode.sh\"\n  \n  /bin/sh -c \"$WITH_ENVIRONMENT $REACT_NATIVE_XCODE\"";
+		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -574,33 +574,84 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
-				45B009DEB468001827F61A37 /* ExpoModulesProvider.swift in Sources */,
+				D36B14844A50C2BA6A4D83A3 /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		3E44B319B45C4FB999965E4D /* Sources */ = {
+		693C4774BCF64DFC83147FEF /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				53485824F4C1445F9A2ADA9B /* ShareExtensionViewController.swift in Sources */,
-				92DFA2C74A0549EFC79FDA22 /* ExpoModulesProvider.swift in Sources */,
+				0893574CAA33420CB918B705 /* ShareExtensionViewController.swift in Sources */,
+				9F117AD7732DC44CDE2EE348 /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		E50937BA3BA349B7B40976BB /* PBXTargetDependency */ = {
+		933DADBDC80E49BCAAD39DC4 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = A2628DC776004311BDC32F48 /* HoldShareExtension */;
-			targetProxy = 2B6E669FBDB84949B6DDFFD2 /* PBXContainerItemProxy */;
+			target = E87875416EC54E95A21B62EE /* HoldShareExtension */;
+			targetProxy = 702080E6B7FD424AB3D6D1ED /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		0D0141BFFA2A4B12AE832EF0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 86F61D423B65535EA5885071 /* Pods-HoldShareExtension.release.xcconfig */;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = HoldShareExtension/HoldShareExtension.entitlements;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_ON_DEMAND_RESOURCES = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = HoldShareExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
+				PRODUCT_BUNDLE_IDENTIFIER = com.holdapp.mobile.ShareExtension;
+				PRODUCT_NAME = HoldShareExtension;
+				SWIFT_VERSION = 5.0;
+				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Release;
+		};
+		128561998EE1480B997F8C1B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 442E6D3431B2281DF718D949 /* Pods-HoldShareExtension.debug.xcconfig */;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = HoldShareExtension/HoldShareExtension.entitlements;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_ON_DEMAND_RESOURCES = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = HoldShareExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
+				PRODUCT_BUNDLE_IDENTIFIER = com.holdapp.mobile.ShareExtension;
+				PRODUCT_NAME = HoldShareExtension;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_VERSION = 5.0;
+				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Debug;
+		};
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = B04C6743EB04274ABF7F0E2F /* Pods-Hold.debug.xcconfig */;
+			baseConfigurationReference = 70555157B9470435D274149F /* Pods-Hold.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
@@ -637,7 +688,7 @@
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = F5AA9163869A443614469475 /* Pods-Hold.release.xcconfig */;
+			baseConfigurationReference = 3AEA256FA99582927F870E78 /* Pods-Hold.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
@@ -665,32 +716,6 @@
 				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Release;
-		};
-		548FF66FDEF64C1CAC84CBFC /* Debug */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = ABCBA7CA5A0458A208552DFF /* Pods-HoldShareExtension.debug.xcconfig */;
-			buildSettings = {
-				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGN_ENTITLEMENTS = HoldShareExtension/HoldShareExtension.entitlements;
-				CURRENT_PROJECT_VERSION = 1;
-				ENABLE_ON_DEMAND_RESOURCES = NO;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = HoldShareExtension/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 0.1.0;
-				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
-				PRODUCT_BUNDLE_IDENTIFIER = com.holdapp.mobile.ShareExtension;
-				PRODUCT_NAME = HoldShareExtension;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
-				SWIFT_VERSION = 5.0;
-				VERSIONING_SYSTEM = "apple-generic";
-			};
-			name = Debug;
 		};
 		83CBBA201A601CBA00E9B192 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -828,31 +853,6 @@
 			};
 			name = Release;
 		};
-		ABC1CE6FCF2D44A1857242C8 /* Release */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = A2A73DA1DD3F2F7E1622FB2E /* Pods-HoldShareExtension.release.xcconfig */;
-			buildSettings = {
-				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGN_ENTITLEMENTS = HoldShareExtension/HoldShareExtension.entitlements;
-				CURRENT_PROJECT_VERSION = 1;
-				ENABLE_ON_DEMAND_RESOURCES = NO;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = HoldShareExtension/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 0.1.0;
-				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
-				PRODUCT_BUNDLE_IDENTIFIER = com.holdapp.mobile.ShareExtension;
-				PRODUCT_NAME = HoldShareExtension;
-				SWIFT_VERSION = 5.0;
-				VERSIONING_SYSTEM = "apple-generic";
-			};
-			name = Release;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -865,20 +865,20 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		196FD2DDCB5A4C2DA95FED4C /* Build configuration list for PBXNativeTarget "HoldShareExtension" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				548FF66FDEF64C1CAC84CBFC /* Debug */,
-				ABC1CE6FCF2D44A1857242C8 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		83CBB9FA1A601CBA00E9B192 /* Build configuration list for PBXProject "Hold" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				83CBBA201A601CBA00E9B192 /* Debug */,
 				83CBBA211A601CBA00E9B192 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C8EDA02750ED4EB2AE1E5760 /* Build configuration list for PBXNativeTarget "HoldShareExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				128561998EE1480B997F8C1B /* Debug */,
+				0D0141BFFA2A4B12AE832EF0 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
