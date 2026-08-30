@@ -18,7 +18,11 @@ import { WiderWorldPlatformRow } from "@/components/WiderWorldPlatformRow";
 import { SafeguardingBanner } from "@/components/SafeguardingBanner";
 import { useSafeguardingCheck } from "@/hooks/useSafeguardingCheck";
 import { HOLD_INTENTS } from "@/constants/copy";
-import { HAS_SEEN_CORE_ONBOARDING_HINT_KEY, HAS_SEEN_EXCLUDED_LINE_NOTE_KEY } from "@/constants/storageKeys";
+import {
+  HAS_SEEN_CORE_ONBOARDING_HINT_KEY,
+  HAS_SEEN_EXCLUDED_LINE_NOTE_KEY,
+  HAS_SEEN_NEW_CIRCLE_ONBOARDING_HINT_KEY
+} from "@/constants/storageKeys";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { buildAudienceCircles, useHoldFlow } from "@/context/HoldFlowContext";
@@ -112,6 +116,8 @@ export default function HoldPeopleScreen() {
   const [period, setPeriod] = useState<HoldPeriod | null>(null);
   /** First-run-only Core onboarding coach-mark — see GroupPicker's own comment on showCoreOnboardingHint. Starts false; set true only after confirming the flag hasn't been seen yet AND Core is still empty. See docs/09-decision-log.md, 2026-08-30. */
   const [showCoreOnboardingHint, setShowCoreOnboardingHint] = useState(false);
+  /** Second, sequential first-run coach-mark, pointing at "+ New Circle" — only ever considered once Core's own hint above is done. See docs/09-decision-log.md, 2026-08-30. */
+  const [showNewCircleOnboardingHint, setShowNewCircleOnboardingHint] = useState(false);
 
   // Every Circle id ever selected this session — grows, never shrinks
   // (deselecting a Circle for the current message doesn't drop it from the
@@ -279,6 +285,36 @@ export default function HoldPeopleScreen() {
     setShowCoreOnboardingHint(false);
     await AsyncStorage.setItem(HAS_SEEN_CORE_ONBOARDING_HINT_KEY, "true");
     await refreshGroups();
+  };
+
+  // Sequential — only ever considered once Core's own hint above is
+  // already done (dismissed or completed), never both at once. Also
+  // guarded on no non-Core circle having a contact yet, same "still at
+  // the starting state" check Core's own hint makes above — protects
+  // against it firing again mid-session after someone has clearly
+  // already used "+ New Circle" once on their own, e.g. after this
+  // effect's own flag write hasn't round-tripped through AsyncStorage
+  // yet on a very fast tap.
+  useEffect(() => {
+    void (async () => {
+      const hasSeenCore = await AsyncStorage.getItem(HAS_SEEN_CORE_ONBOARDING_HINT_KEY);
+      if (!hasSeenCore) {
+        setShowNewCircleOnboardingHint(false);
+        return;
+      }
+      const hasSeenNewCircle = await AsyncStorage.getItem(HAS_SEEN_NEW_CIRCLE_ONBOARDING_HINT_KEY);
+      if (hasSeenNewCircle) {
+        setShowNewCircleOnboardingHint(false);
+        return;
+      }
+      const anyNonCorePopulated = allGroups.some((group) => !group.isCloseCircle && group.contacts.length > 0);
+      setShowNewCircleOnboardingHint(!anyNonCorePopulated);
+    })();
+  }, [allGroups, showCoreOnboardingHint]);
+
+  const dismissNewCircleOnboardingHint = () => {
+    setShowNewCircleOnboardingHint(false);
+    void AsyncStorage.setItem(HAS_SEEN_NEW_CIRCLE_ONBOARDING_HINT_KEY, "true");
   };
 
   const refreshUnifiedPlatforms = useCallback(async () => {
@@ -933,6 +969,8 @@ export default function HoldPeopleScreen() {
         showCoreOnboardingHint={showCoreOnboardingHint}
         onCoreOnboardingAdd={() => void addCoreOnboardingContact()}
         onDismissCoreOnboardingHint={dismissCoreOnboardingHint}
+        showNewCircleOnboardingHint={showNewCircleOnboardingHint}
+        onDismissNewCircleOnboardingHint={dismissNewCircleOnboardingHint}
       />
 
       {/* Below the circle row, above the text box (2026-08-11 — the circle

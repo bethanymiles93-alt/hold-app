@@ -1230,3 +1230,19 @@ Resolves the onboarding investigation flagged in the previous entry. Confirmed s
 `tsc --noEmit` and `vitest run` (63/63) both pass. **Not verified on-device** — a fresh install (or a cleared `HAS_SEEN_CORE_ONBOARDING_HINT_KEY` + emptied Core circle) is needed to actually see the coach-mark fire; please force-quit and reopen before testing, not just Fast Refresh.
 
 **hold-book**: no update — resolves an already-flagged implementation gap using the user's own directly-specified hybrid design, not a new product decision needing its own record.
+
+## 2026-08-30 — Onboarding coach-marks extended to two sequential steps; second one points at "+ New Circle"
+
+Follow-up correction to the entry above, given directly rather than left for a future pass: Core's coach-mark isn't the whole onboarding story — once it's done, a second, equally plain-language coach-mark should point at "+ New Circle" ("The people close behind them can go here too"), with Friends as the first suggested name. Explicit constraint carried through both steps: no Dunbar/support-clique/sympathy-group language anywhere in this flow — that stays exactly where it already lives, on Your Circles' Core section via the existing `CitationMarker`, for anyone who wants the "why" on their own terms later.
+
+**Friends-first was already true** — `SUGGESTED_CIRCLES` in `people.tsx` (`["Friends", "Work", "Book Club"]`) has listed Friends first since it was introduced; no change needed there. Checked directly rather than assumed.
+
+**`src/constants/storageKeys.ts`** — new `HAS_SEEN_NEW_CIRCLE_ONBOARDING_HINT_KEY`, same one-shot semantics as the Core key.
+
+**`src/components/GroupPicker.tsx`** — two new optional props (`showNewCircleOnboardingHint`, `onDismissNewCircleOnboardingHint`). Unlike Core's hint, this one doesn't intercept the "+" chip's own press behaviour — it already does the right thing (opens the naming field) — so the wrapped `onPress` just also fires the dismiss when the hint is showing, then proceeds exactly as before. The bubble itself reuses Core's bubble/text/dismiss styling, anchored directly under the "+" chip (a fixed anchor, unlike Core's hint which sits beside a horizontally-scrolling row and can't point precisely at one member of it).
+
+**`app/create/people.tsx`** — a second effect, explicitly sequential: only resolves `showNewCircleOnboardingHint` true once `HAS_SEEN_CORE_ONBOARDING_HINT_KEY` is already set (so it can never show alongside step one) **and** `HAS_SEEN_NEW_CIRCLE_ONBOARDING_HINT_KEY` is still unset, with the same defensive "still at the starting state" guard step one uses — here, no non-Core circle already has a contact — to avoid it firing again after someone has plainly already used "+ New Circle" on their own between renders. Dismiss-only (no "add" handler needed, since the chip's existing tap already opens naming); marks the flag seen either way.
+
+`tsc --noEmit` and `vitest run` (63/63) both pass. **Not verified on-device** — needs a fresh install (or both onboarding-hint flags cleared plus Core and every non-Core circle emptied) to see the two-step sequence fire in order; please force-quit and reopen before testing.
+
+**hold-book**: no update — same reasoning as the entry above; this extends the already-covered onboarding-gap fix with the user's own direct follow-up spec, not a new product decision.

@@ -76,6 +76,16 @@ interface GroupPickerProps {
   showCoreOnboardingHint?: boolean;
   onCoreOnboardingAdd?: () => void;
   onDismissCoreOnboardingHint?: () => void;
+  /**
+   * Second, sequential coach-mark — only ever shown once Core's own hint
+   * above is done (dismissed or completed), pointing at "+ New Circle"
+   * instead. Unlike Core's hint, it doesn't intercept the "+" chip's own
+   * press behaviour (that already does the right thing — opens naming);
+   * tapping it just also fires the dismiss, same one-shot "seen" flag
+   * pattern. See docs/09-decision-log.md, 2026-08-30.
+   */
+  showNewCircleOnboardingHint?: boolean;
+  onDismissNewCircleOnboardingHint?: () => void;
 }
 
 /**
@@ -101,7 +111,9 @@ export function GroupPicker({
   isComposing,
   showCoreOnboardingHint = false,
   onCoreOnboardingAdd,
-  onDismissCoreOnboardingHint
+  onDismissCoreOnboardingHint,
+  showNewCircleOnboardingHint = false,
+  onDismissNewCircleOnboardingHint
 }: GroupPickerProps) {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -201,7 +213,10 @@ export function GroupPicker({
             outline
             isSelected={isNamingActive}
             labelFontSize={28}
-            onPress={() => (isNamingActive ? onCancelNaming() : onActivateNaming())}
+            onPress={() => {
+              if (showNewCircleOnboardingHint) onDismissNewCircleOnboardingHint?.();
+              isNamingActive ? onCancelNaming() : onActivateNaming();
+            }}
           />
           {isNamingActive ? (
             <>
@@ -216,6 +231,24 @@ export function GroupPicker({
                 />
               </View>
             </>
+          ) : null}
+          {showNewCircleOnboardingHint ? (
+            <View style={styles.newCircleOnboardingHint}>
+              <View style={styles.newCircleOnboardingHintPointer} />
+              <View style={styles.coreOnboardingHintBubble}>
+                <Text style={styles.coreOnboardingHintText}>
+                  The people close behind them can go here too.
+                </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Dismiss"
+                  onPress={() => onDismissNewCircleOnboardingHint?.()}
+                  hitSlop={8}
+                >
+                  <Text style={styles.coreOnboardingHintDismiss}>Skip</Text>
+                </Pressable>
+              </View>
+            </View>
           ) : null}
         </View>
         <ScrollView
@@ -427,6 +460,24 @@ function createStyles(colors: ThemeColors) {
       fontSize: 13,
       fontWeight: "700",
       opacity: 0.8
+    },
+    // Anchored directly under the "+" chip itself (unlike coreOnboardingHint,
+    // which sits beside the pill scroll area) — its target is the leftmost,
+    // always-in-place "+", not something inside the horizontally-scrolling
+    // row, so a fixed position under it is meaningful. Reuses the Core
+    // hint's own bubble/text/dismiss styles — same visual language, only
+    // the pointer and its position differ.
+    newCircleOnboardingHint: {
+      alignItems: "flex-start",
+      marginTop: theme.spacing.xs
+    },
+    newCircleOnboardingHintPointer: {
+      width: 12,
+      height: 12,
+      backgroundColor: `${colors.text}CC`,
+      transform: [{ rotate: "45deg" }],
+      marginBottom: -6,
+      marginLeft: theme.spacing.lg
     }
   });
 }
