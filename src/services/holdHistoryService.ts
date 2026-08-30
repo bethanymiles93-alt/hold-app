@@ -152,6 +152,35 @@ export async function addToReconnectingAudience(
 }
 
 /**
+ * Reconnect's own "Save changes" (2026-08-30, circle-editing model part 3)
+ * — a real, non-pending Circle's membership can be edited from inside
+ * Reconnect, staged then committed exactly like Manage Circles' own
+ * staged-then-"Update circle" pattern. The caller (reconnect.tsx) is
+ * responsible for actually writing the real Circle via `addContactToGroup`/
+ * `removeContactFromGroup` first — this only syncs THIS period's own
+ * already-persisted `audienceCircles` snapshot to match, since that
+ * snapshot is a copy taken when Going Quiet started, not a live read of
+ * circleService's store, and Reconnect always reads from the copy. A no-op
+ * if this period no longer has that Circle in its audience.
+ */
+export async function updateAudienceCircleContacts(
+  periodId: string,
+  circleId: string,
+  contacts: AudienceCircle["contacts"]
+): Promise<void> {
+  const period = await readRecord(periodId);
+  if (!period) return;
+
+  const circles = period.audienceCircles ?? [];
+  if (!circles.some((circle) => circle.circleId === circleId)) return;
+
+  await writeRecord({
+    ...period,
+    audienceCircles: circles.map((circle) => (circle.circleId === circleId ? { ...circle, contacts } : circle))
+  });
+}
+
+/**
  * A specific Hold period by id, independent of OPEN_KEY/RECONNECTING_KEY — lets
  * Reconnect source its target period as soon as it's known (right when "Reconnect"
  * is tapped), before the durable reconnecting marker exists yet.

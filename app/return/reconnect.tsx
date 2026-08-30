@@ -34,14 +34,23 @@ import {
   recordSendChannel,
   renameCircleInPeriod,
   resolvePendingCircleInPeriod,
-  setLinkClusterGrouped
+  setLinkClusterGrouped,
+  updateAudienceCircleContacts
 } from "@/services/holdHistoryService";
 import {
   getAll as getAllConversationPeople,
   markContacted,
   seedFromAudience
 } from "@/services/conversationService";
-import { addContactToGroup, CLOSE_CIRCLE_ID, createGroup, getGroups, renameGroup } from "@/services/circleService";
+import {
+  addContactToGroup,
+  CLOSE_CIRCLE_ID,
+  createGroup,
+  getGroup,
+  getGroups,
+  removeContactFromGroup,
+  renameGroup
+} from "@/services/circleService";
 import { pickContact } from "@/services/contactPickerService";
 import { deactivateOutOfOffice, getEmailAccounts } from "@/services/emailAccountService";
 import {
@@ -58,7 +67,7 @@ import {
   saveReconnectCombinationTemplate
 } from "@/services/reconnectTemplateService";
 import { clearDraft, getDraft, saveDraft } from "@/services/messageDraftService";
-import type { AudienceCircle, CircleGroup, EmailAccount, HoldPeriod } from "@/types/hold";
+import type { AudienceCircle, AudienceContact, CircleGroup, EmailAccount, HoldPeriod } from "@/types/hold";
 
 const RECONNECT_DRAFT_KEY = "reconnect";
 // Reconnect's own default starting text — short and instant, not a fully
@@ -186,6 +195,20 @@ export default function ReconnectScreen() {
   const [expandedCircleIds, setExpandedCircleIds] = useState<Set<string>>(new Set());
   const [includedPersonIds, setIncludedPersonIds] = useState<Set<string>>(new Set());
   const [pillLockedIds, setPillLockedIds] = useState<string[] | null>(null);
+  /**
+   * Real-Circle membership editing, staged then committed via "Save
+   * changes" — mirrors Manage Circles' own stagedExcludedByCircle/
+   * stagedAdditionsByCircle exactly (same circleService calls, same
+   * interaction shape), confirmed as the deliberate spec, not something to
+   * reconcile toward Going Quiet's own fully-locked "Adjust" model: Going
+   * Quiet stays locked because it's the highest-tension moment; Reconnect
+   * keeps real editing because there's typically more capacity by the time
+   * someone's reconnecting. Keyed by circle id, scoped to non-pending
+   * Circles only — a still-pending Circle isn't a real Circle yet. See
+   * docs/09-decision-log.md, 2026-08-30.
+   */
+  const [stagedExcludedByCircle, setStagedExcludedByCircle] = useState<Record<string, Set<string>>>({});
+  const [stagedAdditionsByCircle, setStagedAdditionsByCircle] = useState<Record<string, AudienceContact[]>>({});
 
   /**
    * Circles freshly made real from Going Quiet's ad-hoc bundling flow,
@@ -459,6 +482,107 @@ export default function ReconnectScreen() {
       else next.add(phoneNumber);
       return next;
     });
+  };
+
+  /** Marks/unmarks an existing member for removal, by phone number — mirrors Manage Circles' own toggleMember exactly. */
+  const toggleStagedMember = (circleId: string, phoneNumber: string) => {
+    setStagedExcludedByCircle((current) => {
+      const next = new Set(current[circleId] ?? []);
+      if (next.has(phoneNumber)) next.delete(phoneNumber);
+      else next.add(phoneNumber);
+      return { ...current, [circleId]: next };
+    });
+  };
+
+  /**
+   * Phone-number reconciliation, matching `addToReconnectingAudience`'s own
+   * existing dedup exactly (2026-08-30) — unlike Manage Circles' own
+   * addMemberToStaged (which only guards within the one Circle being
+   * edited, since Circles are otherwise independent), this period's
+   * audienceCircles were already deduped by phone number once, at
+   * Going-Quiet-time (buildAudienceCircles). Staging a fresh addition here
+   * without the same check could silently reintroduce the exact "same
+   * person in two Circles for one period" bug already found and fixed
+   * once before (see buildAudienceCircles' own comment, docs/09-decision-log.md,
+   * 2026-08-13) — a real risk this new feature would otherwise create, not
+   * carry over.
+   */
+  const addStagedMember = async (circleId: string) => {
+    const picked = await pickContact();
+    if (!picked) return;
+
+    const alreadyInAudience =
+      audienceCircles.some((circle) => circle.contacts.some((contact) => contact.phoneNumber === picked.phoneNumber)) ||
+      (period?.audienceUngrouped ?? []).some((contact) => contact.phoneNumber === picked.phoneNumber);
+    if (alreadyInAudience) return;
+
+    setStagedAdditionsByCircle((current) => {
+      const existing = current[circleId] ?? [];
+      if (existing.some((contact) => contact.phoneNumber === picked.phoneNumber)) return current;
+      return { ...current, [circleId]: [...existing, { name: picked.name, phoneNumber: picked.phoneNumber }] };
+    });
+  };
+
+  const removeStagedAddition = (circleId: string, phoneNumber: string) => {
+    setStagedAdditionsByCircle((current) => ({
+      ...current,
+      [circleId]: (current[circleId] ?? []).filter((contact) => contact.phoneNumber !== phoneNumber)
+    }));
+  };
+
+  const clearStagedFor = (circleId: string) => {
+    setStagedExcludedByCircle((current) => {
+      const next = { ...current };
+      delete next[circleId];
+      return next;
+    });
+    setStagedAdditionsByCircle((current) => {
+      const next = { ...current };
+      delete next[circleId];
+      return next;
+    });
+  };
+
+  /**
+   * Commits staged membership edits for one real Circle — writes the real
+   * Circle first (`removeContactFromGroup`/`addContactToGroup`, same
+   * circleService calls Manage Circles' own "Update circle" makes), then
+   * syncs this period's own `audienceCircles` snapshot to match via
+   * `updateAudienceCircleContacts`, since that snapshot doesn't
+   * automatically follow live Circle edits (see its own comment). Removal
+   * needs the live Circle's own internal contact id, not just a phone
+   * number — `AudienceContact` doesn't carry one — so the live Circle is
+   * fetched once here to resolve that mapping.
+   */
+  const saveCircleChanges = (circle: AudienceCircle) => {
+    void (async () => {
+      if (!period) return;
+
+      const excluded = stagedExcludedByCircle[circle.circleId] ?? new Set<string>();
+      const additions = stagedAdditionsByCircle[circle.circleId] ?? [];
+      if (excluded.size === 0 && additions.length === 0) return;
+
+      const liveGroup = await getGroup(circle.circleId);
+      if (liveGroup) {
+        for (const contact of liveGroup.contacts) {
+          if (excluded.has(contact.phoneNumber)) {
+            await removeContactFromGroup(circle.circleId, contact.id);
+          }
+        }
+        for (const contact of additions) {
+          await addContactToGroup(circle.circleId, contact);
+        }
+      }
+
+      const nextContacts: AudienceContact[] = [
+        ...circle.contacts.filter((contact) => !excluded.has(contact.phoneNumber)),
+        ...additions
+      ];
+      await updateAudienceCircleContacts(period.id, circle.circleId, nextContacts);
+
+      clearStagedFor(circle.circleId);
+      await refresh();
+    })();
   };
 
   /**
@@ -1135,6 +1259,88 @@ export default function ReconnectScreen() {
             />
           ) : null}
 
+          {/*
+           * Real-Circle membership editing — one card per currently
+           * expanded, non-pending Circle, staged then committed via "Save
+           * changes" (2026-08-30, circle-editing model part 3). Mirrors
+           * Manage Circles' own card almost exactly (dimmed pill = staged
+           * for removal, "New" tag = staged addition), deliberately kept
+           * as its own block rather than folded into the shared pill row
+           * above — that row's job is send-inclusion for THIS message,
+           * a different concern from real Circle membership. See
+           * docs/09-decision-log.md.
+           */}
+          {audienceCircles
+            .filter(
+              (circle) => expandedCircleIds.has(circle.circleId) && !circle.circleId.startsWith(PENDING_CIRCLE_ID_PREFIX)
+            )
+            .map((circle) => {
+              const excluded = stagedExcludedByCircle[circle.circleId] ?? new Set<string>();
+              const additions = stagedAdditionsByCircle[circle.circleId] ?? [];
+              const hasStagedChanges = excluded.size > 0 || additions.length > 0;
+
+              return (
+                <View key={circle.circleId} style={styles.editCard}>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.chipRow}
+                  >
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Add someone to ${circle.circleName}`}
+                      onPress={() => void addStagedMember(circle.circleId)}
+                      style={styles.editAddPill}
+                    >
+                      <Ionicons name="add" size={18} color={colors.primary} />
+                    </Pressable>
+                    {circle.contacts.map((contact) => {
+                      const included = !excluded.has(contact.phoneNumber);
+                      return (
+                        <View key={contact.phoneNumber} style={!included ? styles.chipGreyed : undefined}>
+                          <AdaptiveCircleChip
+                            label={contact.name}
+                            compact
+                            isSelected={false}
+                            onPress={() => toggleStagedMember(circle.circleId, contact.phoneNumber)}
+                            accessibilityRole="checkbox"
+                            accessibilityLabel={
+                              included
+                                ? `${contact.name}, in ${circle.circleName}. Tap to mark for removal.`
+                                : `${contact.name}, marked for removal from ${circle.circleName}. Tap to keep.`
+                            }
+                          />
+                        </View>
+                      );
+                    })}
+                    {additions.map((contact) => (
+                      <View key={contact.phoneNumber} style={styles.editAddedUnit}>
+                        <AdaptiveCircleChip
+                          label={contact.name}
+                          compact
+                          isSelected
+                          onPress={() => removeStagedAddition(circle.circleId, contact.phoneNumber)}
+                          accessibilityRole="checkbox"
+                          accessibilityLabel={`${contact.name}, new. Tap to remove before saving.`}
+                        />
+                        <Text style={styles.editAddedTag}>New</Text>
+                      </View>
+                    ))}
+                  </ScrollView>
+                  {hasStagedChanges ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Save changes to ${circle.circleName}`}
+                      onPress={() => saveCircleChanges(circle)}
+                      style={styles.saveChangesButton}
+                    >
+                      <Text style={styles.saveChangesText}>Save changes</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              );
+            })}
+
           {/* Excluded line — 100% passive plain text, no chip/pill styling,
               no tap target, no bundling or "already told" mechanic
               connected to it at all (removed 2026-08-30). Its only job is
@@ -1454,6 +1660,44 @@ function createStyles(colors: ThemeColors) {
     },
     chipGreyed: {
       opacity: 0.4
+    },
+    // Real-Circle membership edit card (2026-08-30) — deliberately not
+    // PrimaryButton for "Save changes": that component's own doc is
+    // explicit it's for a once-per-visit flow completion, not a repeated
+    // per-item action, and this can appear once per expanded Circle.
+    editCard: {
+      gap: theme.spacing.sm
+    },
+    editAddPill: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      borderWidth: 1.5,
+      borderColor: colors.primary,
+      alignItems: "center",
+      justifyContent: "center"
+    },
+    editAddedUnit: {
+      alignItems: "center",
+      gap: 2
+    },
+    editAddedTag: {
+      color: colors.textMuted,
+      fontSize: 11,
+      fontWeight: "600"
+    },
+    saveChangesButton: {
+      alignSelf: "flex-start",
+      borderRadius: theme.radius.pill,
+      borderWidth: 1.5,
+      borderColor: colors.primary,
+      paddingVertical: theme.spacing.xs,
+      paddingHorizontal: theme.spacing.md
+    },
+    saveChangesText: {
+      color: colors.primary,
+      fontSize: 14,
+      fontWeight: "700"
     },
     // Wraps tightly to the chip's own rendered size — the dropdown arrow is
     // positioned inside it, not beside it. Matches GroupPicker.tsx's own
