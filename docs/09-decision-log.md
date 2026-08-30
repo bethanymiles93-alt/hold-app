@@ -1178,3 +1178,17 @@ Both feed the exact same `changeFriendMessage`, so pasted text autosaves identic
 `tsc --noEmit` and `vitest run` (63/63) both pass. **Not verified on-device** — the native `ClipboardPasteButton`'s actual rendering/behaviour (a real UIKit control, not a JS-only component) has not been exercised on a real device or simulator build.
 
 **hold-book**: no update — completes an already-confirmed spec from earlier tonight ("both ship in this pass — they serve different starting points"), not a new decision.
+
+## 2026-08-30 — Item 6 built: History's own calendar forked from Patterns', with month/year pickers and the year-browse month list
+
+Genuinely last-unstarted item from the original 18-item design-review batch — scope was confirmed twice earlier tonight (once initially, once via a direct correction), never built until now.
+
+**`src/components/HistoryCalendar.tsx` (new)** — forked from `history.tsx`'s own `MonthCalendarView`, which is untouched (still the exact component Patterns uses, confirmed by checking both call sites after this change). `PeriodCard` and the date-key helpers are duplicated into the new file rather than imported, deliberately — matching "fork a separate component," not entangling the new file with `history.tsx`'s own internals.
+
+**Day-grid stays the persistent core view at all times**, per the correction message specifically — nothing below the grid ever replaces it. The month and year in the header are now independently tappable (previously just a static label between the ‹ › nav arrows): tapping the month name opens a horizontal Jan–Dec picker row; tapping the year opens a picker row spanning from the earliest period's own year through the current year. Picking a year sets `browsingYear` and reveals the supplementary section below the grid — every month of that year, each with its own `DropdownArrowBadge` to expand that month's periods inline, plus one more badge next to the year heading to expand or collapse every month in that year at once. Nothing here touches the calendar's own current month/day-grid state.
+
+**List's own 6-month default, confirmed scope simplified in one specific way, flagged rather than silently assumed identical to spec.** The confirmed wording was "otherwise all-time via the pickers" — read literally, this could mean List shares the same month/year picker mechanism just built for Calendar. Built it simpler instead: List defaults to the most recent 6 months, with a plain "Show all time" / "Show recent only" link toggling the full unscoped list. A shared month/year-filtered List (picking a specific month and seeing only that month's periods as a list) would duplicate what tapping a day on the calendar already does for finer granularity, and didn't seem worth the added surface for a plain chronological list. Deliberately not entangled with `HistoryCalendar`'s own month/year state — two independent scoping mechanisms, not one shared control.
+
+`tsc --noEmit` and `vitest run` (63/63) both pass. **Not verified on-device** — the month/year pickers and the year-browse month list have not been exercised on a real device or simulator build.
+
+**hold-book**: no update — completes an already-confirmed spec (confirmed twice earlier tonight, including a direct correction), not a new decision.

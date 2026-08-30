@@ -3,6 +3,7 @@ import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
+import { HistoryCalendar } from "@/components/HistoryCalendar";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import {
@@ -199,6 +200,8 @@ export default function HoldHistoryScreen() {
   const [periods, setPeriods] = useState<HoldPeriod[]>([]);
   const [segment, setSegment] = useState<Segment>("history");
   const [view, setView] = useState<ViewMode>("list");
+  /** List's own default scope, confirmed: most-recent 6 months, all-time reachable via this link. Calendar's own month/year pickers reach all-time separately — this doesn't share state with those, a deliberately simpler mechanism for a plain chronological list. See docs/09-decision-log.md, 2026-08-30. */
+  const [listShowingAllTime, setListShowingAllTime] = useState(false);
 
   const refresh = useCallback(async () => {
     setPeriods(await getHistory());
@@ -220,6 +223,13 @@ export default function HoldHistoryScreen() {
       Alert.alert("Couldn't export History", EXPORT_FAILURE_MESSAGES[result.reason]);
     }
   };
+
+  const sixMonthsAgo = (() => {
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - 6);
+    return cutoff.getTime();
+  })();
+  const recentPeriods = periods.filter((period) => period.startedAt >= sixMonthsAgo);
 
   const closedPeriods = periods.filter((period) => period.endedAt !== null);
   const totalDurationMs = closedPeriods.reduce(
@@ -304,14 +314,25 @@ export default function HoldHistoryScreen() {
             periods.length === 0 ? (
               <Text style={styles.empty}>No Hold periods yet.</Text>
             ) : (
-              <View style={styles.list}>
-                {periods.map((period) => (
-                  <PeriodCard key={period.id} period={period} onDelete={remove} />
-                ))}
-              </View>
+              <>
+                <View style={styles.list}>
+                  {(listShowingAllTime ? periods : recentPeriods).map((period) => (
+                    <PeriodCard key={period.id} period={period} onDelete={remove} />
+                  ))}
+                </View>
+                {!listShowingAllTime && recentPeriods.length < periods.length ? (
+                  <Pressable accessibilityRole="button" onPress={() => setListShowingAllTime(true)}>
+                    <Text style={styles.listScopeLink}>Show all time</Text>
+                  </Pressable>
+                ) : listShowingAllTime ? (
+                  <Pressable accessibilityRole="button" onPress={() => setListShowingAllTime(false)}>
+                    <Text style={styles.listScopeLink}>Show recent only</Text>
+                  </Pressable>
+                ) : null}
+              </>
             )
           ) : (
-            <MonthCalendarView periods={periods} onDelete={remove} />
+            <HistoryCalendar periods={periods} onDelete={remove} />
           )}
 
           <Pressable
@@ -422,6 +443,12 @@ function createStyles(colors: ThemeColors) {
   },
   list: {
     gap: theme.spacing.md
+  },
+  listScopeLink: {
+    color: colors.link,
+    fontSize: 14,
+    fontWeight: "600",
+    marginTop: theme.spacing.sm
   },
   exportRow: {
     minHeight: 44,
