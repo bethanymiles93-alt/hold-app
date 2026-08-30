@@ -4,6 +4,9 @@ const WARMTH_OFFSET_KEY = "hold.display.warmthOffset";
 const COLOR_SCHEME_OVERRIDE_KEY = "hold.display.colorSchemeOverride";
 const DISPLAY_THEME_KEY = "hold.display.theme";
 const MOON_PHASE_ENABLED_KEY = "hold.display.moonPhaseEnabled";
+const TEXT_SIZE_KEY = "hold.display.textSize";
+const FONT_CHOICE_KEY = "hold.display.fontChoice";
+const REDUCE_MOTION_OVERRIDE_KEY = "hold.display.reduceMotionOverride";
 /**
  * One-time migration flag (2026-08-30 base-colour change) — a persisted
  * warmthOffset from before this change means something completely
@@ -28,6 +31,21 @@ export type ColorSchemeOverride = "light" | "dark" | "system";
  */
 export type DisplayTheme = "default" | "beach" | "forest" | "meadow" | "seasonal";
 
+/**
+ * Four-option choice, per the confirmed 2026-08-12 spec (Verdana/Arial/Open
+ * Sans considered and cut as redundant with System default). **Stored and
+ * available via `useAppTheme()`, not yet applied app-wide** — this
+ * codebase has 200+ hardcoded `fontSize`/no explicit `fontFamily` literals
+ * across 50+ component files with no shared typography scale to hook a
+ * multiplier or font swap into; retrofitting every component is a real,
+ * separate piece of work, flagged rather than silently claimed done. See
+ * docs/09-decision-log.md, 2026-08-31.
+ */
+export type FontChoice = "system" | "lexend" | "atkinsonHyperlegible" | "openDyslexic";
+
+/** Four steps, not a continuous slider — matches the low-capacity "avoid too many simultaneous choices" principle better than an unbounded range for a binary-ish "bigger/smaller" need. Same app-wide-application caveat as FontChoice above. */
+export type TextSize = "small" | "default" | "large" | "extraLarge";
+
 export interface DisplaySettings {
   /**
    * 0 (the new warm base, no additional shift) to 1 (warmest) — no cool
@@ -39,23 +57,42 @@ export interface DisplaySettings {
   colorSchemeOverride: ColorSchemeOverride;
   displayTheme: DisplayTheme;
   moonPhaseEnabled: boolean;
+  textSize: TextSize;
+  fontChoice: FontChoice;
+  /**
+   * Additive, not a replacement for the OS setting — reduce motion is
+   * active if EITHER this is true OR the OS-level accessibility setting is
+   * on (see `useReducedMotion.ts`). An accessibility "override" here means
+   * "let me turn this accommodation on even without touching my OS
+   * settings," not "let me force it off despite an OS-level need" — this
+   * can only ever add reduce-motion behaviour, never remove an OS-driven
+   * one.
+   */
+  reduceMotionOverride: boolean;
 }
 
 const DEFAULTS: DisplaySettings = {
   warmthOffset: 0,
   colorSchemeOverride: "system",
   displayTheme: "default",
-  moonPhaseEnabled: false
+  moonPhaseEnabled: false,
+  textSize: "default",
+  fontChoice: "system",
+  reduceMotionOverride: false
 };
 
 export async function getDisplaySettings(): Promise<DisplaySettings> {
-  const [warmthRaw, schemeRaw, themeRaw, moonRaw, warmthMigrated] = await Promise.all([
-    SecureStore.getItemAsync(WARMTH_OFFSET_KEY),
-    SecureStore.getItemAsync(COLOR_SCHEME_OVERRIDE_KEY),
-    SecureStore.getItemAsync(DISPLAY_THEME_KEY),
-    SecureStore.getItemAsync(MOON_PHASE_ENABLED_KEY),
-    SecureStore.getItemAsync(WARMTH_BASE_MIGRATED_KEY)
-  ]);
+  const [warmthRaw, schemeRaw, themeRaw, moonRaw, warmthMigrated, textSizeRaw, fontChoiceRaw, reduceMotionRaw] =
+    await Promise.all([
+      SecureStore.getItemAsync(WARMTH_OFFSET_KEY),
+      SecureStore.getItemAsync(COLOR_SCHEME_OVERRIDE_KEY),
+      SecureStore.getItemAsync(DISPLAY_THEME_KEY),
+      SecureStore.getItemAsync(MOON_PHASE_ENABLED_KEY),
+      SecureStore.getItemAsync(WARMTH_BASE_MIGRATED_KEY),
+      SecureStore.getItemAsync(TEXT_SIZE_KEY),
+      SecureStore.getItemAsync(FONT_CHOICE_KEY),
+      SecureStore.getItemAsync(REDUCE_MOTION_OVERRIDE_KEY)
+    ]);
 
   const colorSchemeOverride =
     schemeRaw === "light" || schemeRaw === "dark" || schemeRaw === "system" ? schemeRaw : DEFAULTS.colorSchemeOverride;
@@ -64,6 +101,13 @@ export async function getDisplaySettings(): Promise<DisplaySettings> {
       ? themeRaw
       : DEFAULTS.displayTheme;
   const moonPhaseEnabled = moonRaw === "true";
+  const textSize: TextSize =
+    textSizeRaw === "small" || textSizeRaw === "large" || textSizeRaw === "extraLarge" ? textSizeRaw : DEFAULTS.textSize;
+  const fontChoice: FontChoice =
+    fontChoiceRaw === "lexend" || fontChoiceRaw === "atkinsonHyperlegible" || fontChoiceRaw === "openDyslexic"
+      ? fontChoiceRaw
+      : DEFAULTS.fontChoice;
+  const reduceMotionOverride = reduceMotionRaw === "true";
 
   if (!warmthMigrated) {
     // First load since the base-colour change — any persisted value is
@@ -74,7 +118,15 @@ export async function getDisplaySettings(): Promise<DisplaySettings> {
       SecureStore.setItemAsync(WARMTH_OFFSET_KEY, String(DEFAULTS.warmthOffset)),
       SecureStore.setItemAsync(WARMTH_BASE_MIGRATED_KEY, "true")
     ]);
-    return { warmthOffset: DEFAULTS.warmthOffset, colorSchemeOverride, displayTheme, moonPhaseEnabled };
+    return {
+      warmthOffset: DEFAULTS.warmthOffset,
+      colorSchemeOverride,
+      displayTheme,
+      moonPhaseEnabled,
+      textSize,
+      fontChoice,
+      reduceMotionOverride
+    };
   }
 
   const warmthOffset = warmthRaw ? Number(warmthRaw) : DEFAULTS.warmthOffset;
@@ -83,7 +135,10 @@ export async function getDisplaySettings(): Promise<DisplaySettings> {
     warmthOffset: Number.isFinite(warmthOffset) ? Math.max(0, Math.min(1, warmthOffset)) : DEFAULTS.warmthOffset,
     colorSchemeOverride,
     displayTheme,
-    moonPhaseEnabled
+    moonPhaseEnabled,
+    textSize,
+    fontChoice,
+    reduceMotionOverride
   };
 }
 
@@ -103,6 +158,18 @@ export async function setMoonPhaseEnabled(value: boolean): Promise<void> {
   await SecureStore.setItemAsync(MOON_PHASE_ENABLED_KEY, value ? "true" : "false");
 }
 
+export async function setTextSize(value: TextSize): Promise<void> {
+  await SecureStore.setItemAsync(TEXT_SIZE_KEY, value);
+}
+
+export async function setFontChoice(value: FontChoice): Promise<void> {
+  await SecureStore.setItemAsync(FONT_CHOICE_KEY, value);
+}
+
+export async function setReduceMotionOverride(value: boolean): Promise<void> {
+  await SecureStore.setItemAsync(REDUCE_MOTION_OVERRIDE_KEY, value ? "true" : "false");
+}
+
 /**
  * Deliberately NOT wired into "Delete my data" — these are accessibility/
  * display preferences (how the app looks and reads for this person), not
@@ -120,6 +187,9 @@ export async function deleteAllDisplaySettings(): Promise<void> {
     SecureStore.deleteItemAsync(COLOR_SCHEME_OVERRIDE_KEY),
     SecureStore.deleteItemAsync(DISPLAY_THEME_KEY),
     SecureStore.deleteItemAsync(MOON_PHASE_ENABLED_KEY),
-    SecureStore.deleteItemAsync(WARMTH_BASE_MIGRATED_KEY)
+    SecureStore.deleteItemAsync(WARMTH_BASE_MIGRATED_KEY),
+    SecureStore.deleteItemAsync(TEXT_SIZE_KEY),
+    SecureStore.deleteItemAsync(FONT_CHOICE_KEY),
+    SecureStore.deleteItemAsync(REDUCE_MOTION_OVERRIDE_KEY)
   ]);
 }

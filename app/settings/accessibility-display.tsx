@@ -5,12 +5,28 @@ import { WarmthSlider } from "@/components/WarmthSlider";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { useDisplaySettings } from "@/context/DisplaySettingsContext";
-import type { ColorSchemeOverride, DisplayTheme } from "@/services/displaySettingsService";
+import type { ColorSchemeOverride, DisplayTheme, FontChoice, TextSize } from "@/services/displaySettingsService";
 
 const SCHEME_OPTIONS: { value: ColorSchemeOverride; label: string }[] = [
   { value: "light", label: "Light" },
   { value: "dark", label: "Dark" },
   { value: "system", label: "System" }
+];
+
+const TEXT_SIZE_OPTIONS: { value: TextSize; label: string }[] = [
+  { value: "small", label: "Small" },
+  { value: "default", label: "Default" },
+  { value: "large", label: "Large" },
+  { value: "extraLarge", label: "Extra large" }
+];
+
+// Verdana/Arial/Open Sans considered and cut as redundant with System
+// default — see docs/09-decision-log.md, 2026-08-12.
+const FONT_OPTIONS: { value: FontChoice; label: string }[] = [
+  { value: "system", label: "System default" },
+  { value: "lexend", label: "Lexend" },
+  { value: "atkinsonHyperlegible", label: "Atkinson Hyperlegible" },
+  { value: "openDyslexic", label: "OpenDyslexic" }
 ];
 
 // Only "default" renders a real palette — the rest are named here so the
@@ -26,12 +42,16 @@ const DISPLAY_THEME_OPTIONS: { value: DisplayTheme; label: string }[] = [
 ];
 
 /**
- * "Accessibility & Display" — Look & Feel sub-group only (display theme,
- * warmth bar, Light/Dark/System, moon phase toggle), per the confirmed
+ * "Accessibility & Display" — both sub-groups now present, per the confirmed
  * hold-book screen structure at 04-ux-content/04-navigation-architecture.md.
- * The Reading sub-group (text size, font picker, in-app Reduce Motion
- * override) is specced there too but explicitly out of scope for this pass —
- * not built here. See docs/09-decision-log.md, 2026-08-22.
+ * **Reading's text size and font choice are stored and selectable here, but
+ * not yet applied app-wide** — this codebase has 200+ hardcoded fontSize
+ * literals across 50+ files with no shared typography scale to hook into;
+ * retrofitting that is separate, larger work, flagged rather than silently
+ * claimed done. Reduce Motion's own in-app override IS fully functional —
+ * `useReducedMotion()` (the one shared hook every animation in the app
+ * already reads from) is additive with this preference. See
+ * docs/09-decision-log.md, 2026-08-31.
  */
 export default function AccessibilityDisplayScreen() {
   const { colors } = useAppTheme("normal");
@@ -44,14 +64,88 @@ export default function AccessibilityDisplayScreen() {
     displayTheme,
     setDisplayTheme,
     moonPhaseEnabled,
-    setMoonPhaseEnabled
+    setMoonPhaseEnabled,
+    textSize,
+    setTextSize,
+    fontChoice,
+    setFontChoice,
+    reduceMotionOverride,
+    setReduceMotionOverride
   } = useDisplaySettings();
 
   return (
     <Screen>
       <Text style={styles.intro}>
-        How Hold looks — colour scheme, a warm/cool tint on top of it, and the visual theme.
+        How Hold looks and reads — text size and font, colour scheme, a warm tint on top of it, and
+        the visual theme.
       </Text>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Text size</Text>
+        <Text style={styles.sectionBody}>
+          Being rolled out across Hold's screens — some text may not reflect this yet.
+        </Text>
+        <View style={styles.optionRow}>
+          {TEXT_SIZE_OPTIONS.map((option) => {
+            const selected = textSize === option.value;
+            return (
+              <Pressable
+                key={option.value}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: selected }}
+                accessibilityLabel={option.label}
+                onPress={() => setTextSize(option.value)}
+                style={[styles.pill, selected && styles.pillSelected]}
+              >
+                <Text style={[styles.pillText, selected && styles.pillTextSelected]}>{option.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Font</Text>
+        <Text style={styles.sectionBody}>
+          Lexend (visual-processing research), Atkinson Hyperlegible (low vision), and OpenDyslexic
+          (dyslexia-specific letterforms) are alternatives to the system default. Being rolled out
+          across Hold's screens — some text may not reflect this yet.
+        </Text>
+        <View style={styles.optionRow}>
+          {FONT_OPTIONS.map((option) => {
+            const selected = fontChoice === option.value;
+            return (
+              <Pressable
+                key={option.value}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: selected }}
+                accessibilityLabel={option.label}
+                onPress={() => setFontChoice(option.value)}
+                style={[styles.pill, selected && styles.pillSelected]}
+              >
+                <Text style={[styles.pillText, selected && styles.pillTextSelected]}>{option.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <View style={styles.switchRow}>
+          <View style={styles.switchRowText}>
+            <Text style={styles.sectionTitle}>Reduce motion</Text>
+            <Text style={styles.sectionBody}>
+              Turns off animation in Hold even if your device's own Reduce Motion setting is off.
+            </Text>
+          </View>
+          <Switch
+            accessibilityLabel="Reduce motion within Hold"
+            value={reduceMotionOverride}
+            onValueChange={setReduceMotionOverride}
+            trackColor={{ true: colors.primary, false: colors.border }}
+          />
+        </View>
+      </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Appearance</Text>

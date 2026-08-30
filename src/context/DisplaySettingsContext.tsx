@@ -3,11 +3,16 @@ import {
   getDisplaySettings,
   setColorSchemeOverride as persistColorSchemeOverride,
   setDisplayTheme as persistDisplayTheme,
+  setFontChoice as persistFontChoice,
   setMoonPhaseEnabled as persistMoonPhaseEnabled,
+  setReduceMotionOverride as persistReduceMotionOverride,
+  setTextSize as persistTextSize,
   setWarmthOffset as persistWarmthOffset,
   type ColorSchemeOverride,
   type DisplaySettings,
-  type DisplayTheme
+  type DisplayTheme,
+  type FontChoice,
+  type TextSize
 } from "@/services/displaySettingsService";
 
 interface DisplaySettingsContextValue extends DisplaySettings {
@@ -15,13 +20,19 @@ interface DisplaySettingsContextValue extends DisplaySettings {
   setColorSchemeOverride: (value: ColorSchemeOverride) => void;
   setDisplayTheme: (value: DisplayTheme) => void;
   setMoonPhaseEnabled: (value: boolean) => void;
+  setTextSize: (value: TextSize) => void;
+  setFontChoice: (value: FontChoice) => void;
+  setReduceMotionOverride: (value: boolean) => void;
 }
 
 const DEFAULTS: DisplaySettings = {
   warmthOffset: 0,
   colorSchemeOverride: "system",
   displayTheme: "default",
-  moonPhaseEnabled: false
+  moonPhaseEnabled: false,
+  textSize: "default",
+  fontChoice: "system",
+  reduceMotionOverride: false
 };
 
 const DisplaySettingsContext = createContext<DisplaySettingsContextValue | null>(null);
@@ -63,8 +74,32 @@ export function DisplaySettingsProvider({ children }: PropsWithChildren) {
     void persistMoonPhaseEnabled(value);
   };
 
+  const setTextSize = (value: TextSize) => {
+    setSettings((current) => ({ ...current, textSize: value }));
+    void persistTextSize(value);
+  };
+
+  const setFontChoice = (value: FontChoice) => {
+    setSettings((current) => ({ ...current, fontChoice: value }));
+    void persistFontChoice(value);
+  };
+
+  const setReduceMotionOverride = (value: boolean) => {
+    setSettings((current) => ({ ...current, reduceMotionOverride: value }));
+    void persistReduceMotionOverride(value);
+  };
+
   const value = useMemo(
-    () => ({ ...settings, setWarmthOffset, setColorSchemeOverride, setDisplayTheme, setMoonPhaseEnabled }),
+    () => ({
+      ...settings,
+      setWarmthOffset,
+      setColorSchemeOverride,
+      setDisplayTheme,
+      setMoonPhaseEnabled,
+      setTextSize,
+      setFontChoice,
+      setReduceMotionOverride
+    }),
     [settings]
   );
 
