@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { SecondaryButton } from "@/components/SecondaryButton";
@@ -36,10 +36,20 @@ export default function LibraryScreen() {
   // ResearchContent.tsx. Initial tab honours ?tab=research so the drawer
   // link and the "Where this comes from" link (settings/circle/index.tsx)
   // land directly on the right pane. See docs/09-decision-log.md.
-  const { tab: initialTabParam } = useLocalSearchParams<{ tab?: string }>();
+  const { tab: tabParam, section: sectionParam } = useLocalSearchParams<{ tab?: string; section?: string }>();
   const [activeTab, setActiveTab] = useState<LibraryTab>(
-    initialTabParam === "research" || initialTabParam === "templates" ? initialTabParam : "conversations"
+    tabParam === "research" || tabParam === "templates" ? tabParam : "conversations"
   );
+  const scrollRef = useRef<ScrollView>(null);
+
+  // Library's own screen instance stays mounted across tab navigations
+  // (it's a Tabs-navigator route), so a second visit with ?tab=research
+  // (e.g. tapping a citation marker from Transition while already having
+  // been on this screen before) wouldn't re-run the useState initialiser
+  // above — this keeps a later navigation honoured too, not just the first.
+  useEffect(() => {
+    if (tabParam === "research" || tabParam === "templates") setActiveTab(tabParam);
+  }, [tabParam]);
 
   /**
    * Standalone, unscoped — every ConversationPerson ever added, same
@@ -120,6 +130,7 @@ export default function LibraryScreen() {
   return (
     <Screen
       contentContainerStyle={styles.content}
+      scrollRef={scrollRef}
       dockedInput={
         conversations.personaliseReplyTarget ? (
           <DockedInputBar
@@ -224,7 +235,9 @@ export default function LibraryScreen() {
         </Pressable>
       </View>
 
-      {activeTab === "research" ? <ResearchContent /> : null}
+      {activeTab === "research" ? (
+        <ResearchContent scrollRef={scrollRef} anchorSectionId={tabParam === "research" ? sectionParam ?? null : null} />
+      ) : null}
 
       {activeTab === "conversations" && conversations.people.length === 0 ? (
         <Text style={styles.empty}>

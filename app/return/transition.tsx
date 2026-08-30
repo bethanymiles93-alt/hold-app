@@ -3,6 +3,7 @@ import { router } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
 import { Screen } from "@/components/Screen";
 import { HoldMark } from "@/components/HoldMark";
+import { CitationMarker } from "@/components/CitationMarker";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
@@ -28,17 +29,18 @@ export default function ReconnectTransitionScreen() {
        * moment" sequence. Three lines, no separate "Welcome back." title —
        * the drafted sequence replaces the whole message block, matching
        * Going Quiet's own equivalent transition screen's shape. Line 2's
-       * own citation marker ("Why this is true", linking to an anchored
-       * Research-page section) is deliberately not built here — its own
-       * dependency (individually addressable Research sections) is a
-       * separate, larger, explicitly-not-yet-built piece of
-       * infrastructure per that same hold-book section, not part of this
-       * copy change. See docs/09-decision-log.md.
+       * citation marker (2026-08-30) now links to the "Reach-out
+       * underestimation" Research section — its own dependency
+       * (individually addressable Research sections) is built as of this
+       * pass. See docs/09-decision-log.md.
        */}
       <View style={styles.message}>
         <HoldMark size={64} />
         <Text style={styles.subtitle}>Coming back doesn’t need a perfect opening line.</Text>
-        <Text style={styles.subtitle}>Most people underestimate how much a message like this means.</Text>
+        <View style={styles.lineWithMarker}>
+          <Text style={styles.subtitle}>Most people underestimate how much a message like this means.</Text>
+          <CitationMarker researchSectionId="reach-out-underestimation" />
+        </View>
         <Text style={styles.subtitle}>It doesn’t need to be perfect. It just needs to be sent.</Text>
       </View>
     </Screen>
@@ -60,6 +62,10 @@ function createStyles(colors: ThemeColors) {
       lineHeight: 25,
       textAlign: "center",
       maxWidth: 300
+    },
+    lineWithMarker: {
+      alignItems: "center",
+      gap: 2
     }
   });
 }
