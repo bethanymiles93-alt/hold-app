@@ -62,6 +62,20 @@ interface GroupPickerProps {
    * tap). See docs/09-decision-log.md.
    */
   isComposing: boolean;
+  /**
+   * First-run-only exception to Core's own no-arrow-ever rule above —
+   * confirmed directly, not a reopening of that rule: temporarily unlocks
+   * Core's arrow for the very first Going Quiet visit, gated by the
+   * caller on both a persisted "seen" flag and Core actually being empty.
+   * Tapping it in this state calls `onCoreOnboardingAdd` (opens the
+   * contact picker directly, same as anywhere else Core gets populated)
+   * rather than the normal `onToggleExpanded` — an empty Circle has
+   * nothing to reveal a member list for. See docs/09-decision-log.md,
+   * 2026-08-30.
+   */
+  showCoreOnboardingHint?: boolean;
+  onCoreOnboardingAdd?: () => void;
+  onDismissCoreOnboardingHint?: () => void;
 }
 
 /**
@@ -84,7 +98,10 @@ export function GroupPicker({
   onCancelNaming,
   sendAsGroupDraft,
   onToggleSendAsGroupDraft,
-  isComposing
+  isComposing,
+  showCoreOnboardingHint = false,
+  onCoreOnboardingAdd,
+  onDismissCoreOnboardingHint
 }: GroupPickerProps) {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -239,12 +256,14 @@ export function GroupPicker({
                     open (see onToggleExpanded in the parent screen).
                     Positioned inside the chip's own right edge so it never
                     reads as ambiguous about which circle it belongs to.
-                    Core (Close) never gets this arrow at all, in-flow, no
-                    exceptions — a deliberate capability restriction, not a
-                    default-hidden state: Core should always be messaged,
-                    with no in-the-moment choice to exclude it while
-                    unwell. Stays fully editable in Manage Circles. See
-                    docs/09-decision-log.md, 2026-08-29. */}
+                    Core (Close) never gets this arrow in-flow, with one
+                    narrow, first-run-only exception (showCoreOnboardingHint,
+                    confirmed 2026-08-30) — every session after the first
+                    one, this reverts to the unconditional lock: Core should
+                    always be messaged, with no in-the-moment choice to
+                    exclude it while unwell. Stays fully editable in Manage
+                    Circles regardless. See docs/09-decision-log.md,
+                    2026-08-29. */}
                 {!group.isCloseCircle ? (
                   <DropdownArrowBadge
                     expanded={isExpanded}
@@ -257,11 +276,35 @@ export function GroupPicker({
                     }
                     style={styles.arrowButton}
                   />
+                ) : group.isCloseCircle && showCoreOnboardingHint ? (
+                  <DropdownArrowBadge
+                    expanded={false}
+                    onPress={() => onCoreOnboardingAdd?.()}
+                    accessibilityLabel="Add the people who matter most to Core"
+                    style={styles.arrowButton}
+                  />
                 ) : null}
               </View>
             );
           })}
         </ScrollView>
+
+        {showCoreOnboardingHint ? (
+          <View style={styles.coreOnboardingHint}>
+            <View style={styles.coreOnboardingHintPointer} />
+            <View style={styles.coreOnboardingHintBubble}>
+              <Text style={styles.coreOnboardingHintText}>Add the people who matter most here.</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Dismiss"
+                onPress={() => onDismissCoreOnboardingHint?.()}
+                hitSlop={8}
+              >
+                <Text style={styles.coreOnboardingHintDismiss}>Skip</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
       </View>
 
       {emptySelectedGroups.length > 0 ? (
@@ -350,6 +393,40 @@ function createStyles(colors: ThemeColors) {
       color: colors.textMuted,
       fontSize: 14,
       lineHeight: 21
+    },
+    coreOnboardingHint: {
+      alignItems: "flex-start",
+      marginLeft: theme.spacing.md
+    },
+    coreOnboardingHintPointer: {
+      width: 12,
+      height: 12,
+      backgroundColor: `${colors.text}CC`,
+      transform: [{ rotate: "45deg" }],
+      marginBottom: -6,
+      marginLeft: theme.spacing.lg
+    },
+    coreOnboardingHintBubble: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.md,
+      maxWidth: 280,
+      borderRadius: theme.radius.md,
+      paddingVertical: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.md,
+      backgroundColor: `${colors.text}CC`
+    },
+    coreOnboardingHintText: {
+      flex: 1,
+      color: colors.background,
+      fontSize: 14,
+      lineHeight: 20
+    },
+    coreOnboardingHintDismiss: {
+      color: colors.background,
+      fontSize: 13,
+      fontWeight: "700",
+      opacity: 0.8
     }
   });
 }

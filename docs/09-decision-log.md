@@ -1216,3 +1216,17 @@ First on-device test of Your Circles surfaced a real batch — a blocking no-scr
 `tsc --noEmit` and `vitest run` (63/63) both pass. **Not verified on-device** — none of items 1, 2, 4, 5, and especially the scroll-bug restructure have been exercised on a real device or simulator build; the scroll fix in particular should not be treated as confirmed until checked directly.
 
 **hold-book**: no update — these are implementation-level UI fixes against already-established patterns (recipient pill row, CitationMarker, circular creation-button convention), not new product decisions.
+
+## 2026-08-30 — Your Circles onboarding gap: Core first-run coach-mark built, against the confirmed hybrid spec
+
+Resolves the onboarding investigation flagged in the previous entry. Confirmed scope, given directly after two rejected AskUserQuestion attempts: no new screen — Going Quiet stays the unchanged first real screen after Welcome. Instead, for first run only, Core's dropdown-lock gets a single narrow exception with a coach-mark bubble pointing at it.
+
+**`src/constants/storageKeys.ts`** — new `HAS_SEEN_CORE_ONBOARDING_HINT_KEY`, following the same one-time "seen" flag pattern `welcome.tsx` already uses for its own onboarding flag, per the explicit instruction to match it rather than invent a new mechanism.
+
+**`src/components/GroupPicker.tsx`** — three new optional props (`showCoreOnboardingHint`, `onCoreOnboardingAdd`, `onDismissCoreOnboardingHint`, all defaulted so every other call site is unaffected). Core's dropdown arrow — normally hidden entirely by the existing `!group.isCloseCircle` lock — renders instead as an arrow wired to `onCoreOnboardingAdd` when the hint is active, with a semi-opaque coach-mark bubble (small pointer nub, plain "Add the people who matter most here." copy, a "Skip" dismiss) anchored below the circle row. Lock re-engages exactly as before once the hint is gone — nothing about the lock's normal behaviour changed, only this one additive first-run case.
+
+**`app/create/people.tsx`** — the three handlers live here, not in `GroupPicker`, since they need `allGroups`/`refreshGroups`/`pickContact` that only the screen has. `showCoreOnboardingHint` resolves from an effect keyed on `allGroups` (not run-once-on-mount) so it correctly waits for the async `getGroups()` call to actually resolve before deciding: true only if the flag is unset **and** Core currently has zero contacts. Tapping the hint calls the existing `pickContact()` → `addContactToGroup(CLOSE_CIRCLE_ID, …)` → `refreshGroups()` path (same contact picker used everywhere else Core gets populated, per the spec's explicit requirement), then marks the flag seen. Dismiss just marks the flag seen with no contact added. Both are one-way — the flag is never cleared again, so the lock is unconditional for every session after the first.
+
+`tsc --noEmit` and `vitest run` (63/63) both pass. **Not verified on-device** — a fresh install (or a cleared `HAS_SEEN_CORE_ONBOARDING_HINT_KEY` + emptied Core circle) is needed to actually see the coach-mark fire; please force-quit and reopen before testing, not just Fast Refresh.
+
+**hold-book**: no update — resolves an already-flagged implementation gap using the user's own directly-specified hybrid design, not a new product decision needing its own record.

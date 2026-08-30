@@ -18,7 +18,7 @@ import { WiderWorldPlatformRow } from "@/components/WiderWorldPlatformRow";
 import { SafeguardingBanner } from "@/components/SafeguardingBanner";
 import { useSafeguardingCheck } from "@/hooks/useSafeguardingCheck";
 import { HOLD_INTENTS } from "@/constants/copy";
-import { HAS_SEEN_EXCLUDED_LINE_NOTE_KEY } from "@/constants/storageKeys";
+import { HAS_SEEN_CORE_ONBOARDING_HINT_KEY, HAS_SEEN_EXCLUDED_LINE_NOTE_KEY } from "@/constants/storageKeys";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { buildAudienceCircles, useHoldFlow } from "@/context/HoldFlowContext";
@@ -41,7 +41,7 @@ import { copyToClipboard } from "@/services/clipboardService";
 import { channelKey, sendToCircles } from "@/services/smsService";
 import { getDefaultSendingChannel } from "@/services/sendingPreferencesService";
 import { pickContact } from "@/services/contactPickerService";
-import { addContactToGroup, getGroup, getGroups, initialsPlaceholderName } from "@/services/circleService";
+import { addContactToGroup, CLOSE_CIRCLE_ID, getGroup, getGroups, initialsPlaceholderName } from "@/services/circleService";
 import {
   getCircleTemplate,
   getCombinationTemplate,
@@ -110,6 +110,8 @@ export default function HoldPeopleScreen() {
   // sentCircleIds and to number placeholder names for provisional Circles.
   const [allGroups, setAllGroups] = useState<CircleGroup[]>([]);
   const [period, setPeriod] = useState<HoldPeriod | null>(null);
+  /** First-run-only Core onboarding coach-mark — see GroupPicker's own comment on showCoreOnboardingHint. Starts false; set true only after confirming the flag hasn't been seen yet AND Core is still empty. See docs/09-decision-log.md, 2026-08-30. */
+  const [showCoreOnboardingHint, setShowCoreOnboardingHint] = useState(false);
 
   // Every Circle id ever selected this session — grows, never shrinks
   // (deselecting a Circle for the current message doesn't drop it from the
@@ -247,6 +249,37 @@ export default function HoldPeopleScreen() {
   const refreshGroups = useCallback(async () => {
     setAllGroups(await getGroups());
   }, []);
+
+  // Re-checked whenever allGroups changes (not just once on mount) so it
+  // correctly resolves once the async getGroups() call actually returns —
+  // idempotent, cheap, and naturally stops showing itself the moment
+  // either handler below sets the persisted flag.
+  useEffect(() => {
+    void (async () => {
+      const hasSeen = await AsyncStorage.getItem(HAS_SEEN_CORE_ONBOARDING_HINT_KEY);
+      if (hasSeen) {
+        setShowCoreOnboardingHint(false);
+        return;
+      }
+      const core = allGroups.find((group) => group.id === CLOSE_CIRCLE_ID);
+      setShowCoreOnboardingHint(core !== undefined && core.contacts.length === 0);
+    })();
+  }, [allGroups]);
+
+  const dismissCoreOnboardingHint = () => {
+    setShowCoreOnboardingHint(false);
+    void AsyncStorage.setItem(HAS_SEEN_CORE_ONBOARDING_HINT_KEY, "true");
+  };
+
+  const addCoreOnboardingContact = async () => {
+    const picked = await pickContact();
+    if (!picked) return;
+
+    await addContactToGroup(CLOSE_CIRCLE_ID, picked);
+    setShowCoreOnboardingHint(false);
+    await AsyncStorage.setItem(HAS_SEEN_CORE_ONBOARDING_HINT_KEY, "true");
+    await refreshGroups();
+  };
 
   const refreshUnifiedPlatforms = useCallback(async () => {
     setUnifiedPlatforms(await getUnionOfSelectedWiderWorldPlatforms());
@@ -897,6 +930,9 @@ export default function HoldPeopleScreen() {
         sendAsGroupDraft={sendAsGroupDraft}
         onToggleSendAsGroupDraft={setSendAsGroupDraft}
         isComposing={activeField === "group-message"}
+        showCoreOnboardingHint={showCoreOnboardingHint}
+        onCoreOnboardingAdd={() => void addCoreOnboardingContact()}
+        onDismissCoreOnboardingHint={dismissCoreOnboardingHint}
       />
 
       {/* Below the circle row, above the text box (2026-08-11 — the circle
