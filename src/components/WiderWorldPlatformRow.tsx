@@ -11,8 +11,14 @@ interface WiderWorldPlatformRowProps {
   platforms: SelectableWiderWorldPlatform[];
   markedIds: Set<string>;
   onToggle: (platform: SelectableWiderWorldPlatform) => void;
-  /** Called after a new custom platform is added to the shared pool, so the caller can refetch and immediately mark it. */
-  onAddCustom: (platform: SelectableWiderWorldPlatform) => void;
+  /**
+   * Called after a new custom platform is added to the shared pool, so the
+   * caller can refetch and immediately mark it. Omit entirely to hide the
+   * "+" pill — doesn't make sense on a pure confirm-only checklist (e.g.
+   * Reconnect's own taken-down row), where every item shown was already
+   * decided at Going Quiet, not something to newly add here.
+   */
+  onAddCustom?: (platform: SelectableWiderWorldPlatform) => void;
   /** Marks every currently-visible platform at once. */
   onMarkAll: () => void;
 }
@@ -49,6 +55,7 @@ export function WiderWorldPlatformRow({
   );
 
   const addCustom = () => {
+    if (!onAddCustom) return;
     Alert.prompt(
       "Add a platform",
       "e.g. Discord",
@@ -69,9 +76,11 @@ export function WiderWorldPlatformRow({
     <View style={styles.block}>
       <Text style={styles.label}>{label}</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Add a platform" onPress={addCustom} style={styles.addPill}>
-          <Text style={styles.addPillText}>+</Text>
-        </Pressable>
+        {onAddCustom ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="Add a platform" onPress={addCustom} style={styles.addPill}>
+            <Text style={styles.addPillText}>+</Text>
+          </Pressable>
+        ) : null}
         <AdaptiveCircleChip label="All" compact isSelected={false} onPress={onMarkAll} accessibilityLabel="Mark all as done" />
         {ordered.map((platform) => {
           const marked = markedIds.has(platform.id);

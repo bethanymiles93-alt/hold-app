@@ -204,6 +204,13 @@ export interface HoldPeriod {
    * matching every other "resolved" pill treatment in the app.
    */
   widerWorldTakenDownPlatforms?: string[];
+  /**
+   * A subset of emailLinkedAccounts (by id) the person has since confirmed,
+   * at Reconnect, they've turned off — per-account, matching the unified
+   * platform row's own per-account granularity (2026-08-30), not one
+   * blanket "email off" toggle for every linked account at once.
+   */
+  widerWorldEmailTurnedOffAccountIds?: string[];
 }
 
 /** One combined-send record — see HoldPeriod.linkedCircleSets. */

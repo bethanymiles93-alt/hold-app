@@ -329,6 +329,17 @@ export async function markWiderWorldTakenDown(periodId: string, platformId: stri
   await writeRecord({ ...period, widerWorldTakenDownPlatforms: [...existing, platformId] });
 }
 
+/** Symmetric to markWiderWorldTakenDown, per email account rather than per social platform — Reconnect's own per-account "turn off" action on the unified row, idempotent. */
+export async function markEmailAccountTurnedOff(periodId: string, accountId: string): Promise<void> {
+  const period = await readRecord(periodId);
+  if (!period) return;
+
+  const existing = period.widerWorldEmailTurnedOffAccountIds ?? [];
+  if (existing.includes(accountId)) return;
+
+  await writeRecord({ ...period, widerWorldEmailTurnedOffAccountIds: [...existing, accountId] });
+}
+
 /**
  * Marks which period is currently being reconnected from — a durable marker,
  * separate from OPEN_KEY, since endOpenHoldPeriod() closes the period the

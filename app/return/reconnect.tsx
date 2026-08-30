@@ -28,6 +28,7 @@ import {
   getHoldPeriodById,
   getReconnectCoverage,
   getReconnectingPeriod,
+  markEmailAccountTurnedOff,
   markReconnectContacted,
   markReconnectCoveredWithoutSend,
   markWiderWorldTakenDown,
@@ -44,11 +45,12 @@ import {
 } from "@/services/conversationService";
 import { addContactToGroup, CLOSE_CIRCLE_ID, createGroup, getGroups, renameGroup } from "@/services/circleService";
 import { pickContact } from "@/services/contactPickerService";
-import { deactivateOutOfOffice } from "@/services/emailAccountService";
+import { deactivateOutOfOffice, getEmailAccounts } from "@/services/emailAccountService";
 import {
   getSelectableWiderWorldPlatforms,
   type SelectableWiderWorldPlatform
 } from "@/services/widerWorldContextService";
+import { WiderWorldPlatformRow } from "@/components/WiderWorldPlatformRow";
 import { channelKey, sendIndividual, sendToCircles } from "@/services/smsService";
 import { getDefaultSendingChannel } from "@/services/sendingPreferencesService";
 import {
@@ -58,7 +60,7 @@ import {
   saveReconnectCombinationTemplate
 } from "@/services/reconnectTemplateService";
 import { clearDraft, getDraft, saveDraft } from "@/services/messageDraftService";
-import type { AudienceCircle, CircleGroup, HoldPeriod } from "@/types/hold";
+import type { AudienceCircle, CircleGroup, EmailAccount, HoldPeriod } from "@/types/hold";
 
 const RECONNECT_DRAFT_KEY = "reconnect";
 // Reconnect's own default starting text — short and instant, not a fully
@@ -82,19 +84,21 @@ export default function ReconnectScreen() {
   const [period, setPeriod] = useState<HoldPeriod | null>(null);
   const [message, setMessage] = useState(DEFAULT_RECONNECT_MESSAGE);
   const [savedDefaultText, setSavedDefaultText] = useState<string | null>(null);
-  const [emailOff, setEmailOff] = useState(false);
   const [statusCleared, setStatusCleared] = useState(false);
+  /** Purely local acknowledgment for the "no real linked accounts, manual reminder only" case — nothing to deactivate, so nothing to persist; doesn't gate the exit-nudge (see oooUnresolved below, which only checks real linked accounts). */
+  const [manualEmailReminderAcknowledged, setManualEmailReminderAcknowledged] = useState(false);
   /** Loaded once, independent of refresh()'s own period-reload cycle — these are global user settings, not period data. See docs/09-decision-log.md, 2026-08-21. */
   const [widerWorldPlatforms, setWiderWorldPlatforms] = useState<SelectableWiderWorldPlatform[]>([]);
+  const [emailAccounts, setEmailAccounts] = useState<EmailAccount[]>([]);
   useEffect(() => {
     // Reads the same selectable pool (presets + custom + linked email
-    // accounts) Going Quiet's own unified platform row now reads from
+    // accounts) Going Quiet's own unified platform row reads from
     // (2026-08-30) — was the old flat WiderWorldPlatform list, which no
-    // longer overlaps with the ids Going Quiet actually marks. This keeps
-    // name resolution below correct without rebuilding this screen's own
-    // checklist UI into the full unified row this pass — that's flagged,
-    // not done yet. See docs/09-decision-log.md.
+    // longer overlapped with the ids Going Quiet actually marks.
     void getSelectableWiderWorldPlatforms().then(setWiderWorldPlatforms);
+    // Real labels for period.emailLinkedAccounts (id+provider only) — the
+    // durable account records live in Settings, not on the period itself.
+    void getEmailAccounts().then(setEmailAccounts);
   }, []);
   /** A memory note's text, staged for a one-shot highlighted insert into the docked bar — see DockedInputBar's own pendingInsert prop. Corrected 2026-08-21: used to feed AI-amend's initialPrompt instead, which silently made stale note text an unreviewed AI input rather than clearly-marked inserted content. */
   const [pendingMemoryInsert, setPendingMemoryInsert] = useState<string | undefined>(undefined);
@@ -292,7 +296,18 @@ export default function ReconnectScreen() {
     return navigation.addListener("beforeRemove", (e) => {
       if (!period) return;
 
-      const oooUnresolved = period.emailOutOfOfficeEnabled && !emailOff;
+      const linkedAccountIds = (period.emailLinkedAccounts ?? []).map((account) => account.id);
+      const turnedOffAccountIds = period.widerWorldEmailTurnedOffAccountIds ?? [];
+      // Same "resolved means every one checked off" pattern as status
+      // below, now that email is per-account too (2026-08-30) — no
+      // linked accounts at all falls back to nothing-to-resolve (true),
+      // matching the pre-existing behaviour for an OOO-enabled-but-manual
+      // (no real linked accounts) period, which never had a per-account
+      // list to check off in the first place.
+      const oooUnresolved =
+        period.emailOutOfOfficeEnabled &&
+        linkedAccountIds.length > 0 &&
+        linkedAccountIds.some((id) => !turnedOffAccountIds.includes(id));
       const postedIds = period.widerWorldPostedPlatforms ?? [];
       const takenDownIds = period.widerWorldTakenDownPlatforms ?? [];
       // With any platforms actually marked posted-to, "resolved" means
@@ -317,7 +332,7 @@ export default function ReconnectScreen() {
         }
       ]);
     });
-  }, [navigation, period, emailOff, statusCleared]);
+  }, [navigation, period, statusCleared]);
 
   const coverage = period ? getReconnectCoverage(period) : null;
 
@@ -588,20 +603,6 @@ export default function ReconnectScreen() {
     router.replace("/return/done");
   };
 
-  /**
-   * Handles both of Email's two Reconnect states with one action: real
-   * linked accounts (period.emailLinkedAccounts) get a genuine deactivate
-   * call per account; no linked accounts just means acknowledging the
-   * manual reminder (deactivateOutOfOffice is a no-op on an empty array)
-   * — same "settled" outcome either way from the person's own perspective,
-   * only the label text (rendered below) differs. See
-   * docs/09-decision-log.md, 2026-08-21.
-   */
-  const turnOffEmail = () => {
-    void deactivateOutOfOffice(period?.emailLinkedAccounts ?? []);
-    setEmailOff(true);
-  };
-
   const clearStatus = () => {
     setStatusCleared(true);
   };
@@ -613,6 +614,46 @@ export default function ReconnectScreen() {
       const updated = await getHoldPeriodById(period.id);
       if (updated) setPeriod(updated);
     })();
+  };
+
+  /** Per-account "turn off" — real deactivate call for a linked account, then persisted so it survives a force-quit/resume the same way the social checklist already does. One-directional, matching the social side: already-off stays off. */
+  const markEmailAccountOff = (accountId: string) => {
+    if (!period) return;
+    const account = period.emailLinkedAccounts?.find((candidate) => candidate.id === accountId);
+    if (!account) return;
+
+    void (async () => {
+      await deactivateOutOfOffice([account]);
+      await markEmailAccountTurnedOff(period.id, accountId);
+      const updated = await getHoldPeriodById(period.id);
+      if (updated) setPeriod(updated);
+    })();
+  };
+
+  /**
+   * The unified taken-down row's own onToggle — dispatches by kind, same
+   * pattern as Going Quiet's toggleMarkedPlatform. One-directional: once
+   * marked, tapping again does nothing (matches the pre-existing social
+   * checklist's own guard, extended to email).
+   */
+  const toggleTakenDownPlatform = (platform: SelectableWiderWorldPlatform) => {
+    if (!period) return;
+    const alreadyMarked =
+      platform.kind === "email"
+        ? (period.widerWorldEmailTurnedOffAccountIds ?? []).includes(platform.id)
+        : (period.widerWorldTakenDownPlatforms ?? []).includes(platform.id);
+    if (alreadyMarked) return;
+
+    if (platform.kind === "email") {
+      markEmailAccountOff(platform.id);
+    } else {
+      markPlatformTakenDown(platform.id);
+    }
+  };
+
+  /** "All" — marks every currently-visible item not already marked. */
+  const markAllTakenDown = (platforms: SelectableWiderWorldPlatform[]) => {
+    for (const platform of platforms) toggleTakenDownPlatform(platform);
   };
 
   const openRename = (group: CircleGroup) => {
@@ -668,6 +709,19 @@ export default function ReconnectScreen() {
   const postedPlatformIds = period.widerWorldPostedPlatforms ?? [];
   const takenDownPlatformIds = new Set(period.widerWorldTakenDownPlatforms ?? []);
   const postedPlatforms = widerWorldPlatforms.filter((platform) => postedPlatformIds.includes(platform.id));
+
+  // Unified taken-down row (2026-08-30) — social platforms marked posted-to
+  // plus the real linked email accounts from this same round, in one row,
+  // matching Going Quiet's own unified compose-side row. Real labels come
+  // from the durable EmailAccount records (Settings), not the period's own
+  // minimal id+provider snapshot.
+  const turnedOffEmailAccountIds = new Set(period.widerWorldEmailTurnedOffAccountIds ?? []);
+  const linkedEmailPlatforms: SelectableWiderWorldPlatform[] = (period.emailLinkedAccounts ?? []).map((account) => {
+    const record = emailAccounts.find((candidate) => candidate.id === account.id);
+    return { id: account.id, name: record?.label ?? (account.provider === "gmail" ? "Gmail" : "Outlook"), kind: "email" };
+  });
+  const takenDownRowPlatforms = [...postedPlatforms, ...linkedEmailPlatforms];
+  const takenDownMarkedIds = new Set([...takenDownPlatformIds, ...turnedOffEmailAccountIds]);
 
   const audienceCircles = period.audienceCircles ?? [];
   const allAudiencePhoneNumbers = [
@@ -1401,60 +1455,42 @@ export default function ReconnectScreen() {
             </Pressable>
 
             {/*
-             * Same two options as Going Quiet — Email, Status — mirrored
-             * here in Reconnect's own "turned off/amended" mode rather
-             * than Going Quiet's "turned on/drafted" one. See
-             * docs/09-decision-log.md, 2026-08-21.
+             * Unified taken-down row (2026-08-30), Reconnect's own
+             * "turned off/confirmed" mode — social platforms marked
+             * posted-to plus real linked email accounts, one row, matching
+             * Going Quiet's own unified compose-side row exactly (solid
+             * fill for done, one-directional). A manual-only out-of-office
+             * (no real linked account to deactivate) has nothing to put in
+             * the row, so it keeps its own separate reminder line above
+             * it. See docs/09-decision-log.md.
              */}
             {oooExpanded ? (
               <View style={styles.oooBody}>
-                {period.emailOutOfOfficeEnabled ? (
+                {period.emailOutOfOfficeEnabled && (period.emailLinkedAccounts?.length ?? 0) === 0 ? (
                   <View style={styles.widerWorldOption}>
                     <Text style={styles.widerWorldOptionLabel}>Email</Text>
-                    {emailOff ? (
-                      <Text style={styles.settledText}>Out-of-office turned off.</Text>
-                    ) : (period.emailLinkedAccounts?.length ?? 0) > 0 ? (
-                      <Pressable accessibilityRole="button" onPress={turnOffEmail}>
-                        <Text style={styles.linkText}>Turn off out-of-office</Text>
-                      </Pressable>
+                    {manualEmailReminderAcknowledged ? (
+                      <Text style={styles.settledText}>Reminder acknowledged.</Text>
                     ) : (
-                      <Pressable accessibilityRole="button" onPress={turnOffEmail}>
+                      <Pressable accessibilityRole="button" onPress={() => setManualEmailReminderAcknowledged(true)}>
                         <Text style={styles.linkText}>Remember to remove your manual out-of-office</Text>
                       </Pressable>
                     )}
                   </View>
                 ) : null}
 
-                {period.widerWorldStatusEnabled ? (
+                {takenDownRowPlatforms.length > 0 ? (
+                  <WiderWorldPlatformRow
+                    label="Taken down / turned off"
+                    platforms={takenDownRowPlatforms}
+                    markedIds={takenDownMarkedIds}
+                    onToggle={toggleTakenDownPlatform}
+                    onMarkAll={() => markAllTakenDown(takenDownRowPlatforms)}
+                  />
+                ) : period.widerWorldStatusEnabled ? (
                   <View style={styles.widerWorldOption}>
                     <Text style={styles.widerWorldOptionLabel}>Status</Text>
-                    {postedPlatforms.length > 0 ? (
-                      <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={styles.chipRow}
-                      >
-                        {postedPlatforms.map((platform) => {
-                          const takenDown = takenDownPlatformIds.has(platform.id);
-                          return (
-                            <AdaptiveCircleChip
-                              key={platform.id}
-                              label={platform.name}
-                              compact
-                              isSelected={false}
-                              hasSentThisSession={takenDown}
-                              onPress={() => (takenDown ? undefined : markPlatformTakenDown(platform.id))}
-                              accessibilityRole="checkbox"
-                              accessibilityLabel={
-                                takenDown
-                                  ? `${platform.name}, taken down`
-                                  : `${platform.name}, not yet taken down. Tap once you have.`
-                              }
-                            />
-                          );
-                        })}
-                      </ScrollView>
-                    ) : statusCleared ? (
+                    {statusCleared ? (
                       <Text style={styles.settledText}>Status cleared.</Text>
                     ) : (
                       <Pressable accessibilityRole="button" onPress={clearStatus}>

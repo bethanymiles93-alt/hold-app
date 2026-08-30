@@ -1148,3 +1148,19 @@ Builds the piece hold-book's own "Planned copy + citation marker mechanism" entr
 `tsc --noEmit` and `vitest run` (63/63) both pass, unaffected — native-tooling-only change.
 
 **hold-book**: no update — build-tooling fix, not a product/content decision.
+
+## 2026-08-30 — Reconnect's own Wider World row completes the unification, closing the last open piece of task #120
+
+Going Quiet got the full unified platform row earlier tonight; Reconnect had only a targeted name-resolution fix. Continued straight into finishing Reconnect's own side per direct instruction, rather than leaving it half-migrated.
+
+**Per-account email tracking, new** — `HoldPeriod.widerWorldEmailTurnedOffAccountIds?: string[]` and `markEmailAccountTurnedOff(periodId, accountId)`, exact mirror of the existing `widerWorldTakenDownPlatforms`/`markWiderWorldTakenDown` pattern for social platforms. Previously email had one blanket local `emailOff` boolean covering every linked account at once, un-persisted (lost on force-quit) — now each account turns off individually and durably, matching the granularity the unified row already has on the Going Quiet side.
+
+**`WiderWorldPlatformRow`'s `onAddCustom` made optional** — Reconnect's own row is confirm-only (every item shown was already decided at Going Quiet), so a "+" to add something new doesn't make sense here the way it does on Going Quiet's compose-side row. Omitting the prop now hides the pill entirely rather than wiring it to a no-op.
+
+**Reconnect's own checklist rebuilt onto the shared row**: social platforms marked posted-to (`period.widerWorldPostedPlatforms`) and real linked email accounts (`period.emailLinkedAccounts`, resolved against the durable `EmailAccount` records in Settings for real labels — the period's own snapshot only ever had id+provider) now render as one combined row, one-directional (already-marked stays marked, matching the pre-existing social-only behaviour, extended to email). The old separate "Email" block is gone except for the one case the row genuinely can't represent: a manual-only out-of-office with no real linked account to deactivate, which keeps its own small acknowledge-the-reminder line above the row (purely local state, not persisted — there's nothing real to turn off, so nothing to survive a force-quit for).
+
+**Exit-nudge (`beforeRemove`) updated to match** — `oooUnresolved` now checks every real linked account individually against `widerWorldEmailTurnedOffAccountIds`, replacing the old blanket `!emailOff` check; a manual-only period (zero real linked accounts) no longer factors into this check at all, since there's no longer a fake "acknowledged" flag standing in for a real per-account state.
+
+`tsc --noEmit` and `vitest run` (63/63) both pass. **Not verified on-device** — the real per-account email deactivation-on-tap and the unified row's reorder/"All" behaviour on this screen specifically have not been exercised on a real device or simulator build.
+
+**hold-book**: no update — completes an already-confirmed spec (the unified row was explicitly scoped to "Going Quiet + Reconnect" earlier tonight), not a new decision.
