@@ -1,5 +1,6 @@
 import * as SecureStore from "expo-secure-store";
 import type { AudienceCircle, AudienceContact } from "@/types/hold";
+import { deleteLastSentMessage } from "@/services/lastSentMessageService";
 
 const INDEX_KEY = "hold.conversation.index";
 const RECORD_PREFIX = "hold.conversation.";
@@ -238,6 +239,7 @@ export async function moveToPersonalise(id: string): Promise<void> {
 
 export async function removePerson(id: string): Promise<void> {
   await SecureStore.deleteItemAsync(recordKey(id));
+  await deleteLastSentMessage(id);
   const ids = await readIndex();
   await writeIndex(ids.filter((existing) => existing !== id));
 }
@@ -251,6 +253,6 @@ export async function completeAll(): Promise<void> {
 /** Wipes the Conversations list entirely (used by the About "Delete" action). */
 export async function deleteAllConversations(): Promise<void> {
   const ids = await readIndex();
-  await Promise.all(ids.map((id) => SecureStore.deleteItemAsync(recordKey(id))));
+  await Promise.all(ids.map((id) => Promise.all([SecureStore.deleteItemAsync(recordKey(id)), deleteLastSentMessage(id)])));
   await SecureStore.deleteItemAsync(INDEX_KEY);
 }

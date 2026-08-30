@@ -8,6 +8,7 @@ import {
   type ConversationPerson
 } from "@/services/conversationService";
 import { addContactToGroup, createGroup } from "@/services/circleService";
+import { saveLastSentMessage } from "@/services/lastSentMessageService";
 import { clearReachedVia, getReconnectingPeriod, recordReachedVia } from "@/services/holdHistoryService";
 import { pickContact } from "@/services/contactPickerService";
 import { sendOrShare } from "@/services/smsService";
@@ -117,6 +118,16 @@ export function useConversations(scope: ConversationsScope, onPersonAction?: () 
   const [personaliseSwapIds, setPersonaliseSwapIds] = useState<Set<string>>(new Set());
   /** See docs/09-decision-log.md, 2026-08-19 — the permission-to-stop line. */
   const [stopPermissionShown, setStopPermissionShown] = useState(false);
+  /**
+   * One-shot highlighted-block insert into whichever docked bar field is
+   * currently active — same mechanic Template/MemoryNoteSuggestion already
+   * use (see DockedInputBar's own `pendingInsert` prop), now also driving
+   * the last-sent-message reveal (2026-08-31). Centralised here rather
+   * than duplicated in both `library.tsx` and `reconnect.tsx` (this
+   * screen's two callers) since both already read every other docked-bar-
+   * adjacent piece of state from this one shared hook.
+   */
+  const [pendingInsertText, setPendingInsertText] = useState<string | undefined>(undefined);
   const [selectedOtherIds, setSelectedOtherIds] = useState<Set<string>>(new Set());
   const [circlePromptStage, setCirclePromptStage] = useState<"none" | "confirm" | "naming">("none");
   const [newOtherCircleName, setNewOtherCircleName] = useState("");
@@ -274,6 +285,7 @@ export function useConversations(scope: ConversationsScope, onPersonAction?: () 
         // The compose sheet closing is the only signal available either way.
       }
       await markQuickSent([person.id]);
+      await saveLastSentMessage(person.id, text);
       await refresh();
       setStopPermissionShown(true);
       onPersonAction?.();
@@ -354,7 +366,8 @@ export function useConversations(scope: ConversationsScope, onPersonAction?: () 
     await refresh();
   };
 
-  const onSentFromAccordion = () => {
+  const onSentFromAccordion = (personId: string, sentText: string) => {
+    void saveLastSentMessage(personId, sentText);
     void refresh();
     setStopPermissionShown(true);
     onPersonAction?.();
@@ -402,7 +415,9 @@ export function useConversations(scope: ConversationsScope, onPersonAction?: () 
     toggleOtherSelection,
     declineCreateCircle,
     submitCreateCircle,
-    onSentFromAccordion
+    onSentFromAccordion,
+    pendingInsertText,
+    setPendingInsertText
   };
 }
 

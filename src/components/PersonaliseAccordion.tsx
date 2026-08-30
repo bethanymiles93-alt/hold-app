@@ -15,6 +15,7 @@ import type { ConversationPerson } from "@/services/conversationService";
 import { sendOrShare } from "@/services/smsService";
 import { createReplyDraft } from "@/services/draftService";
 import { getReply, saveReply } from "@/services/replyStorageService";
+import { getLastSentMessage } from "@/services/lastSentMessageService";
 import { needsHeadsUp } from "@/services/replyExpiry";
 import { formatSentLabel } from "@/services/holdHistoryFormat";
 import type { ReturnStyle, StoredReply } from "@/types/hold";
@@ -23,7 +24,15 @@ export interface PersonaliseAccordionProps {
   person: ConversationPerson;
   isOpen: boolean;
   onToggle: () => void;
-  onSent: () => void;
+  /** Passed the actual sent text (2026-08-31) so the parent can persist it as this person's new "last sent" — see lastSentMessageService.ts. */
+  onSent: (sentText: string) => void;
+  /**
+   * Inserts `text` as a highlighted, revert-on-edit block into whichever
+   * docked-bar field is currently active — the same mechanic Template's
+   * own insert uses. Powers the read-only "Last sent" reveal below; never
+   * called automatically. See docs/09-decision-log.md, 2026-08-31.
+   */
+  onInsertLastSent: (text: string) => void;
   /** "Your reply" is controlled by the parent screen — it owns the one shared DockedInputBar. See docs/09-decision-log.md, 2026-08-10. */
   draft: string;
   onChangeDraft: (text: string) => void;
@@ -57,6 +66,7 @@ export function PersonaliseAccordion({
   isOpen,
   onToggle,
   onSent,
+  onInsertLastSent,
   draft,
   onChangeDraft,
   style,
@@ -76,6 +86,9 @@ export function PersonaliseAccordion({
   const [friendMessageEditing, setFriendMessageEditing] = useState(true);
   const [status, setStatus] = useState<"none" | "draft" | "sent">("none");
   const [sentAt, setSentAt] = useState<number | null>(null);
+  /** Read-only, collapsed by default — see lastSentMessageService.ts. Loaded alongside friendMessage/reply below, not a separate effect. */
+  const [lastSentMessage, setLastSentMessage] = useState<string | null>(null);
+  const [lastSentExpanded, setLastSentExpanded] = useState(false);
   /** Threaded through every persist() call, same as sentAt above, so it survives the record being rebuilt on every keystroke autosave. See docs/09-decision-log.md, 2026-08-21. */
   const [headsUpShownAt, setHeadsUpShownAt] = useState<number | undefined>(undefined);
   const safeguardingTriggered = useSafeguardingCheck(draft);
@@ -94,6 +107,7 @@ export function PersonaliseAccordion({
     if (!isOpen || loaded) return;
 
     void (async () => {
+      setLastSentMessage(await getLastSentMessage(person.id));
       const existing = await getReply(person.id);
       if (existing) {
         setFriendMessage(existing.friendMessage);
@@ -232,8 +246,9 @@ export function PersonaliseAccordion({
       }
       setStatus("sent");
       setSentAt(now);
+      setLastSentMessage(record.draftReply.trim());
       onToggle();
-      onSent();
+      onSent(record.draftReply.trim());
     })();
   };
 
@@ -313,6 +328,47 @@ export function PersonaliseAccordion({
               </Pressable>
             ))}
           </View>
+
+          {lastSentMessage ? (
+            <View style={styles.lastSentBlock}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Last sent. ${lastSentExpanded ? "Hide" : "Show"} what you last sent them.`}
+                accessibilityState={{ expanded: lastSentExpanded }}
+                onPress={() => setLastSentExpanded((current) => !current)}
+                style={styles.lastSentHeader}
+              >
+                <Text style={styles.fieldLabel}>Last sent</Text>
+                <Text style={styles.lastSentChevron}>{lastSentExpanded ? "▲" : "▼"}</Text>
+              </Pressable>
+              {lastSentExpanded ? (
+                <>
+                  <Text style={styles.lastSentText}>{lastSentMessage}</Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => {
+                      // Ensures the reply field is actually active first —
+                      // same bundle DockedFieldPreview's own onPress uses
+                      // below, safe to call even if already active. The
+                      // insert itself happens via onInsertLastSent, which
+                      // the parent implements as a one-shot pendingInsert
+                      // on its own shared docked bar.
+                      onActivateReply({
+                        onChangeText: changeDraft,
+                        friendMessage,
+                        onSend: () => {
+                          if (draftRef.current.trim()) sendNow();
+                        }
+                      });
+                      onInsertLastSent(lastSentMessage);
+                    }}
+                  >
+                    <Text style={styles.linkText}>Insert into reply</Text>
+                  </Pressable>
+                </>
+              ) : null}
+            </View>
+          ) : null}
 
           <Text style={styles.fieldLabel}>Your reply</Text>
           <DockedFieldPreview
@@ -401,6 +457,26 @@ function createStyles(colors: ThemeColors) {
       color: colors.textMuted,
       fontSize: 15,
       lineHeight: 21
+    },
+    lastSentBlock: {
+      gap: theme.spacing.xs
+    },
+    lastSentHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between"
+    },
+    lastSentChevron: {
+      color: colors.textMuted,
+      fontSize: 13
+    },
+    lastSentText: {
+      color: colors.textMuted,
+      fontSize: 15,
+      lineHeight: 21,
+      padding: theme.spacing.sm,
+      borderRadius: theme.radius.md,
+      backgroundColor: colors.surfaceStrong
     },
     linkText: {
       color: colors.link,

@@ -145,7 +145,8 @@ export function ConversationsView({ conversations: c, mode }: ConversationsViewP
                 person={expandedPerson}
                 isOpen
                 onToggle={() => c.togglePersonalisePerson(expandedPerson.id)}
-                onSent={c.onSentFromAccordion}
+                onSent={(sentText) => c.onSentFromAccordion(expandedPerson.id, sentText)}
+                onInsertLastSent={c.setPendingInsertText}
                 draft={c.personaliseDrafts[expandedPerson.id] ?? ""}
                 onChangeDraft={(text) =>
                   c.setPersonaliseDrafts((current) => ({ ...current, [expandedPerson.id]: text }))
@@ -217,7 +218,8 @@ export function ConversationsView({ conversations: c, mode }: ConversationsViewP
                     person={person}
                     isOpen={c.expandedPersonaliseId === person.id}
                     onToggle={() => c.togglePersonalisePerson(person.id)}
-                    onSent={c.onSentFromAccordion}
+                    onSent={(sentText) => c.onSentFromAccordion(person.id, sentText)}
+                    onInsertLastSent={c.setPendingInsertText}
                     draft={c.personaliseDrafts[person.id] ?? ""}
                     onChangeDraft={(text) => c.setPersonaliseDrafts((current) => ({ ...current, [person.id]: text }))}
                     style={c.personaliseStyles[person.id] ?? null}

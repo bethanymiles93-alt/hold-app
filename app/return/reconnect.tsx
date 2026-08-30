@@ -1162,6 +1162,7 @@ export default function ReconnectScreen() {
             }}
             placeholder="Your reply"
             accessibilityLabel="Your reply"
+            pendingInsert={conversations.pendingInsertText}
             aiAmend={{
               surface: "conversations-reply",
               context: { friendMessage: conversations.personaliseReplyTarget.friendMessage }

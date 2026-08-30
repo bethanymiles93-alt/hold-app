@@ -1411,3 +1411,17 @@ Final batch of a "going to sleep" handoff covering several checked-or-build item
 `tsc --noEmit` and `vitest run` (62/62) both pass. **Not verified on-device.**
 
 **hold-book**: no update — closes a gap in an already-confirmed spec, not a new decision.
+
+## 2026-08-31 — Conversations last-sent dropdown built
+
+**Real gap confirmed before building:** no per-person "last sent" tracking existed anywhere. `replyStorageService.ts`'s `StoredReply.draftReply` is a different thing entirely — a temporary in-progress draft that auto-clears per hold-book's own content-retention policy, not a permanent record. New `lastSentMessageService.ts` (SecureStore, one overwritten string per person, no expiry, no id index — looked up on demand when that person's own accordion opens, never enumerated).
+
+**Captured at both Conversations send paths**: `useConversations.ts`'s `sendIndividual` (Quick message) persists directly; `PersonaliseAccordion`'s own `onSent` prop signature changed from `() => void` to `(sentText: string) => void` so the parent's `onSentFromAccordion` (now `(personId, sentText)`) can persist the Personalise path's own sent text too. Both `library.tsx` and `reconnect.tsx` call sites updated to match (each screen embeds this same shared component/hook pair, unified per the 2026-08-20 Library/Reconnect unification).
+
+**UI**: read-only, collapsed-by-default "Last sent" row in `PersonaliseAccordion`, tap-to-reveal via down-arrow (same chevron convention `MemoryNoteSuggestion` already uses), never auto-inserted. "Insert into reply" reuses Template's own green-highlight/whole-block-revert mechanic exactly — new `pendingInsertText`/`setPendingInsertText` state added to the shared `useConversations` hook (centralised there rather than duplicated in both callers, since they already read every other docked-bar-adjacent piece of state from it), wired into both screens' own Personalise-reply `DockedInputBar`'s `pendingInsert` prop. Never cleared back to `undefined` after use — matches the exact same accepted convention `reconnect.tsx`'s own `pendingMemoryInsert` already uses (a one-shot effect keyed on the string actually changing).
+
+**Deletion wired in**: `conversationService.ts`'s `removePerson` and `deleteAllConversations` both now also clear the matching last-sent record, so removing a person or wiping Conversations entirely doesn't leave an orphaned record behind.
+
+`tsc --noEmit` and `vitest run` (62/62) both pass. **Not verified on-device.**
+
+**hold-book**: no update — implementation-level build against a spec given directly this pass, not a new product decision.
