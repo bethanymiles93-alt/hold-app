@@ -51,7 +51,14 @@
       ],
       "expo-web-browser",
       "expo-sharing",
-      "expo-local-authentication"
+      "expo-local-authentication",
+      [
+        "expo-share-extension",
+        {
+          "activationRules": [{ "type": "text" }],
+          "excludedPackages": ["expo-updates"]
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

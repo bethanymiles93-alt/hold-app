@@ -192,7 +192,7 @@ PODS:
     - ExpoModulesCore
   - ExpoDomWebView (57.0.1):
     - ExpoModulesCore
-  - ExpoFileSystem (57.0.1):
+  - ExpoFileSystem (57.0.6):
     - ExpoModulesCore
   - ExpoFont (57.0.1):
     - ExpoModulesCore
@@ -201,6 +201,8 @@ PODS:
   - ExpoKeepAwake (57.0.1):
     - ExpoModulesCore
   - ExpoLinking (57.0.7):
+    - ExpoModulesCore
+  - ExpoLocalAuthentication (57.0.2):
     - ExpoModulesCore
   - ExpoLogBox (57.0.1):
     - React-Core
@@ -243,6 +245,10 @@ PODS:
     - ExpoModulesCore
     - RNScreens
   - ExpoSecureStore (57.0.1):
+    - ExpoModulesCore
+  - ExpoShareExtension (5.0.6):
+    - ExpoModulesCore
+  - ExpoSharing (57.0.16):
     - ExpoModulesCore
   - ExpoSMS (57.0.1):
     - ExpoModulesCore
@@ -2502,6 +2508,7 @@ DEPENDENCIES:
   - ExpoGlassEffect (from `../node_modules/expo-glass-effect/ios`)
   - ExpoKeepAwake (from `../node_modules/expo-keep-awake/ios`)
   - ExpoLinking (from `../node_modules/expo-linking/ios`)
+  - ExpoLocalAuthentication (from `../node_modules/expo-local-authentication/ios`)
   - "ExpoLogBox (from `../node_modules/@expo/log-box`)"
   - ExpoModulesCore (from `../node_modules/expo-modules-core/ExpoModulesCore.podspec`)
   - ExpoModulesJSI (from `../node_modules/expo-modules-jsi/apple`)
@@ -2509,6 +2516,8 @@ DEPENDENCIES:
   - ExpoModulesWorkletsAdapter (from `../node_modules/expo-modules-core`)
   - ExpoRouter (from `../node_modules/expo-router/ios`)
   - ExpoSecureStore (from `../node_modules/expo-secure-store/ios`)
+  - ExpoShareExtension (from `../node_modules/expo-share-extension/ios`)
+  - ExpoSharing (from `../node_modules/expo-sharing/ios`)
   - ExpoSMS (from `../node_modules/expo-sms/ios`)
   - ExpoSpeechRecognition (from `../node_modules/expo-speech-recognition/ios`)
   - ExpoSymbols (from `../node_modules/expo-symbols/ios`)
@@ -2641,6 +2650,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-keep-awake/ios"
   ExpoLinking:
     :path: "../node_modules/expo-linking/ios"
+  ExpoLocalAuthentication:
+    :path: "../node_modules/expo-local-authentication/ios"
   ExpoLogBox:
     :path: "../node_modules/@expo/log-box"
   ExpoModulesCore:
@@ -2655,6 +2666,10 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-router/ios"
   ExpoSecureStore:
     :path: "../node_modules/expo-secure-store/ios"
+  ExpoShareExtension:
+    :path: "../node_modules/expo-share-extension/ios"
+  ExpoSharing:
+    :path: "../node_modules/expo-sharing/ios"
   ExpoSMS:
     :path: "../node_modules/expo-sms/ios"
   ExpoSpeechRecognition:
@@ -2851,11 +2866,12 @@ SPEC CHECKSUMS:
   ExpoContacts: a261b91bc34925f468ff971c51fca5013f30b54d
   ExpoCrypto: 366380ffafeb22cc9795438cddcbfa299e1aaf42
   ExpoDomWebView: beaec034e51bd028428b98bb1f2633ab79c6d095
-  ExpoFileSystem: e441dae0ae671fc451640517550973d9e024fdf0
+  ExpoFileSystem: cc500f33804065aacc7b3366007267b84deca8c8
   ExpoFont: 59e1faf66ba9bcd232ae1e2ce58d202a48b6f65e
   ExpoGlassEffect: 4b62afb489e6b84357701737ce002137c9d5fdbc
   ExpoKeepAwake: c26f14275017370cc8a4b7b43a0e23361f2053a5
   ExpoLinking: 2e9ead00fcb0d3e623a8d4935fadae3cdb6d4d97
+  ExpoLocalAuthentication: 96989637e567a10cdeabe61e5c6026d30c0dc53f
   ExpoLogBox: 8a3cfa2897e088083cd49fc1ff7fdb2de4385547
   ExpoModulesCore: d05b513ee6249d9987f7d778431313ff2062999b
   ExpoModulesJSI: 4b5d68bf019c251c2c8b7246aa36306dc381fe7f
@@ -2863,6 +2879,8 @@ SPEC CHECKSUMS:
   ExpoModulesWorkletsAdapter: c92a017ba821a9f9e6f9d9ebf14e3a3e7376ba14
   ExpoRouter: c1fffa10e6e2901e17af3269825ac421318b6bf8
   ExpoSecureStore: 94793113049a2d7478dfe1a13aa15081e9f61755
+  ExpoShareExtension: 7419f38b5c8f9cde0ce094449b4e95efeca2f4de
+  ExpoSharing: b1797248b8dbb7bf32a670a8df582189a65aa5d4
   ExpoSMS: ac35f6c85b72ee5b18a7c6bb06550fbd4a683775
   ExpoSpeechRecognition: 119acf84448579e53f841d040aad76982f945e2d
   ExpoSymbols: 7c7c7bd3c52f0b6dcbba6e8af4088b0dc1ea7d29
@@ -2953,6 +2971,6 @@ SPEC CHECKSUMS:
   RNWorklets: 53439575fed8525fb8d1cabcc05a3d4d91e6ffe4
   Yoga: fe50ab299e578f397fef753cf309c6703a4db29b
 
-PODFILE CHECKSUM: a4d8371f4d4bb17bd051e3e796535f0365b6887e
+PODFILE CHECKSUM: 7fe040e968865c1c07a75a9a912fd69050eac266
 
 COCOAPODS: 1.17.0
