@@ -82,13 +82,30 @@ function RootLayoutNav() {
                   button (SettingsBackButton, headerLeft above) is
                   untouched — this only removes the gestural path. See
                   docs/09-decision-log.md. */}
-              <Stack.Screen name="create/people" options={{ title: "Going Quiet", gestureEnabled: false }} />
+              {/* animation: "none" (2026-08-30) — Going Quiet is the
+                  lowest-friction, most time-sensitive entry point in the
+                  app; the inherited default "fade" read as a noticeably
+                  slow transition on-device, working against everything
+                  else stripped down tonight to reduce friction at the
+                  moment someone's trying to act. See
+                  docs/09-decision-log.md. */}
+              <Stack.Screen
+                name="create/people"
+                options={{ title: "Going Quiet", gestureEnabled: false, animation: "none" }}
+              />
               <Stack.Screen name="create/done" options={{ headerShown: false, gestureEnabled: false }} />
               <Stack.Screen
                 name="return/transition"
                 options={{ headerShown: false, gestureEnabled: false, animationDuration: 450 }}
               />
-              <Stack.Screen name="return/reconnect" options={{ title: "Reconnect", gestureEnabled: false }} />
+              {/* animation: "none" (2026-08-30) — same reasoning as
+                  create/people above; Reconnect is the other lowest-
+                  friction, time-sensitive entry point. See
+                  docs/09-decision-log.md. */}
+              <Stack.Screen
+                name="return/reconnect"
+                options={{ title: "Reconnect", gestureEnabled: false, animation: "none" }}
+              />
               <Stack.Screen name="return/done" options={{ headerShown: false, gestureEnabled: false }} />
               <Stack.Screen name="settings/mission" options={{ title: "Our Mission" }} />
               <Stack.Screen name="settings/privacy" options={{ title: "Privacy Policy" }} />

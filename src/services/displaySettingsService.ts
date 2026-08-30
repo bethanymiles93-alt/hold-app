@@ -16,7 +16,12 @@ export type ColorSchemeOverride = "light" | "dark" | "system";
 export type DisplayTheme = "default" | "beach" | "forest" | "meadow" | "seasonal";
 
 export interface DisplaySettings {
-  /** -1 (coolest) to 1 (warmest), 0 is off/no shift. See src/utils/warmth.ts. */
+  /**
+   * 0 (the new warm base, no additional shift) to 1 (warmest) — no cool
+   * direction any more (2026-08-30, see src/utils/warmth.ts). A legacy
+   * negative value from before that change clamps to 0 on load/save, same
+   * as any other out-of-range value.
+   */
   warmthOffset: number;
   colorSchemeOverride: ColorSchemeOverride;
   displayTheme: DisplayTheme;
@@ -48,7 +53,7 @@ export async function getDisplaySettings(): Promise<DisplaySettings> {
   const moonPhaseEnabled = moonRaw === "true";
 
   return {
-    warmthOffset: Number.isFinite(warmthOffset) ? warmthOffset : DEFAULTS.warmthOffset,
+    warmthOffset: Number.isFinite(warmthOffset) ? Math.max(0, Math.min(1, warmthOffset)) : DEFAULTS.warmthOffset,
     colorSchemeOverride,
     displayTheme,
     moonPhaseEnabled
@@ -56,7 +61,7 @@ export async function getDisplaySettings(): Promise<DisplaySettings> {
 }
 
 export async function setWarmthOffset(value: number): Promise<void> {
-  await SecureStore.setItemAsync(WARMTH_OFFSET_KEY, String(Math.max(-1, Math.min(1, value))));
+  await SecureStore.setItemAsync(WARMTH_OFFSET_KEY, String(Math.max(0, Math.min(1, value))));
 }
 
 export async function setColorSchemeOverride(value: ColorSchemeOverride): Promise<void> {

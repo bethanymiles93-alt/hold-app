@@ -1,12 +1,30 @@
 import { useCallback, useMemo, useState } from "react";
 import { useFocusEffect } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
-import { theme, type ThemeColors } from "@/constants/theme";
+import { palettes, theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
 import { DropdownArrowBadge } from "@/components/DropdownArrowBadge";
 import { getGroups, PENDING_CIRCLE_ID_PREFIX } from "@/services/circleService";
 import type { CircleGroup } from "@/types/hold";
+
+/**
+ * Fixed, not theme-resolved — the coach-mark bubble deliberately doesn't
+ * flip with dark mode the way colors.primary would (which is a light
+ * green in dark mode, meant for on-dark accents/buttons, not as a
+ * self-contained backdrop). A coach-mark is a distinct guidance layer
+ * floating over the real UI, not a themed surface, so it stays Hold's own
+ * dark green/white pair unconditionally — same convention as a fixed dark
+ * tooltip regardless of the host app's own light/dark state. Alpha (CC,
+ * ~80%) chosen so contrast against white text still clears WCAG's 4.5:1
+ * even blended over a worst-case near-white backdrop (hand-verified:
+ * ~5.3:1 at this alpha against pure white, comfortably above the
+ * threshold) — the screen behind stays visibly readable through it while
+ * text on the bubble itself stays unambiguous. See docs/09-decision-log.md,
+ * 2026-08-30.
+ */
+const HINT_BUBBLE_COLOR = `${palettes.lightNormal.primary}CC`;
+const HINT_TEXT_COLOR = palettes.lightNormal.onPrimary;
 
 /** Re-exported for existing call sites — moved to circleService.ts, 2026-08-20, see there. */
 export { PENDING_CIRCLE_ID_PREFIX };
@@ -245,24 +263,6 @@ export function GroupPicker({
               </View>
             </>
           ) : null}
-          {showNewCircleOnboardingHint ? (
-            <View style={styles.newCircleOnboardingHint}>
-              <View style={styles.newCircleOnboardingHintPointer} />
-              <View style={styles.coreOnboardingHintBubble}>
-                <Text style={styles.coreOnboardingHintText}>
-                  The people close behind them can go here too.
-                </Text>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Dismiss"
-                  onPress={() => onDismissNewCircleOnboardingHint?.()}
-                  hitSlop={8}
-                >
-                  <Text style={styles.coreOnboardingHintDismiss}>Skip</Text>
-                </Pressable>
-              </View>
-            </View>
-          ) : null}
         </View>
         <ScrollView
           horizontal
@@ -270,7 +270,14 @@ export function GroupPicker({
           contentContainerStyle={styles.pillWrap}
           style={styles.pillScroll}
         >
-          {groups.length > 0 ? (
+          {/* Gated to 2+ non-empty Circles (2026-08-30 fix, confirmed
+              on-device — was `groups.length > 0`, which meant "All" showed
+              with just Core alone present, since Core always survives the
+              empty-Circle filter above). Matches the same rule already
+              applied in Manage Circles: with only one Circle to act on,
+              "All" is redundant with tapping that Circle's own chip
+              directly. See docs/09-decision-log.md. */}
+          {nonEmptyGroups.length >= 2 ? (
             <AdaptiveCircleChip label="All" isSelected={allSelected} onPress={toggleAll} />
           ) : null}
           {displayGroups.map((group) => {
@@ -337,24 +344,64 @@ export function GroupPicker({
             );
           })}
         </ScrollView>
+      </View>
 
-        {showCoreOnboardingHint ? (
-          <View style={styles.coreOnboardingHint}>
-            <View style={styles.coreOnboardingHintPointer} />
-            <View style={styles.coreOnboardingHintBubble}>
-              <Text style={styles.coreOnboardingHintText}>Add the people who matter most here.</Text>
+      {/*
+       * Both coach-marks render OUTSIDE pinnedRow's own flex flow entirely
+       * (2026-08-30, fixes a real on-device bug — see docs/09-decision-log.md)
+       * — previously each was a normal flex row/column participant sharing
+       * space with the pinnedRow's own flex:1 ScrollView, which is a known
+       * Yoga trap: a flex:1 Text inside an otherwise shrink-to-fit bubble
+       * has no real space to resolve against, so it collapsed toward zero
+       * width (Core's message text disappeared entirely) or got starved to
+       * a sliver (New Circle's text wrapped 2-3 letters at a time). Being
+       * entangled in that same row also corrupted the row's own resolved
+       * layout badly enough to break touch-targets for unrelated siblings
+       * within it (the "+" chip not persisting a tap, Adjust's arrows not
+       * rendering) — both confirmed on-device, not assumed collateral.
+       * `position: "absolute"` removes both bubbles from that flex
+       * computation altogether: each has its own fixed, self-determined
+       * width and can never influence pinnedRow's own layout again.
+       */}
+      {showCoreOnboardingHint ? (
+        <View style={styles.hintOverlay} pointerEvents="box-none">
+          <View style={[styles.hintAnchor, styles.coreHintAnchor]} pointerEvents="box-none">
+            <View style={styles.hintPointer} />
+            <View style={styles.hintBubble}>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Dismiss"
                 onPress={() => onDismissCoreOnboardingHint?.()}
                 hitSlop={8}
+                style={styles.hintDismiss}
               >
-                <Text style={styles.coreOnboardingHintDismiss}>Skip</Text>
+                <Text style={styles.hintDismissText}>Skip</Text>
               </Pressable>
+              <Text style={styles.hintText}>Add the people who matter most here.</Text>
             </View>
           </View>
-        ) : null}
-      </View>
+        </View>
+      ) : null}
+
+      {showNewCircleOnboardingHint ? (
+        <View style={styles.hintOverlay} pointerEvents="box-none">
+          <View style={[styles.hintAnchor, styles.newCircleHintAnchor]} pointerEvents="box-none">
+            <View style={styles.hintPointer} />
+            <View style={styles.hintBubble}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Dismiss"
+                onPress={() => onDismissNewCircleOnboardingHint?.()}
+                hitSlop={8}
+                style={styles.hintDismiss}
+              >
+                <Text style={styles.hintDismissText}>Skip</Text>
+              </Pressable>
+              <Text style={styles.hintText}>The people close behind them can go here too.</Text>
+            </View>
+          </View>
+        </View>
+      ) : null}
 
       {emptySelectedGroups.length > 0 ? (
         <Text style={styles.prompt}>
@@ -368,8 +415,12 @@ export function GroupPicker({
 
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
+    // Explicit position: "relative" (React Native's own default, but named
+    // here deliberately) — the positioning root the coach-mark overlay
+    // below anchors against.
     container: {
-      gap: theme.spacing.md
+      gap: theme.spacing.md,
+      position: "relative"
     },
     pinnedRow: {
       flexDirection: "row",
@@ -443,57 +494,78 @@ function createStyles(colors: ThemeColors) {
       fontSize: 14,
       lineHeight: 21
     },
-    coreOnboardingHint: {
-      alignItems: "flex-start",
-      marginLeft: theme.spacing.md
+    // Coach-mark overlay (2026-08-30 rebuild — see the JSX comment above
+    // where these render). hintOverlay spans the whole component but is
+    // pointerEvents="box-none", so it never itself intercepts a touch —
+    // only hintBubble/hintDismiss (each with their own small, real bounds)
+    // do. hintAnchor positions are approximate, reasoned from
+    // STANDARD_CHIP_DIAMETER and the pinned "+" column's own width rather
+    // than measured on a real device — flagged, not assumed exact, same as
+    // this file's other on-device-unverified constants.
+    hintOverlay: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0
     },
-    coreOnboardingHintPointer: {
+    hintAnchor: {
+      position: "absolute"
+    },
+    coreHintAnchor: {
+      top: 116,
+      left: 120
+    },
+    newCircleHintAnchor: {
+      top: 116,
+      left: 0
+    },
+    hintPointer: {
       width: 12,
       height: 12,
-      backgroundColor: `${colors.text}CC`,
+      backgroundColor: HINT_BUBBLE_COLOR,
       transform: [{ rotate: "45deg" }],
       marginBottom: -6,
       marginLeft: theme.spacing.lg
     },
-    coreOnboardingHintBubble: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.md,
-      maxWidth: 280,
+    // Fixed width, not maxWidth — a flex:1 Text inside a merely
+    // maxWidth-capped, otherwise shrink-to-fit bubble is exactly what
+    // broke this the first time (no real space to resolve flex:1
+    // against). A definite width means hintText can wrap normally with no
+    // flex needed at all.
+    hintBubble: {
+      position: "relative",
+      width: 240,
       borderRadius: theme.radius.md,
-      paddingVertical: theme.spacing.sm,
+      paddingTop: theme.spacing.lg + 12,
+      paddingBottom: theme.spacing.sm,
       paddingHorizontal: theme.spacing.md,
-      backgroundColor: `${colors.text}CC`
+      backgroundColor: HINT_BUBBLE_COLOR
     },
-    coreOnboardingHintText: {
-      flex: 1,
-      color: colors.background,
+    // Top-right — the dominant coach-mark dismiss convention, and clear of
+    // the message text below it (paddingTop above reserves that room),
+    // rather than sharing a row with wrapping text.
+    hintDismiss: {
+      position: "absolute",
+      top: theme.spacing.xs,
+      right: theme.spacing.xs,
+      paddingVertical: 4,
+      paddingHorizontal: 6
+    },
+    // No opacity reduction here (unlike the old version) — "Skip" is text
+    // too, per the confirmed contrast requirement, so it stays at full
+    // strength rather than risking the verified margin for a small
+    // secondary-emphasis effect; fontWeight alone differentiates it from
+    // the message text.
+    hintDismissText: {
+      color: HINT_TEXT_COLOR,
+      fontSize: 13,
+      fontWeight: "700"
+    },
+    hintText: {
+      color: HINT_TEXT_COLOR,
       fontSize: 14,
       lineHeight: 20
-    },
-    coreOnboardingHintDismiss: {
-      color: colors.background,
-      fontSize: 13,
-      fontWeight: "700",
-      opacity: 0.8
-    },
-    // Anchored directly under the "+" chip itself (unlike coreOnboardingHint,
-    // which sits beside the pill scroll area) — its target is the leftmost,
-    // always-in-place "+", not something inside the horizontally-scrolling
-    // row, so a fixed position under it is meaningful. Reuses the Core
-    // hint's own bubble/text/dismiss styles — same visual language, only
-    // the pointer and its position differ.
-    newCircleOnboardingHint: {
-      alignItems: "flex-start",
-      marginTop: theme.spacing.xs
-    },
-    newCircleOnboardingHintPointer: {
-      width: 12,
-      height: 12,
-      backgroundColor: `${colors.text}CC`,
-      transform: [{ rotate: "45deg" }],
-      marginBottom: -6,
-      marginLeft: theme.spacing.lg
     }
   });
 }

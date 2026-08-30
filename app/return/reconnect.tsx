@@ -844,6 +844,10 @@ export default function ReconnectScreen() {
   const takenDownMarkedIds = new Set([...takenDownPlatformIds, ...turnedOffEmailAccountIds]);
 
   const audienceCircles = period.audienceCircles ?? [];
+  // Same "All" gate as GroupPicker.tsx/Manage Circles: with only one
+  // non-empty Circle to act on, "All" is redundant with tapping that
+  // Circle's own chip directly. See docs/09-decision-log.md, 2026-08-30.
+  const nonEmptyAudienceCircleCount = audienceCircles.filter((circle) => circle.contacts.length > 0).length;
   const allAudiencePhoneNumbers = [
     ...(period.audienceUngrouped ?? []).map((contact) => contact.phoneNumber),
     ...audienceCircles.flatMap((circle) => circle.contacts.map((contact) => contact.phoneNumber))
@@ -1148,7 +1152,7 @@ export default function ReconnectScreen() {
               contentContainerStyle={styles.chipRow}
               style={styles.pillScroll}
             >
-              {audienceCircles.length > 0 ? (
+              {nonEmptyAudienceCircleCount >= 2 ? (
                 <AdaptiveCircleChip
                   label="All"
                   isSelected={allAudienceIncluded}

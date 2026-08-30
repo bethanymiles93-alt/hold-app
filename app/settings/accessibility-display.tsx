@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import { Screen } from "@/components/Screen";
+import { WarmthSlider } from "@/components/WarmthSlider";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { useDisplaySettings } from "@/context/DisplaySettingsContext";
@@ -23,8 +24,6 @@ const DISPLAY_THEME_OPTIONS: { value: DisplayTheme; label: string }[] = [
   { value: "meadow", label: "Meadow" },
   { value: "seasonal", label: "Seasonal" }
 ];
-
-const WARMTH_STEPS = [-1, -0.5, 0, 0.5, 1] as const;
 
 /**
  * "Accessibility & Display" — Look & Feel sub-group only (display theme,
@@ -78,27 +77,10 @@ export default function AccessibilityDisplayScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Warmth</Text>
         <Text style={styles.sectionBody}>
-          Nudges the background warmer or cooler, on top of whichever colours are already showing
-          — not a separate colour scheme. Contrast against text stays checked at every step.
+          Nudges the background warmer still, on top of Hold's own warm base tone — not a separate
+          colour scheme. Contrast against text stays checked across the full range.
         </Text>
-        <View style={styles.optionRow}>
-          {WARMTH_STEPS.map((step) => {
-            const selected = warmthOffset === step;
-            const label = step === 0 ? "Off" : step > 0 ? `Warm ${step === 1 ? "" : "+"}`.trim() : `Cool ${step === -1 ? "" : "+"}`.trim();
-            return (
-              <Pressable
-                key={step}
-                accessibilityRole="radio"
-                accessibilityState={{ checked: selected }}
-                accessibilityLabel={label}
-                onPress={() => setWarmthOffset(step)}
-                style={[styles.pill, selected && styles.pillSelected]}
-              >
-                <Text style={[styles.pillText, selected && styles.pillTextSelected]}>{label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        <WarmthSlider value={warmthOffset} onChange={setWarmthOffset} />
       </View>
 
       <View style={styles.section}>

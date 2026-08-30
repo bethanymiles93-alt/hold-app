@@ -43,7 +43,7 @@ export function DisplaySettingsProvider({ children }: PropsWithChildren) {
   }, []);
 
   const setWarmthOffset = (value: number) => {
-    const clamped = Math.max(-1, Math.min(1, value));
+    const clamped = Math.max(0, Math.min(1, value));
     setSettings((current) => ({ ...current, warmthOffset: clamped }));
     void persistWarmthOffset(clamped);
   };
