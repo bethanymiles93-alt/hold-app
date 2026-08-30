@@ -139,6 +139,7 @@ export function SettingsDrawer() {
       | "/settings/mission"
       | "/settings/privacy"
       | "/settings/hold-plus"
+      | "/settings/manage-purchases"
       | "/settings/circle"
       | "/settings/sending-channel"
       | "/settings/wider-world"
@@ -250,6 +251,7 @@ export function SettingsDrawer() {
             <NavRow label="Our Mission" onPress={() => goTo("/settings/mission")} />
             <NavRow label="Research" onPress={goToResearch} />
             <NavRow label="Hold+" onPress={() => goTo("/settings/hold-plus")} />
+            <NavRow label="Manage Purchases" onPress={() => goTo("/settings/manage-purchases")} />
           </View>
 
           <View style={styles.bottomCluster}>

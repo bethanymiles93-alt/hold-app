@@ -9,6 +9,7 @@ import { useAppTheme } from "@/hooks/useAppTheme";
 import { useDockedAiAmend } from "@/hooks/useDockedAiAmend";
 import { useHighlightedInsertions } from "@/hooks/useHighlightedInsertions";
 import { DictationMicButton } from "@/components/DictationMicButton";
+import { AiIdleNudge } from "@/components/AiIdleNudge";
 import { mixColors } from "@/utils/colorMix";
 import { getSuggestedPhrases } from "@/services/suggestedPhrasesService";
 import type { AiDraftContext, AiSurface } from "@/services/aiProxyClient";
@@ -349,6 +350,13 @@ export function DockedInputBar({
         {amend.status === "error" ? (
           <Text style={styles.errorText}>Couldn't reach AI right now — try again.</Text>
         ) : null}
+
+        {/* Free-tier AI-discovery nudge (2026-08-30) — only ever shown
+            where an AI-amend surface exists at all (aiAmend present) and
+            the person isn't Hold+ (amend.available is false for free
+            users; the existing sparkle icon below already covers Hold+
+            subscribers, unchanged). See AiIdleNudge's own comment. */}
+        {aiAmend && !amend.available ? <AiIdleNudge value={value} /> : null}
 
         {/* Sentence-suggestion pills — app-wide via this one shared
             component, no per-screen wiring needed (2026-08-13). Tight

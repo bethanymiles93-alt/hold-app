@@ -110,6 +110,7 @@ function RootLayoutNav() {
               <Stack.Screen name="settings/mission" options={{ title: "Our Mission" }} />
               <Stack.Screen name="settings/privacy" options={{ title: "Privacy Policy" }} />
               <Stack.Screen name="settings/hold-plus" options={{ title: "Hold+" }} />
+              <Stack.Screen name="settings/manage-purchases" options={{ title: "Manage Purchases" }} />
               <Stack.Screen name="settings/sending-channel" options={{ title: "Sending channel" }} />
               <Stack.Screen name="settings/circle/index" options={{ title: "Your Circles" }} />
               <Stack.Screen name="settings/wider-world" options={{ title: "Your Wider World" }} />
