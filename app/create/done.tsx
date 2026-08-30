@@ -31,8 +31,15 @@ export default function HoldDoneScreen() {
        * single-paragraph subtitle outright, matching the three-line, no-
        * separate-title shape already shipped on Reconnect's own landing
        * moment (app/return/transition.tsx). Line 2's citation marker links
-       * to the "Staying connected, even briefly" Research section. See
-       * docs/09-decision-log.md, 2026-08-30.
+       * to the "Staying connected, even briefly" Research section. A
+       * second marker on line 3 was added 2026-08-31, closing a real gap:
+       * the "shame-and-self-compassion" Research section (built earlier
+       * this pass, real citations — Tangney, Brown's Shame Resilience
+       * Theory, Neff's Self-Compassion Break) had no citation marker
+       * anywhere in the app pointing to it, even though its own body text
+       * says "Hold's Transition screen draws on" it — "You don't need to
+       * earn rest" is exactly the guilt-adjacent framing that section
+       * addresses. See docs/09-decision-log.md.
        */}
       <View style={styles.message}>
         <HoldMark size={64} />
@@ -41,7 +48,10 @@ export default function HoldDoneScreen() {
           <Text style={styles.subtitle}>Taking time isn’t the same as letting people down.</Text>
           <CitationMarker researchSectionId="connection-and-loneliness" />
         </View>
-        <Text style={styles.subtitle}>You don’t need to earn rest.</Text>
+        <View style={styles.lineWithMarker}>
+          <Text style={styles.subtitle}>You don’t need to earn rest.</Text>
+          <CitationMarker researchSectionId="shame-and-self-compassion" />
+        </View>
       </View>
     </Screen>
   );

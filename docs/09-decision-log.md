@@ -1401,3 +1401,13 @@ Final batch of a "going to sleep" handoff covering several checked-or-build item
 `tsc --noEmit` and `vitest run` (62/62) both pass. **Not verified on-device.**
 
 **hold-book**: no update — this implements the already-confirmed merge/scope instruction using hold-book's own already-published crisis-resource research; no new product decision made.
+
+## 2026-08-31 — Transition screens Parts B/C/D confirmed already complete; one real citation gap found and closed
+
+**Investigated before assuming outstanding, per instruction.** Parts B (stable Research section ids + `?section=` deep-linking) and D (real shame-vs-guilt/Shame Resilience Theory/self-compassion content) were both already fully built earlier this same session — confirmed directly: `ResearchContent.tsx` already has individually addressable `id`s, `scrollRef`/`anchorSectionId` scroll-to-section, and a `shame-and-self-compassion` section citing Tangney et al., Brown's Shame Resilience Theory (2006), and Neff's Self-Compassion Break (2003; Neff & Germer, 2013) — genuinely researched content, not placeholder.
+
+**Part C had one real, findable gap.** That `shame-and-self-compassion` section's own body text says "Hold's Transition screen draws on" it — but no `CitationMarker` anywhere in the app actually pointed to it; `create/done.tsx` and `return/transition.tsx` each had exactly one marker, to different sections. Checked every other section for the same self-referencing pattern (grepped for "Hold's... screen") — this was the only one, not a systemic gap. Added a second `CitationMarker` to `create/done.tsx`'s third line ("You don't need to earn rest") — the most directly guilt-adjacent line on that screen, and previously uncited entirely.
+
+`tsc --noEmit` and `vitest run` (62/62) both pass. **Not verified on-device.**
+
+**hold-book**: no update — closes a gap in an already-confirmed spec, not a new decision.
