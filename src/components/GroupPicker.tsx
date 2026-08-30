@@ -86,6 +86,18 @@ interface GroupPickerProps {
    */
   showNewCircleOnboardingHint?: boolean;
   onDismissNewCircleOnboardingHint?: () => void;
+  /**
+   * "Adjust" mode (owned by the parent screen — a plain bold-on-tap toggle,
+   * no dedicated UI here) — non-Core dropdown arrows only render while this
+   * is on, generalising Core's own always-locked rule to every Circle:
+   * membership shouldn't be one accidental tap away mid-flow, it takes a
+   * deliberate mode switch first. "+ New Circle" is unaffected either way —
+   * creating a Circle was never gated by this. Core's own first-run hint
+   * (showCoreOnboardingHint) is independent of Adjust entirely — it's a
+   * separate, one-shot exception that doesn't need Adjust on to appear. See
+   * docs/09-decision-log.md, 2026-08-30.
+   */
+  adjustMode?: boolean;
 }
 
 /**
@@ -113,7 +125,8 @@ export function GroupPicker({
   onCoreOnboardingAdd,
   onDismissCoreOnboardingHint,
   showNewCircleOnboardingHint = false,
-  onDismissNewCircleOnboardingHint
+  onDismissNewCircleOnboardingHint,
+  adjustMode = false
 }: GroupPickerProps) {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -294,10 +307,13 @@ export function GroupPicker({
                     confirmed 2026-08-30) — every session after the first
                     one, this reverts to the unconditional lock: Core should
                     always be messaged, with no in-the-moment choice to
-                    exclude it while unwell. Stays fully editable in Manage
-                    Circles regardless. See docs/09-decision-log.md,
-                    2026-08-29. */}
-                {!group.isCloseCircle ? (
+                    exclude it while unwell. Every OTHER Circle's own arrow
+                    is now gated the same way behind "Adjust" (adjustMode,
+                    2026-08-30) — off by default each session, so membership
+                    isn't one accidental tap away mid-flow. Stays fully
+                    editable in Manage Circles regardless of Adjust's state.
+                    See docs/09-decision-log.md, 2026-08-29. */}
+                {!group.isCloseCircle && adjustMode ? (
                   <DropdownArrowBadge
                     expanded={isExpanded}
                     checked={sentLook}

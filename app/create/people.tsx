@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { router, useFocusEffect } from "expo-router";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
@@ -20,7 +20,6 @@ import { useSafeguardingCheck } from "@/hooks/useSafeguardingCheck";
 import { HOLD_INTENTS } from "@/constants/copy";
 import {
   HAS_SEEN_CORE_ONBOARDING_HINT_KEY,
-  HAS_SEEN_EXCLUDED_LINE_NOTE_KEY,
   HAS_SEEN_NEW_CIRCLE_ONBOARDING_HINT_KEY
 } from "@/constants/storageKeys";
 import { theme, type ThemeColors } from "@/constants/theme";
@@ -45,7 +44,7 @@ import { copyToClipboard } from "@/services/clipboardService";
 import { channelKey, sendToCircles } from "@/services/smsService";
 import { getDefaultSendingChannel } from "@/services/sendingPreferencesService";
 import { pickContact } from "@/services/contactPickerService";
-import { addContactToGroup, CLOSE_CIRCLE_ID, getGroup, getGroups, initialsPlaceholderName } from "@/services/circleService";
+import { addContactToGroup, CLOSE_CIRCLE_ID, getGroup, getGroups } from "@/services/circleService";
 import {
   getCircleTemplate,
   getCombinationTemplate,
@@ -63,24 +62,6 @@ type ActiveField = "new-circle" | "group-message" | "wider-world-status";
 const DEFAULT_STATUS_LINE = "Taking some quiet time. Back soon.";
 
 /**
- * "P & A" for two people, "P, A & J" for three or more, a bare initial for
- * one — the auto-generated placeholder name for a bundled ad-hoc Circle
- * (2026-08-13, replaces the earlier generic "New Circle"/"New Circle N").
- * This is now the Circle's real, final name unless the person changes it
- * later — polished and specific from the start, not a numbered stand-in.
- * See docs/09-decision-log.md.
- */
-interface RemovedPerson {
-  contactId: string;
-  name: string;
-  phoneNumber: string;
-  originalCircleId: string;
-  originalCircleName: string;
-  /** Already bundled into at least one provisional Circle — stays true once set; re-adding to a further bundle doesn't clear it. */
-  claimed: boolean;
-}
-
-/**
  * Queue-based Going Quiet (2026-08-11 redesign — supersedes the
  * generalised-All-only version from earlier today). A person picks their
  * Circles for the session from the full chip row; that becomes a
@@ -91,9 +72,13 @@ interface RemovedPerson {
  * being typed float to the front of the row. Once every queued Circle has
  * been sent to at least once, the flow completes automatically; "Done" is
  * a manual early exit only, gated the same as before (unreachable until at
- * least one send). Personalise is Reconnect-only now — Going Quiet replaces
- * it with an ad-hoc "spin removed people into a new Circle" mechanic. See
- * docs/09-decision-log.md, 2026-08-11.
+ * least one send). Personalise is Reconnect-only — Going Quiet has no
+ * equivalent; untapping someone here just excludes them from the current
+ * send (see the excluded line below), with no bundling/re-circling
+ * mechanic of its own. Creating a Circle for them happens only through the
+ * ordinary "+ New Circle" flow, same as any other Circle (2026-08-30 —
+ * removes the earlier ad-hoc bundling mechanic entirely, see
+ * docs/09-decision-log.md).
  */
 export default function HoldPeopleScreen() {
   const {
@@ -104,7 +89,6 @@ export default function HoldPeopleScreen() {
     updateSelectedGroup,
     goingQuietRecipients,
     toggleRecipientIncluded,
-    splitRecipientsIntoNewCircle,
     recipientCircleOverrides
   } = useHoldFlow();
   const { colors } = useAppTheme("normal");
@@ -118,6 +102,13 @@ export default function HoldPeopleScreen() {
   const [showCoreOnboardingHint, setShowCoreOnboardingHint] = useState(false);
   /** Second, sequential first-run coach-mark, pointing at "+ New Circle" — only ever considered once Core's own hint above is done. See docs/09-decision-log.md, 2026-08-30. */
   const [showNewCircleOnboardingHint, setShowNewCircleOnboardingHint] = useState(false);
+  /**
+   * "Adjust" — off by default every session (never persisted), a plain
+   * bold-on-tap toggle gating every non-Core Circle's own dropdown arrow
+   * (see GroupPicker's own adjustMode comment). "+ New Circle" is
+   * unaffected either way. See docs/09-decision-log.md, 2026-08-30.
+   */
+  const [adjustMode, setAdjustMode] = useState(false);
 
   // Every Circle id ever selected this session — grows, never shrinks
   // (deselecting a Circle for the current message doesn't drop it from the
@@ -153,12 +144,6 @@ export default function HoldPeopleScreen() {
   // Which one Circle's member dropdown is open, if any — single value, only
   // one at a time (2026-08-11).
   const [expandedCircleId, setExpandedCircleId] = useState<string | null>(null);
-
-  // Screen-level roster of everyone removed from any Circle's dropdown this
-  // session — replaces Going Quiet's own Personalise integration
-  // (2026-08-11). See docs/09-decision-log.md.
-  const [removedPeople, setRemovedPeople] = useState<RemovedPerson[]>([]);
-  const [bundleSelectedIds, setBundleSelectedIds] = useState<Set<string>>(new Set());
 
   const [oooExpanded, setOooExpanded] = useState(false);
   const [newCircleName, setNewCircleName] = useState("");
@@ -466,13 +451,11 @@ export default function HoldPeopleScreen() {
    * "So it's clear at a glance who's no longer included for this flow"
    * (2026-08-20) — scoped to currently-selected Circles only, merged into
    * one line regardless of which one is expanded, since a message can span
-   * several selected Circles at once. Deliberately separate from
-   * `removedPeople` (the persistent, unscoped roster the "+" bundle action
-   * reads from below) — that one stays exactly as it was, still reachable
-   * regardless of selection, since its own job (re-bundling anyone,
-   * eventually) is different from this line's job (at-a-glance visibility
-   * for the current send). Both read from the same underlying exclusion,
-   * just scoped differently. See docs/09-decision-log.md.
+   * several selected Circles at once. Purely a passive display list — no
+   * bundling/re-circling mechanic reads from it any more (removed
+   * 2026-08-30, see docs/09-decision-log.md): giving someone here their own
+   * Circle happens only through the ordinary "+ New Circle" flow, with no
+   * connection back to this line at all.
    */
   const excludedFromSelected = goingQuietRecipients.filter(
     (recipient) => !recipient.included && selectedGroups.some((group) => group.id === recipient.circleId)
@@ -614,44 +597,6 @@ export default function HoldPeopleScreen() {
     setJustSentSaved(true);
   };
 
-  /** Excludes a recipient from the current group message and moves them into the screen-level removed-people roster. See docs/09-decision-log.md, 2026-08-11. */
-  /** First-use explainer for the excluded-line/temporary-Circle pattern — same gated-Alert shape as PersonaliseAccordion's own retention-note explainer, not assumed self-evident on first encounter. See docs/09-decision-log.md, 2026-08-20. */
-  const showExcludedLineExplainerOnce = () => {
-    void (async () => {
-      const hasSeen = await AsyncStorage.getItem(HAS_SEEN_EXCLUDED_LINE_NOTE_KEY);
-      if (hasSeen) return;
-
-      await AsyncStorage.setItem(HAS_SEEN_EXCLUDED_LINE_NOTE_KEY, "true");
-      Alert.alert(
-        "Excluded for now",
-        "Anyone you untap shows up here, greyed once they're settled into their own Circle. Tap the \"+\" to give one or more of them their own Circle whenever you're ready — untapping never sends anything on its own."
-      );
-    })();
-  };
-
-  const handleRemoveRecipient = (contactId: string, group: CircleGroup) => {
-    const recipient = goingQuietRecipients.find((r) => r.contactId === contactId);
-    if (!recipient) return;
-
-    showExcludedLineExplainerOnce();
-    toggleRecipientIncluded(contactId, message);
-    setRemovedPeople((current) =>
-      current.some((person) => person.contactId === contactId)
-        ? current
-        : [
-            ...current,
-            {
-              contactId,
-              name: recipient.name,
-              phoneNumber: recipient.phoneNumber,
-              originalCircleId: group.id,
-              originalCircleName: group.name,
-              claimed: false
-            }
-          ]
-    );
-  };
-
   /** "+ Add person" inside a Circle's own dropdown — reuses the same contact-picker + storage call Settings' Manage Circles already uses. See docs/09-decision-log.md, 2026-08-11. */
   const handleAddPerson = async (group: CircleGroup) => {
     const picked = await pickContact();
@@ -661,67 +606,6 @@ export default function HoldPeopleScreen() {
     const refreshed = await getGroup(group.id);
     if (refreshed) updateSelectedGroup(refreshed);
     await refreshGroups();
-  };
-
-  const toggleBundleSelected = (contactId: string) => {
-    setBundleSelectedIds((current) => {
-      const next = new Set(current);
-      if (next.has(contactId)) {
-        next.delete(contactId);
-      } else {
-        next.add(contactId);
-      }
-      return next;
-    });
-  };
-
-  /**
-   * "+" beneath the removed-people roster — bundles either the specifically
-   * selected people, or (nobody selected) every currently-unclaimed
-   * (forest-green) person, into one new provisional Circle. Re-adding an
-   * already-claimed (sage) person doesn't cancel their existing message —
-   * confirmed as deliberate — though the existing phone-number dedupe in
-   * mergeGoingQuietRecipients means a person can only ever be actively
-   * attributed to ONE Circle at a time for send purposes; see the flagged
-   * note in this pass's decision-log entry for the real limitation this
-   * creates. See docs/09-decision-log.md, 2026-08-11.
-   */
-  const bundleIntoNewCircle = async () => {
-    const targets =
-      bundleSelectedIds.size > 0
-        ? removedPeople.filter((person) => bundleSelectedIds.has(person.contactId))
-        : removedPeople.filter((person) => !person.claimed);
-    if (targets.length === 0) return;
-
-    const placeholderName = initialsPlaceholderName(targets);
-    const tempId = `${PENDING_CIRCLE_ID_PREFIX}${Date.now()}`;
-    const newGroup: CircleGroup = {
-      id: tempId,
-      name: placeholderName,
-      isCloseCircle: false,
-      contacts: targets.map((person) => ({ id: person.contactId, name: person.name, phoneNumber: person.phoneNumber }))
-    };
-
-    const nextGroups = [...selectedGroups, newGroup];
-
-    // Matched by phone number, not just the explicitly-targeted contactIds
-    // — a contact can be in more than one Circle, each membership its own
-    // contactId, so bundling "Sasha from Book Club" must also reconcile
-    // "Sasha from Core" if that's the same real person, not leave a second,
-    // stale record still showing them excluded. Single source of truth per
-    // person: excluded, or covered by a circle, never both, never drifting.
-    // See docs/09-decision-log.md, 2026-08-29.
-    const targetPhoneNumbers = new Set(targets.map((person) => person.phoneNumber));
-    const targetIds = goingQuietRecipients
-      .filter((recipient) => targetPhoneNumbers.has(recipient.phoneNumber))
-      .map((recipient) => recipient.contactId);
-
-    splitRecipientsIntoNewCircle(targetIds, newGroup);
-    setRemovedPeople((current) =>
-      current.map((person) => (targetPhoneNumbers.has(person.phoneNumber) ? { ...person, claimed: true } : person))
-    );
-    setBundleSelectedIds(new Set());
-    await loadMessageForSelection(nextGroups, message);
   };
 
   /**
@@ -947,6 +831,22 @@ export default function HoldPeopleScreen() {
     >
       <StepHeader title="Who needs to know?" />
 
+      {/* Bold-on-tap, no persistence — resets to off every time this screen
+          is entered fresh, matching Core's own "no in-the-moment choice
+          while unwell" reasoning generalised to every Circle. See
+          GroupPicker's own adjustMode comment, docs/09-decision-log.md,
+          2026-08-30. */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ selected: adjustMode }}
+        accessibilityLabel={adjustMode ? "Adjust, on" : "Adjust"}
+        hitSlop={8}
+        onPress={() => setAdjustMode((current) => !current)}
+        style={styles.adjustToggle}
+      >
+        <Text style={[styles.adjustToggleText, adjustMode && styles.adjustToggleTextActive]}>Adjust</Text>
+      </Pressable>
+
       <GroupPicker
         selectedGroupIds={selectedGroups.map((group) => group.id)}
         onToggle={handleToggleGroup}
@@ -971,74 +871,20 @@ export default function HoldPeopleScreen() {
         onDismissCoreOnboardingHint={dismissCoreOnboardingHint}
         showNewCircleOnboardingHint={showNewCircleOnboardingHint}
         onDismissNewCircleOnboardingHint={dismissNewCircleOnboardingHint}
+        adjustMode={adjustMode}
       />
 
-      {/* Below the circle row, above the text box (2026-08-11 — the circle
-          row must always stay topmost). See docs/09-decision-log.md. */}
-      {removedPeople.length > 0 ? (
-        <View style={styles.removedRosterSection}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.removedRosterRow}>
-            {removedPeople.map((person, index) => (
-              <Pressable
-                key={person.contactId}
-                accessibilityRole="checkbox"
-                accessibilityLabel={`${person.name}${person.claimed ? ", already in their own Circle" : ""}`}
-                accessibilityState={{ checked: bundleSelectedIds.has(person.contactId) }}
-                hitSlop={6}
-                onPress={() => toggleBundleSelected(person.contactId)}
-              >
-                <Text
-                  style={[
-                    styles.removedName,
-                    person.claimed && styles.removedNameClaimed,
-                    bundleSelectedIds.has(person.contactId) && styles.removedNameSelected
-                  ]}
-                >
-                  {/* "✓" prefix, not just the muted colour, marks "claimed" —
-                      colour alone isn't a colour-blindness-safe distinction.
-                      Fixed alongside the new excluded line below, per the
-                      app's standing accessibility rule. See
-                      docs/09-decision-log.md, 2026-08-20. */}
-                  {person.claimed ? "✓ " : ""}
-                  {person.name}
-                  {index < removedPeople.length - 1 ? "," : ""}
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={
-              bundleSelectedIds.size > 0
-                ? `New circle from ${bundleSelectedIds.size} selected`
-                : "New circle from everyone unclaimed"
-            }
-            hitSlop={8}
-            onPress={() => void bundleIntoNewCircle()}
-            style={styles.removedBundleButton}
-          >
-            <Text style={styles.removedBundleButtonText}>+</Text>
-          </Pressable>
-        </View>
-      ) : null}
-
       {/* At-a-glance excluded-for-this-send line — scoped to currently
-          selected Circles only, merged into one line. Plain text only, no
-          chip/pill styling, no border, no background, not tappable —
-          purely a passive glance-list, per direct instruction (2026-08-29):
-          previously chip-styled, corrected here. "✓" still marks anyone
-          already claimed into a provisional Circle, since colour alone
-          isn't a colour-blindness-safe distinction — text prefix, not
-          fill, carries that signal now that there's no fill at all. See
-          docs/09-decision-log.md. */}
+          selected Circles only, merged into one line. 100% passive plain
+          text: no chip/pill styling, no border, no background, no tap
+          target, no bundling mechanic connected to it at all (removed
+          2026-08-30). Its only job is showing who isn't currently being
+          sent to — giving someone here their own Circle happens purely
+          through the ordinary "+ New Circle" flow, unrelated to this line.
+          See docs/09-decision-log.md. */}
       {excludedFromSelected.length > 0 ? (
         <Text style={styles.excludedLineText} accessibilityRole="text">
-          {excludedFromSelected
-            .map((recipient) => {
-              const claimed = removedPeople.find((person) => person.contactId === recipient.contactId)?.claimed ?? false;
-              return claimed ? `✓ ${recipient.name}` : recipient.name;
-            })
-            .join(", ")}
+          {excludedFromSelected.map((recipient) => recipient.name).join(", ")}
         </Text>
       ) : null}
 
@@ -1047,7 +893,7 @@ export default function HoldPeopleScreen() {
           <Text style={styles.sectionLabel}>{expandedGroup.name}</Text>
           <RecipientPersonalisation
             recipients={expandedGroupRecipients}
-            onToggleIncluded={(contactId) => handleRemoveRecipient(contactId, expandedGroup)}
+            onToggleIncluded={(contactId) => toggleRecipientIncluded(contactId, message)}
             onAddPerson={() => void handleAddPerson(expandedGroup)}
             readOnly={!isExpandedGroupSelected}
           />
@@ -1263,51 +1109,23 @@ function createStyles(colors: ThemeColors) {
     content: {
       gap: theme.spacing.lg
     },
-    removedRosterSection: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.sm
+    adjustToggle: {
+      alignSelf: "flex-end",
+      marginTop: -theme.spacing.md
     },
-    removedRosterRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.xs
+    adjustToggleText: {
+      color: colors.textMuted,
+      fontSize: 14,
+      fontWeight: "600"
+    },
+    adjustToggleTextActive: {
+      color: colors.text,
+      fontWeight: "800"
     },
     excludedLineText: {
       color: colors.textMuted,
       fontSize: 14,
       lineHeight: 20
-    },
-    removedName: {
-      color: colors.text,
-      fontSize: 16,
-      fontWeight: "600",
-      minHeight: 44,
-      textAlignVertical: "center",
-      paddingVertical: theme.spacing.xs
-    },
-    removedNameClaimed: {
-      color: colors.textMuted,
-      fontWeight: "500"
-    },
-    removedNameSelected: {
-      color: colors.primary,
-      textDecorationLine: "underline"
-    },
-    removedBundleButton: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      borderWidth: 1.5,
-      borderColor: colors.primary,
-      alignItems: "center",
-      justifyContent: "center"
-    },
-    removedBundleButtonText: {
-      color: colors.primary,
-      fontSize: 20,
-      fontWeight: "700",
-      lineHeight: 22
     },
     circleSection: {
       gap: theme.spacing.sm
