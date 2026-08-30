@@ -1,5 +1,96 @@
-import { deleteEmailOAuthToken, isEmailOAuthConfigured, linkEmailAccount, setRealAutoReply } from "@/services/emailOAuthService";
+import * as SecureStore from "expo-secure-store";
+import {
+  deleteEmailOAuthToken,
+  fetchLinkedEmailAddress,
+  getLinkedEmailAccountIds,
+  isEmailOAuthConfigured,
+  linkEmailAccount,
+  setRealAutoReply
+} from "@/services/emailOAuthService";
 import type { EmailAccount, EmailProvider } from "@/types/hold";
+
+const ACCOUNTS_KEY = "hold.widerWorld.emailAccounts";
+const MIGRATION_DONE_KEY = "hold.widerWorld.emailAccounts.migrated";
+
+async function writeAccounts(accounts: EmailAccount[]): Promise<void> {
+  await SecureStore.setItemAsync(ACCOUNTS_KEY, JSON.stringify(accounts));
+}
+
+/** Durable as of 2026-08-30 — configured once in Settings, not re-entered every Going Quiet session. Runs migrateLinkedEmailAccounts on first call in a given app lifetime isn't guaranteed here; call that explicitly at a stable point (Settings screen mount) instead, so its own report is visible rather than silent. */
+export async function getEmailAccounts(): Promise<EmailAccount[]> {
+  const raw = await SecureStore.getItemAsync(ACCOUNTS_KEY);
+  return raw ? (JSON.parse(raw) as EmailAccount[]) : [];
+}
+
+export async function addEmailAccount(account: EmailAccount): Promise<EmailAccount[]> {
+  const current = await getEmailAccounts();
+  const next = [...current, account];
+  await writeAccounts(next);
+  return next;
+}
+
+export async function updateEmailAccount(id: string, patch: Partial<EmailAccount>): Promise<EmailAccount[]> {
+  const current = await getEmailAccounts();
+  const next = current.map((account) => (account.id === id ? { ...account, ...patch } : account));
+  await writeAccounts(next);
+  return next;
+}
+
+export async function removeEmailAccount(id: string): Promise<EmailAccount[]> {
+  const current = await getEmailAccounts();
+  const next = current.filter((account) => account.id !== id);
+  await writeAccounts(next);
+  return next;
+}
+
+export interface EmailAccountMigrationResult {
+  /** Accounts found linked via a real OAuth token that had no durable record yet, now created. Empty whenever this has already run once, or nothing was ever really linked (the common case today — OAuth isn't configured, see emailOAuthService.ts). */
+  migratedAccounts: EmailAccount[];
+}
+
+/**
+ * One-time migration (2026-08-30): EmailAccount records used to be fully
+ * ephemeral, per-Going-Quiet-session local state — only the real OAuth
+ * token itself (emailOAuthService.ts's own token index) ever survived
+ * between sessions. This finds every account id that index knows about but
+ * this durable store doesn't, and creates a real record for each rather
+ * than treating a genuine, working connection as absent just because its
+ * old label/enabled state was never saved anywhere. Label defaults to the
+ * account's real email address (fetched live via the provider's own
+ * profile API) when that succeeds, or a generic "Gmail account"/"Outlook
+ * account" when it doesn't — never a reason to drop the connection itself.
+ * Idempotent and safe to call every time the Settings screen mounts: a
+ * MIGRATION_DONE flag means every subsequent call is a fast, empty no-op,
+ * not a repeated scan. See docs/09-decision-log.md.
+ */
+export async function migrateLinkedEmailAccounts(): Promise<EmailAccountMigrationResult> {
+  const alreadyMigrated = await SecureStore.getItemAsync(MIGRATION_DONE_KEY);
+  if (alreadyMigrated) return { migratedAccounts: [] };
+
+  const [linkedIds, existing] = await Promise.all([getLinkedEmailAccountIds(), getEmailAccounts()]);
+  const existingIds = new Set(existing.map((account) => account.id));
+  const missing = linkedIds.filter((entry) => !existingIds.has(entry.accountId));
+
+  const migratedAccounts: EmailAccount[] = await Promise.all(
+    missing.map(async ({ accountId, provider }) => {
+      const address = await fetchLinkedEmailAddress(accountId, provider);
+      return {
+        id: accountId,
+        label: address ?? (provider === "gmail" ? "Gmail account" : "Outlook account"),
+        provider,
+        enabled: true,
+        linkedAt: Date.now()
+      };
+    })
+  );
+
+  if (migratedAccounts.length > 0) {
+    await writeAccounts([...existing, ...migratedAccounts]);
+  }
+  await SecureStore.setItemAsync(MIGRATION_DONE_KEY, "true");
+
+  return { migratedAccounts };
+}
 
 export interface ConnectAccountResult {
   ok: boolean;
@@ -45,8 +136,16 @@ export async function connectEmailAccount(
   return { ok: true, linkedAt: Date.now() };
 }
 
-/** Real per-account provider API call for every enabled, linked account (EmailAccount.linkedAt set); manual-only accounts are silently skipped — there's no API to call for those, the person manages their own out-of-office by hand from the drafted text. */
-export async function activateOutOfOffice(accounts: EmailAccount[]): Promise<void> {
+/**
+ * Real per-account provider API call for every enabled, linked account
+ * (EmailAccount.linkedAt set); manual-only accounts are silently skipped —
+ * there's no API to call for those, the person manages their own
+ * out-of-office by hand from the drafted text. `message` is resolved by
+ * the caller, not read from the account record — as of 2026-08-30 an
+ * account has no message of its own, it uses whichever Context it's
+ * selected into.
+ */
+export async function activateOutOfOffice(accounts: (EmailAccount & { message: string })[]): Promise<void> {
   await Promise.all(
     accounts
       .filter((account) => account.enabled && account.linkedAt !== undefined)

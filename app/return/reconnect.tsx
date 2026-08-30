@@ -45,7 +45,10 @@ import {
 import { addContactToGroup, CLOSE_CIRCLE_ID, createGroup, getGroups, renameGroup } from "@/services/circleService";
 import { pickContact } from "@/services/contactPickerService";
 import { deactivateOutOfOffice } from "@/services/emailAccountService";
-import { getWiderWorldPlatforms } from "@/services/widerWorldSettingsService";
+import {
+  getSelectableWiderWorldPlatforms,
+  type SelectableWiderWorldPlatform
+} from "@/services/widerWorldContextService";
 import { channelKey, sendIndividual, sendToCircles } from "@/services/smsService";
 import { getDefaultSendingChannel } from "@/services/sendingPreferencesService";
 import {
@@ -55,7 +58,7 @@ import {
   saveReconnectCombinationTemplate
 } from "@/services/reconnectTemplateService";
 import { clearDraft, getDraft, saveDraft } from "@/services/messageDraftService";
-import type { AudienceCircle, CircleGroup, HoldPeriod, WiderWorldPlatform } from "@/types/hold";
+import type { AudienceCircle, CircleGroup, HoldPeriod } from "@/types/hold";
 
 const RECONNECT_DRAFT_KEY = "reconnect";
 // Reconnect's own default starting text — short and instant, not a fully
@@ -82,9 +85,16 @@ export default function ReconnectScreen() {
   const [emailOff, setEmailOff] = useState(false);
   const [statusCleared, setStatusCleared] = useState(false);
   /** Loaded once, independent of refresh()'s own period-reload cycle — these are global user settings, not period data. See docs/09-decision-log.md, 2026-08-21. */
-  const [widerWorldPlatforms, setWiderWorldPlatforms] = useState<WiderWorldPlatform[]>([]);
+  const [widerWorldPlatforms, setWiderWorldPlatforms] = useState<SelectableWiderWorldPlatform[]>([]);
   useEffect(() => {
-    void getWiderWorldPlatforms().then(setWiderWorldPlatforms);
+    // Reads the same selectable pool (presets + custom + linked email
+    // accounts) Going Quiet's own unified platform row now reads from
+    // (2026-08-30) — was the old flat WiderWorldPlatform list, which no
+    // longer overlaps with the ids Going Quiet actually marks. This keeps
+    // name resolution below correct without rebuilding this screen's own
+    // checklist UI into the full unified row this pass — that's flagged,
+    // not done yet. See docs/09-decision-log.md.
+    void getSelectableWiderWorldPlatforms().then(setWiderWorldPlatforms);
   }, []);
   /** A memory note's text, staged for a one-shot highlighted insert into the docked bar — see DockedInputBar's own pendingInsert prop. Corrected 2026-08-21: used to feed AI-amend's initialPrompt instead, which silently made stale note text an unreviewed AI input rather than clearly-marked inserted content. */
   const [pendingMemoryInsert, setPendingMemoryInsert] = useState<string | undefined>(undefined);

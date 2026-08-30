@@ -13,8 +13,8 @@ import { SecondaryButton } from "@/components/SecondaryButton";
 import { CompactSendButton } from "@/components/CompactSendButton";
 import { DockedInputBar } from "@/components/DockedInputBar";
 import { DockedFieldPreview } from "@/components/DockedFieldPreview";
-import { EmailOutOfOffice } from "@/components/EmailOutOfOffice";
 import { WiderWorldStatus } from "@/components/WiderWorldStatus";
+import { WiderWorldPlatformRow } from "@/components/WiderWorldPlatformRow";
 import { SafeguardingBanner } from "@/components/SafeguardingBanner";
 import { useSafeguardingCheck } from "@/hooks/useSafeguardingCheck";
 import { HOLD_INTENTS } from "@/constants/copy";
@@ -31,9 +31,12 @@ import {
   startHoldPeriod,
   syncAudience
 } from "@/services/holdHistoryService";
-import { activateOutOfOffice } from "@/services/emailAccountService";
-import { getWiderWorldPlatforms } from "@/services/widerWorldSettingsService";
-import { getWiderWorldContexts } from "@/services/widerWorldContextService";
+import { activateOutOfOffice, deactivateOutOfOffice, getEmailAccounts } from "@/services/emailAccountService";
+import {
+  getUnionOfSelectedWiderWorldPlatforms,
+  getWiderWorldContexts,
+  type SelectableWiderWorldPlatform
+} from "@/services/widerWorldContextService";
 import { copyToClipboard } from "@/services/clipboardService";
 import { channelKey, sendToCircles } from "@/services/smsService";
 import { getDefaultSendingChannel } from "@/services/sendingPreferencesService";
@@ -46,28 +49,13 @@ import {
   saveCircleTemplate,
   saveCombinationTemplate
 } from "@/services/templateService";
-import type {
-  CircleGroup,
-  EmailAccount,
-  GoingQuietRecipient,
-  HoldIntent,
-  HoldPeriod,
-  WiderWorldPlatform
-} from "@/types/hold";
+import type { CircleGroup, EmailAccount, GoingQuietRecipient, HoldIntent, HoldPeriod } from "@/types/hold";
 
 const SUGGESTED_CIRCLES = ["Friends", "Work", "Book Club"];
 
 /** Every distinct docked-bar field on this screen, keyed by a string tag so exactly one DockedInputBar can serve all of them. */
-type ActiveField =
-  | "new-circle"
-  | "group-message"
-  | "ooo-shared"
-  | `ooo-account-message:${string}`
-  | `ooo-account-label:${string}`
-  | "wider-world-status";
+type ActiveField = "new-circle" | "group-message" | "wider-world-status";
 
-const DEFAULT_OOO_MESSAGE =
-  "I’m currently away and will respond when I’m back. Thank you for understanding.";
 const DEFAULT_STATUS_LINE = "Taking some quiet time. Back soon.";
 
 /**
@@ -171,24 +159,25 @@ export default function HoldPeopleScreen() {
   // which one, if any, currently owns it. See docs/09-decision-log.md, 2026-08-10.
   const [activeField, setActiveField] = useState<ActiveField | null>(null);
 
-  // ON by default here, deliberately opposite Reconnect's own OOO handling
-  // (which never has its own enable toggle at all — see docs/09-decision-log.md,
-  // 2026-08-21) — going quiet is the moment out-of-office is most likely wanted.
-  const [emailEnabled, setEmailEnabled] = useState(true);
+  // Durable as of 2026-08-30 (was ephemeral, re-entered every session) —
+  // configured once in Settings → Your Wider World, same pattern as social
+  // platform Contexts. No per-account enable toggle here any more: the
+  // unified platform row below (markedPlatformIds) is itself the
+  // selection, matching how social platforms already worked before this.
   const [emailAccounts, setEmailAccounts] = useState<EmailAccount[]>([]);
-  const [useSameEmailMessage, setUseSameEmailMessage] = useState(true);
-  const [sharedEmailMessage, setSharedEmailMessage] = useState(DEFAULT_OOO_MESSAGE);
   const [widerWorldEnabled, setWiderWorldEnabled] = useState(false);
   const [widerWorldText, setWiderWorldText] = useState(DEFAULT_STATUS_LINE);
   /**
-   * "Where did you post this?" — revealed once Status is actually copied
-   * (not the moment the toggle turns on), since there's nothing to ask
-   * about before that. Local, revisable state until Done, same pattern as
-   * emailEnabled/widerWorldEnabled above — committed via
-   * recordPostSendChoices. See docs/09-decision-log.md, 2026-08-21.
+   * The union of every platform (social or linked email account) selected
+   * across any Wider World Context, deduplicated — there's still no
+   * "which Context applies to this send" step anywhere (interim, flagged
+   * explicitly, see getUnionOfSelectedWiderWorldPlatforms' own comment),
+   * so every Context is treated as a parallel candidate. Revealed once
+   * Status is actually copied (not the moment the free-text box's toggle
+   * turns on), since there's nothing to ask about before that.
    */
-  const [widerWorldPlatforms, setWiderWorldPlatforms] = useState<WiderWorldPlatform[]>([]);
-  const [widerWorldPostedTo, setWiderWorldPostedTo] = useState<Set<string>>(new Set());
+  const [unifiedPlatforms, setUnifiedPlatforms] = useState<SelectableWiderWorldPlatform[]>([]);
+  const [markedPlatformIds, setMarkedPlatformIds] = useState<Set<string>>(new Set());
   const [showWiderWorldPostedTo, setShowWiderWorldPostedTo] = useState(false);
   /**
    * Settings-authored per-context Wider World messages, offered on the
@@ -200,13 +189,55 @@ export default function HoldPeopleScreen() {
    */
   const [widerWorldContextMessages, setWiderWorldContextMessages] = useState<string[]>([]);
 
-  const toggleWiderWorldPostedTo = (platformId: string) => {
-    setWiderWorldPostedTo((current) => {
+  /**
+   * Toggling a social-platform pill is a plain self-report (Hold has no
+   * way to verify a real post) — toggling an email pill actually calls the
+   * account's real out-of-office API immediately, since Hold genuinely can
+   * do that one automatically. Message resolved from whichever Context has
+   * this account selected with non-empty text first (same union-based
+   * interim rule as the row itself) — a real per-send Context picker would
+   * remove this ambiguity, but doesn't exist yet. See docs/09-decision-log.md,
+   * 2026-08-30.
+   */
+  const toggleMarkedPlatform = async (platform: SelectableWiderWorldPlatform) => {
+    const nowMarked = !markedPlatformIds.has(platform.id);
+    setMarkedPlatformIds((current) => {
       const next = new Set(current);
-      if (next.has(platformId)) next.delete(platformId);
-      else next.add(platformId);
+      if (next.has(platform.id)) next.delete(platform.id);
+      else next.add(platform.id);
       return next;
     });
+
+    if (platform.kind !== "email") return;
+
+    const account = emailAccounts.find((candidate) => candidate.id === platform.id);
+    if (!account) return;
+
+    if (!nowMarked) {
+      await deactivateOutOfOffice([{ id: account.id, provider: account.provider }]);
+      return;
+    }
+
+    const contexts = await getWiderWorldContexts();
+    const owningContext = contexts.find(
+      (context) => context.selectedPlatformIds.includes(platform.id) && context.message.trim()
+    );
+    const message = owningContext?.message.trim() ?? "";
+
+    await activateOutOfOffice([{ ...account, enabled: true, message }]);
+  };
+
+  /** "All" — marks every currently-visible platform not already marked, one toggleMarkedPlatform call each so email activation stays correct per account. */
+  const markAllPlatforms = () => {
+    for (const platform of unifiedPlatforms) {
+      if (!markedPlatformIds.has(platform.id)) void toggleMarkedPlatform(platform);
+    }
+  };
+
+  /** New custom platform from the row's own "+" — added to the shared pool already; this just marks it in the current session, same as any other platform tap. */
+  const addAndMarkCustomPlatform = (platform: SelectableWiderWorldPlatform) => {
+    setUnifiedPlatforms((current) => [...current, platform]);
+    void toggleMarkedPlatform(platform);
   };
 
   const refreshPeriod = useCallback(async () => {
@@ -217,8 +248,12 @@ export default function HoldPeopleScreen() {
     setAllGroups(await getGroups());
   }, []);
 
-  const refreshWiderWorldPlatforms = useCallback(async () => {
-    setWiderWorldPlatforms(await getWiderWorldPlatforms());
+  const refreshUnifiedPlatforms = useCallback(async () => {
+    setUnifiedPlatforms(await getUnionOfSelectedWiderWorldPlatforms());
+  }, []);
+
+  const refreshEmailAccounts = useCallback(async () => {
+    setEmailAccounts(await getEmailAccounts());
   }, []);
 
   const refreshWiderWorldContextMessages = useCallback(async () => {
@@ -230,9 +265,10 @@ export default function HoldPeopleScreen() {
     useCallback(() => {
       void refreshPeriod();
       void refreshGroups();
-      void refreshWiderWorldPlatforms();
+      void refreshUnifiedPlatforms();
+      void refreshEmailAccounts();
       void refreshWiderWorldContextMessages();
-    }, [refreshPeriod, refreshGroups, refreshWiderWorldPlatforms, refreshWiderWorldContextMessages])
+    }, [refreshPeriod, refreshGroups, refreshUnifiedPlatforms, refreshEmailAccounts, refreshWiderWorldContextMessages])
   );
 
   // The queue only ever grows — every Circle id ever selected joins it and
@@ -373,24 +409,9 @@ export default function HoldPeopleScreen() {
     (recipient) => !recipient.included && selectedGroups.some((group) => group.id === recipient.circleId)
   );
 
-  const activeOooAccountMessageId = activeField?.startsWith("ooo-account-message:")
-    ? activeField.slice("ooo-account-message:".length)
-    : null;
-  const activeOooAccountLabelId = activeField?.startsWith("ooo-account-label:")
-    ? activeField.slice("ooo-account-label:".length)
-    : null;
-  const activeOooAccount = activeOooAccountMessageId
-    ? emailAccounts.find((a) => a.id === activeOooAccountMessageId)
-    : activeOooAccountLabelId
-      ? emailAccounts.find((a) => a.id === activeOooAccountLabelId)
-      : undefined;
-
   const activeFieldValue = (): string => {
     if (activeField === "new-circle") return newCircleName;
     if (activeField === "group-message") return message;
-    if (activeField === "ooo-shared") return sharedEmailMessage;
-    if (activeOooAccountMessageId) return activeOooAccount?.message ?? "";
-    if (activeOooAccountLabelId) return activeOooAccount?.label ?? "";
     if (activeField === "wider-world-status") return widerWorldText;
     return "";
   };
@@ -400,16 +421,6 @@ export default function HoldPeopleScreen() {
       setNewCircleName(text);
     } else if (activeField === "group-message") {
       setMessage(text);
-    } else if (activeField === "ooo-shared") {
-      setSharedEmailMessage(text);
-    } else if (activeOooAccountMessageId) {
-      setEmailAccounts((current) =>
-        current.map((a) => (a.id === activeOooAccountMessageId ? { ...a, message: text } : a))
-      );
-    } else if (activeOooAccountLabelId) {
-      setEmailAccounts((current) =>
-        current.map((a) => (a.id === activeOooAccountLabelId ? { ...a, label: text } : a))
-      );
     } else if (activeField === "wider-world-status") {
       setWiderWorldText(text);
     }
@@ -418,9 +429,6 @@ export default function HoldPeopleScreen() {
   const activeFieldLabel = (): string => {
     if (activeField === "new-circle") return "New Circle name";
     if (activeField === "group-message") return `Message to ${joinedGroupNames}`;
-    if (activeField === "ooo-shared") return "Out-of-office message";
-    if (activeOooAccountMessageId) return `Message for ${activeOooAccount?.label ?? "account"}`;
-    if (activeOooAccountLabelId) return "Account label";
     if (activeField === "wider-world-status") return "Wider-world status line";
     return "Message";
   };
@@ -536,9 +544,6 @@ export default function HoldPeopleScreen() {
     await saveCircleTemplate(circleId, justSentText);
     setJustSentSaved(true);
   };
-
-  const resolvedEmailMessageFor = (account: EmailAccount) =>
-    (useSameEmailMessage ? sharedEmailMessage : account.message).trim();
 
   /** Excludes a recipient from the current group message and moves them into the screen-level removed-people roster. See docs/09-decision-log.md, 2026-08-11. */
   /** First-use explainer for the excluded-line/temporary-Circle pattern — same gated-Alert shape as PersonaliseAccordion's own retention-note explainer, not assumed self-evident on first encounter. See docs/09-decision-log.md, 2026-08-20. */
@@ -775,13 +780,8 @@ export default function HoldPeopleScreen() {
   };
 
   const finish = async () => {
-    if (emailEnabled) {
-      const enabledAccounts = emailAccounts
-        .filter((account) => account.enabled)
-        .map((account) => ({ ...account, message: resolvedEmailMessageFor(account) }));
-      await activateOutOfOffice(enabledAccounts);
-    }
-
+    // Real out-of-office activation now happens per-account, immediately,
+    // on tap — see toggleMarkedPlatform above — not batched here at Done.
     if (widerWorldEnabled && widerWorldText.trim()) {
       await copyToClipboard(widerWorldText.trim());
     }
@@ -797,13 +797,18 @@ export default function HoldPeopleScreen() {
       audienceCircles: buildAudienceCircles(Array.from(queuedGroups.values()), recipientCircleOverrides, excludedContactIds)
     });
 
+    const markedEmailAccounts = emailAccounts.filter(
+      (account) => markedPlatformIds.has(account.id) && account.linkedAt !== undefined
+    );
+    const markedSocialPlatformIds = unifiedPlatforms
+      .filter((platform) => platform.kind !== "email" && markedPlatformIds.has(platform.id))
+      .map((platform) => platform.id);
+
     await recordPostSendChoices({
-      emailOutOfOfficeEnabled: emailEnabled,
-      emailLinkedAccounts: emailAccounts
-        .filter((account) => account.linkedAt !== undefined)
-        .map((account) => ({ id: account.id, provider: account.provider })),
-      widerWorldStatusEnabled: widerWorldEnabled,
-      widerWorldPostedPlatforms: Array.from(widerWorldPostedTo)
+      emailOutOfOfficeEnabled: markedEmailAccounts.length > 0,
+      emailLinkedAccounts: markedEmailAccounts.map((account) => ({ id: account.id, provider: account.provider })),
+      widerWorldStatusEnabled: widerWorldEnabled || markedSocialPlatformIds.length > 0,
+      widerWorldPostedPlatforms: markedSocialPlatformIds
     });
 
     router.replace("/create/done");
@@ -855,11 +860,9 @@ export default function HoldPeopleScreen() {
             aiAmend={
               activeField === "group-message"
                 ? { surface: "going-quiet", context: { intent: intent ?? undefined, recipientLabel: joinedGroupNames } }
-                : activeField === "ooo-shared" || activeOooAccountMessageId
-                  ? { surface: "email-ooo" }
-                  : activeField === "wider-world-status"
-                    ? { surface: "wider-world-status" }
-                    : undefined
+                : activeField === "wider-world-status"
+                  ? { surface: "wider-world-status" }
+                  : undefined
             }
             template={
               activeField === "group-message" && savedDefaultText !== null ? { text: savedDefaultText } : undefined
@@ -1135,19 +1138,6 @@ export default function HoldPeopleScreen() {
 
           {oooExpanded ? (
             <View style={styles.oooBody}>
-              <EmailOutOfOffice
-                enabled={emailEnabled}
-                onToggleEnabled={setEmailEnabled}
-                accounts={emailAccounts}
-                onAccountsChange={setEmailAccounts}
-                useSameMessage={useSameEmailMessage}
-                onToggleUseSameMessage={setUseSameEmailMessage}
-                sharedMessage={sharedEmailMessage}
-                onChangeSharedMessage={setSharedEmailMessage}
-                activeField={activeField}
-                onActivateField={(key) => setActiveField(key as ActiveField)}
-              />
-
               <WiderWorldStatus
                 enabled={widerWorldEnabled}
                 onToggleEnabled={setWiderWorldEnabled}
@@ -1159,41 +1149,23 @@ export default function HoldPeopleScreen() {
               />
 
               {/*
-               * "Where did you post this?" — revealed once Status is
-               * actually copied, not the moment its toggle turns on.
-               * Reconnect's own taken-down checklist reads exactly this
-               * selection back, so it only ever asks about platforms
-               * confirmed here, not the full configured list every time.
-               * Nothing shows if "Your Wider World" has no platforms
-               * configured yet, same "no built-in default list" rule the
-               * settings screen itself documents. See
-               * docs/09-decision-log.md, 2026-08-21.
+               * Unified platform row (social + linked email accounts),
+               * built 2026-08-30 — replaces the old separate
+               * EmailOutOfOffice account-list UI and the old flat-list-
+               * sourced "Where did you post this?" checklist. Revealed
+               * once Status is actually copied, not the moment its toggle
+               * turns on. Nothing shows if nothing's configured across any
+               * Wider World Context yet. See docs/09-decision-log.md.
                */}
-              {showWiderWorldPostedTo && widerWorldPlatforms.length > 0 ? (
-                <View style={styles.widerWorldPostedToBlock}>
-                  <Text style={styles.widerWorldPostedToLabel}>Where did you post this?</Text>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.chipRow}
-                  >
-                    {widerWorldPlatforms.map((platform) => (
-                      <AdaptiveCircleChip
-                        key={platform.id}
-                        label={platform.name}
-                        compact
-                        isSelected={widerWorldPostedTo.has(platform.id)}
-                        onPress={() => toggleWiderWorldPostedTo(platform.id)}
-                        accessibilityRole="checkbox"
-                        accessibilityLabel={
-                          widerWorldPostedTo.has(platform.id)
-                            ? `Posted to ${platform.name}. Tap to remove.`
-                            : `Not marked as posted to ${platform.name}. Tap to mark.`
-                        }
-                      />
-                    ))}
-                  </ScrollView>
-                </View>
+              {showWiderWorldPostedTo ? (
+                <WiderWorldPlatformRow
+                  label="Where did you post this? (email accounts activate their real out-of-office when marked)"
+                  platforms={unifiedPlatforms}
+                  markedIds={markedPlatformIds}
+                  onToggle={(platform) => void toggleMarkedPlatform(platform)}
+                  onAddCustom={addAndMarkCustomPlatform}
+                  onMarkAll={markAllPlatforms}
+                />
               ) : null}
             </View>
           ) : null}

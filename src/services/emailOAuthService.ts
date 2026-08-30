@@ -104,6 +104,54 @@ async function writeToken(accountId: string, token: StoredToken): Promise<void> 
   }
 }
 
+/**
+ * Every account id this device holds a real OAuth token for, with its
+ * provider — the token index is the only durable record of a real link
+ * that predates the 2026-08-30 migration to durable EmailAccountRecord
+ * storage (see emailAccountService.ts's migrateLinkedEmailAccounts).
+ * Deliberately returns id+provider only, never the token itself.
+ */
+export async function getLinkedEmailAccountIds(): Promise<{ accountId: string; provider: EmailProvider }[]> {
+  const ids = await readTokenIndex();
+  const tokens = await Promise.all(ids.map((id) => readToken(id)));
+  return ids
+    .map((accountId, index) => ({ accountId, provider: tokens[index]?.provider }))
+    .filter((entry): entry is { accountId: string; provider: EmailProvider } => entry.provider !== undefined);
+}
+
+/**
+ * Best-effort real email address for a linked account, used purely as a
+ * sensible default label when migrating a pre-2026-08-30 linked account
+ * that never had a durable label stored anywhere. Returns null on any
+ * failure (expired/unrefreshable token, network error, unexpected
+ * response shape) — the caller falls back to a generic provider-name
+ * label rather than treating this as fatal.
+ */
+export async function fetchLinkedEmailAddress(accountId: string, provider: EmailProvider): Promise<string | null> {
+  const accessToken = await getValidAccessToken(accountId);
+  if (!accessToken) return null;
+
+  try {
+    if (provider === "gmail") {
+      const response = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/profile", {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+      if (!response.ok) return null;
+      const body = (await response.json()) as { emailAddress?: string };
+      return body.emailAddress ?? null;
+    }
+
+    const response = await fetch("https://graph.microsoft.com/v1.0/me", {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    if (!response.ok) return null;
+    const body = (await response.json()) as { mail?: string; userPrincipalName?: string };
+    return body.mail ?? body.userPrincipalName ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** Part of "Delete my data", and cleanup when a person cancels the label step right after a real link succeeded. */
 export async function deleteEmailOAuthToken(accountId: string): Promise<void> {
   await SecureStore.deleteItemAsync(tokenKey(accountId));

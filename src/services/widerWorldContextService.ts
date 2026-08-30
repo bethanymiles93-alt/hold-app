@@ -1,5 +1,6 @@
 import * as SecureStore from "expo-secure-store";
 import { WIDER_WORLD_PRESET_PLATFORMS, findWiderWorldPreset, type WiderWorldPresetPlatform } from "@/constants/widerWorldPresets";
+import { getEmailAccounts } from "@/services/emailAccountService";
 import type { WiderWorldContext, WiderWorldCustomPlatform, WiderWorldExpiryReminderOptIn } from "@/types/hold";
 
 const CONTEXTS_KEY = "hold.widerWorld.contexts";
@@ -132,16 +133,43 @@ export interface SelectableWiderWorldPlatform {
   icon?: WiderWorldPresetPlatform["icon"];
   expiresAfterHours?: number;
   characterLimit?: number;
-  isCustom: boolean;
+  /** Replaces the old isCustom boolean (2026-08-30) now that a third kind exists — linked email accounts, folded into this same pool so they behave exactly like a platform pill in-flow (select into a Context, share that Context's one message). */
+  kind: "preset" | "custom" | "email";
 }
 
-/** Presets first (fixed, alphabetical), then custom platforms in the order they were added — the full pool every context's pill row selects from. */
+/**
+ * Presets first (fixed, alphabetical), then custom platforms in the order
+ * added, then enabled linked email accounts — the full pool every
+ * Context's pill row selects from, and what Going Quiet/Reconnect's inline
+ * checklist reads. A disabled email account (EmailAccount.enabled false)
+ * is excluded here entirely, same as it always was pre-migration.
+ */
 export async function getSelectableWiderWorldPlatforms(): Promise<SelectableWiderWorldPlatform[]> {
-  const custom = await getCustomWiderWorldPlatforms();
+  const [custom, emailAccounts] = await Promise.all([getCustomWiderWorldPlatforms(), getEmailAccounts()]);
   return [
-    ...WIDER_WORLD_PRESET_PLATFORMS.map((preset) => ({ ...preset, isCustom: false })),
-    ...custom.map((platform) => ({ ...platform, isCustom: true }))
+    ...WIDER_WORLD_PRESET_PLATFORMS.map((preset) => ({ ...preset, kind: "preset" as const })),
+    ...custom.map((platform) => ({ ...platform, kind: "custom" as const })),
+    ...emailAccounts
+      .filter((account) => account.enabled)
+      .map((account) => ({ id: account.id, name: account.label, kind: "email" as const }))
   ];
+}
+
+/**
+ * The flat, deduplicated set of platforms selected across every Context,
+ * for the inline Going Quiet/Reconnect checklist — there's no "which
+ * Context applies to this send" step anywhere, so this treats every
+ * Context as a parallel candidate, same logic already used for offering
+ * every Context's message as an insertable pill. Order follows
+ * getSelectableWiderWorldPlatforms' own (presets, then custom, in the
+ * order added), not selection order, so the row doesn't reshuffle based
+ * on which Context happened to select a platform first. See
+ * docs/09-decision-log.md, 2026-08-30.
+ */
+export async function getUnionOfSelectedWiderWorldPlatforms(): Promise<SelectableWiderWorldPlatform[]> {
+  const [contexts, selectable] = await Promise.all([getWiderWorldContexts(), getSelectableWiderWorldPlatforms()]);
+  const selectedIds = new Set(contexts.flatMap((context) => context.selectedPlatformIds));
+  return selectable.filter((platform) => selectedIds.has(platform.id));
 }
 
 export function findSelectableWiderWorldPlatformName(

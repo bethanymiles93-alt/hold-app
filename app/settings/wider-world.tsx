@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useState } from "react";
-import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Alert, Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
@@ -22,7 +22,23 @@ import {
   setWiderWorldContextSentAt,
   setWiderWorldExpiryReminderOptIn
 } from "@/services/widerWorldContextService";
-import type { WiderWorldContext, WiderWorldCustomPlatform, WiderWorldExpiryReminderOptIn } from "@/types/hold";
+import {
+  addEmailAccount,
+  connectEmailAccount,
+  createEmailAccountId,
+  getEmailAccounts,
+  migrateLinkedEmailAccounts,
+  removeEmailAccount,
+  updateEmailAccount
+} from "@/services/emailAccountService";
+import { isEmailOAuthConfigured } from "@/services/emailOAuthService";
+import type {
+  EmailAccount,
+  EmailProvider,
+  WiderWorldContext,
+  WiderWorldCustomPlatform,
+  WiderWorldExpiryReminderOptIn
+} from "@/types/hold";
 
 type ActiveField = { kind: "message" | "label"; contextId: string } | { kind: "custom-platform"; contextId: string };
 
@@ -51,20 +67,36 @@ export default function WiderWorldSettingsScreen() {
   const [contexts, setContexts] = useState<WiderWorldContext[]>([]);
   const [customPlatforms, setCustomPlatforms] = useState<WiderWorldCustomPlatform[]>([]);
   const [expiryOptIns, setExpiryOptIns] = useState<WiderWorldExpiryReminderOptIn[]>([]);
+  const [emailAccounts, setEmailAccounts] = useState<EmailAccount[]>([]);
   const [activeField, setActiveField] = useState<ActiveField | null>(null);
   const [draftValue, setDraftValue] = useState("");
 
   useFocusEffect(
     useCallback(() => {
-      void Promise.all([getWiderWorldContexts(), getCustomWiderWorldPlatforms(), getWiderWorldExpiryReminderOptIns()]).then(
-        ([nextContexts, nextCustom, nextOptIns]) => {
-          setContexts(nextContexts);
-          setCustomPlatforms(nextCustom);
-          setExpiryOptIns(nextOptIns);
-        }
-      );
+      void Promise.all([
+        getWiderWorldContexts(),
+        getCustomWiderWorldPlatforms(),
+        getWiderWorldExpiryReminderOptIns(),
+        getEmailAccounts()
+      ]).then(([nextContexts, nextCustom, nextOptIns, nextEmailAccounts]) => {
+        setContexts(nextContexts);
+        setCustomPlatforms(nextCustom);
+        setExpiryOptIns(nextOptIns);
+        setEmailAccounts(nextEmailAccounts);
+      });
     }, [])
   );
+
+  // One-time, not on every focus (migrateLinkedEmailAccounts is itself
+  // idempotent via its own stored flag, but there's no reason to re-check
+  // every time this screen is revisited) — re-fetches the account list only
+  // if it actually found and migrated something.
+  useEffect(() => {
+    void migrateLinkedEmailAccounts().then((result) => {
+      if (result.migratedAccounts.length === 0) return;
+      void getEmailAccounts().then(setEmailAccounts);
+    });
+  }, []);
 
   const selectablePlatforms = useMemo(
     () => [
@@ -75,10 +107,85 @@ export default function WiderWorldSettingsScreen() {
         icon: undefined,
         expiresAfterHours: undefined,
         characterLimit: undefined
-      }))
+      })),
+      ...emailAccounts
+        .filter((account) => account.enabled)
+        .map((account) => ({
+          id: account.id,
+          name: account.label,
+          icon: undefined,
+          expiresAfterHours: undefined,
+          characterLimit: undefined
+        }))
     ],
-    [customPlatforms]
+    [customPlatforms, emailAccounts]
   );
+
+  const connectAccount = async (provider: EmailProvider, isWork: boolean) => {
+    const accountId = createEmailAccountId();
+    const result = await connectEmailAccount(provider, isWork, accountId);
+
+    if (!result.ok) {
+      if (result.reason === "work-blocked") {
+        Alert.alert(
+          "Can’t connect this account",
+          "Many workplaces block third-party apps from connecting to work email. Try adding a personal email instead."
+        );
+      }
+      return;
+    }
+
+    const defaultLabel = provider === "gmail" ? "Gmail" : "Outlook";
+    Alert.prompt(
+      "Label this account",
+      "e.g. Work, Personal",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Add",
+          onPress: async (label?: string) => {
+            const account: EmailAccount = {
+              id: accountId,
+              label: label?.trim() || defaultLabel,
+              provider,
+              enabled: true,
+              linkedAt: result.linkedAt
+            };
+            const next = await addEmailAccount(account);
+            setEmailAccounts(next);
+          }
+        }
+      ],
+      "plain-text",
+      defaultLabel
+    );
+  };
+
+  const chooseAccountType = (provider: EmailProvider) => {
+    Alert.alert("Account type", "Is this a personal or work account?", [
+      { text: "Personal", onPress: () => void connectAccount(provider, false) },
+      { text: "Work", onPress: () => void connectAccount(provider, true) },
+      { text: "Cancel", style: "cancel" }
+    ]);
+  };
+
+  const addAccount = () => {
+    Alert.alert("Add an email account", "Choose a provider", [
+      { text: "Gmail", onPress: () => chooseAccountType("gmail") },
+      { text: "Outlook", onPress: () => chooseAccountType("outlook") },
+      { text: "Cancel", style: "cancel" }
+    ]);
+  };
+
+  const toggleAccountEnabled = async (id: string, enabled: boolean) => {
+    const next = await updateEmailAccount(id, { enabled });
+    setEmailAccounts(next);
+  };
+
+  const removeAccount = async (id: string) => {
+    const next = await removeEmailAccount(id);
+    setEmailAccounts(next);
+  };
 
   const activateMessage = (context: WiderWorldContext) => {
     setActiveField({ kind: "message", contextId: context.id });
@@ -323,6 +430,54 @@ export default function WiderWorldSettingsScreen() {
           </View>
         );
       })}
+
+      {/*
+       * Linked email accounts — global, not per-Context, placed directly
+       * below where social platforms are configured (2026-08-30 migration
+       * to durable storage). Connecting an account here just makes it
+       * available; which Context(s) it applies to is chosen the same way
+       * as any social platform, via the pill row above. See
+       * docs/09-decision-log.md.
+       */}
+      <View style={styles.contextBlock}>
+        <Text style={styles.contextLabel}>Linked email accounts</Text>
+        <Text style={styles.guidance}>
+          {isEmailOAuthConfigured("gmail") || isEmailOAuthConfigured("outlook")
+            ? "Connect a Gmail or Outlook account to include it as an option above."
+            : "Real account connection isn’t set up on this build yet — connecting still saves a manual account you can select above."}
+        </Text>
+
+        {emailAccounts.length === 0 ? (
+          <Text style={styles.guidance}>No accounts connected yet.</Text>
+        ) : (
+          <View style={styles.pillWrap}>
+            {emailAccounts.map((account) => (
+              <View key={account.id} style={styles.emailAccountRow}>
+                <Text style={styles.emailAccountLabel}>{account.label}</Text>
+                <Switch
+                  accessibilityLabel={`Enable ${account.label}`}
+                  value={account.enabled}
+                  onValueChange={(value) => void toggleAccountEnabled(account.id, value)}
+                  trackColor={{ true: colors.primary, false: colors.border }}
+                />
+                <Pressable accessibilityRole="button" onPress={() => void removeAccount(account.id)} hitSlop={8}>
+                  <Ionicons name="close-circle-outline" size={18} color={colors.error} />
+                </Pressable>
+              </View>
+            ))}
+          </View>
+        )}
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Add an email account"
+          onPress={addAccount}
+          style={styles.addPlatformPill}
+        >
+          <Ionicons name="add" size={16} color={colors.primary} />
+          <Text style={styles.addPlatformText}>Add account</Text>
+        </Pressable>
+      </View>
     </Screen>
   );
 }
@@ -378,6 +533,21 @@ function createStyles(colors: ThemeColors) {
       color: colors.primary,
       fontSize: 14,
       fontWeight: "600"
+    },
+    emailAccountRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm,
+      paddingVertical: theme.spacing.xs,
+      paddingHorizontal: theme.spacing.sm,
+      borderRadius: theme.radius.sm,
+      backgroundColor: colors.surface
+    },
+    emailAccountLabel: {
+      flex: 1,
+      color: colors.text,
+      fontSize: 14,
+      fontWeight: "500"
     },
     expiryBlock: {
       gap: theme.spacing.xs,

@@ -252,11 +252,19 @@ export interface CircleGroup {
 
 export type EmailProvider = "gmail" | "outlook";
 
+/**
+ * Durable as of 2026-08-30 (was ephemeral, per-Going-Quiet-session local
+ * state before this) — configured once in "Your Wider World" settings,
+ * same pattern as social platform Contexts. No `message` field: an
+ * account's out-of-office text now comes from whichever Context it's
+ * selected into (via WiderWorldContext.selectedPlatformIds, alongside
+ * social platform ids), same shared per-Context message model, not a
+ * second, separate message per account. See docs/09-decision-log.md.
+ */
 export interface EmailAccount {
   id: string;
   label: string;
   provider: EmailProvider;
-  message: string;
   enabled: boolean;
   /**
    * Present once a real OAuth token exchange has succeeded for this
