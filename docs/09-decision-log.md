@@ -1164,3 +1164,17 @@ Going Quiet got the full unified platform row earlier tonight; Reconnect had onl
 `tsc --noEmit` and `vitest run` (63/63) both pass. **Not verified on-device** — the real per-account email deactivation-on-tap and the unified row's reorder/"All" behaviour on this screen specifically have not been exercised on a real device or simulator build.
 
 **hold-book**: no update — completes an already-confirmed spec (the unified row was explicitly scoped to "Going Quiet + Reconnect" earlier tonight), not a new decision.
+
+## 2026-08-30 — Conversations "Paste" button built, completing the second of two entry points scoped earlier tonight
+
+The first entry point (a real Share Extension) shipped earlier tonight; this is the second — for someone already inside Hold who's manually copied a message elsewhere, not switching in from the source app via the share sheet. Both were explicitly scoped as complementary, not alternatives.
+
+**`PersonaliseAccordion.tsx`'s "What they sent" field** (the exact site named directly, confirmed by the earlier research pass into Conversations' own structure) gets a Paste affordance next to its label, editable-state-only:
+- **iOS 16+**: the genuine native `ClipboardPasteButton` (`isPasteButtonAvailable` check first, per `expo-clipboard`'s own documented requirement — it renders nothing and warns in dev if rendered without checking) — a real `UIPasteControl`, no "Allow Paste" permission prompt at all, since a direct tap on it counts as explicit user intent.
+- **Everywhere else** (Android, pre-iOS-16): a plain button calling `getStringAsync()`, which does trigger the OS's own "Allow Paste" prompt, likely every time until Hold is set to Allow in the person's own Settings — still a real improvement over the full manual copy-switch-paste round trip.
+
+Both feed the exact same `changeFriendMessage`, so pasted text autosaves identically to manually typed text — no separate code path, no separate retention/expiry handling. `expo-clipboard` was already an installed dependency (confirmed before writing any code, not assumed) and has no config plugin of its own — no native rebuild required for this specific addition.
+
+`tsc --noEmit` and `vitest run` (63/63) both pass. **Not verified on-device** — the native `ClipboardPasteButton`'s actual rendering/behaviour (a real UIKit control, not a JS-only component) has not been exercised on a real device or simulator build.
+
+**hold-book**: no update — completes an already-confirmed spec from earlier tonight ("both ship in this pass — they serve different starting points"), not a new decision.

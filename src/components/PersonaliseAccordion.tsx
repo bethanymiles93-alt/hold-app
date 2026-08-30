@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ClipboardPasteButton, getStringAsync, isPasteButtonAvailable } from "expo-clipboard";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SecondaryButton } from "@/components/SecondaryButton";
 import { CompactSendButton } from "@/components/CompactSendButton";
@@ -173,6 +174,22 @@ export function PersonaliseAccordion({
     if (friendMessage.trim()) setFriendMessageEditing(false);
   };
 
+  /**
+   * Fallback path (Android, pre-iOS-16) for someone who's already inside
+   * Hold and has manually copied a message elsewhere — the genuine native
+   * ClipboardPasteButton is used instead wherever isPasteButtonAvailable
+   * is true (iOS 16+, no permission prompt at all). This path triggers the
+   * OS's own "Allow Paste" system prompt, likely every time until the
+   * person sets Hold to Allow in their own Settings — still a real
+   * improvement over the full manual copy-switch-paste round trip. See
+   * docs/09-decision-log.md, 2026-08-30.
+   */
+  const pasteFromClipboard = () => {
+    void getStringAsync().then((text) => {
+      if (text.trim()) changeFriendMessage(text);
+    });
+  };
+
   const changeDraft = (text: string) => {
     onChangeDraft(text);
     void persist(sentAt, { draftReply: text });
@@ -241,7 +258,25 @@ export function PersonaliseAccordion({
               : "This will be your first message to them."}
           </Text>
 
-          <Text style={styles.fieldLabel}>What they sent</Text>
+          <View style={styles.fieldLabelRow}>
+            <Text style={styles.fieldLabel}>What they sent</Text>
+            {friendMessageEditing ? (
+              isPasteButtonAvailable ? (
+                <ClipboardPasteButton
+                  acceptedContentTypes={["plain-text"]}
+                  displayMode="iconAndLabel"
+                  style={styles.pasteButton}
+                  onPress={(data) => {
+                    if (data.type === "text" && data.text.trim()) changeFriendMessage(data.text);
+                  }}
+                />
+              ) : (
+                <Pressable accessibilityRole="button" onPress={pasteFromClipboard}>
+                  <Text style={styles.linkText}>Paste</Text>
+                </Pressable>
+              )
+            ) : null}
+          </View>
           {friendMessageEditing ? (
             <TextInput
               accessibilityLabel="Message they sent"
@@ -335,6 +370,15 @@ function createStyles(colors: ThemeColors) {
       fontSize: 13,
       fontWeight: "600",
       marginTop: theme.spacing.xs
+    },
+    fieldLabelRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between"
+    },
+    pasteButton: {
+      height: 30,
+      width: 90
     },
     input: {
       minHeight: 60,
