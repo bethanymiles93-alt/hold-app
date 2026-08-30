@@ -111,16 +111,18 @@ export type ReconnectStep = "instant_message_sent" | "personalise_completed";
  * existing job: gate satisfaction) rather than replacing it — this map
  * adds the "how and when" dimension for Reconnect History.
  * - "sent": a real instant message went out — written by markReconnectContacted.
- * - "marked_no_send": "I've already told them" in Reconnect — satisfies
- *   the same completion gate as "sent", without an actual send.
  * - "marked_elsewhere": "Conversation complete" in Conversations, only
  *   ever attached while inside an active Continue-reconnecting session for
  *   this period (no lookup, no guessing — see markConversationComplete).
  * - "period_superseded": reserved for a future "restart Going Quiet
  *   mid-Taking-Time" feature — not written by anything yet.
- * See docs/09-decision-log.md, 2026-08-20.
+ * "marked_no_send" ("I've already told them," a Reconnect-only completion
+ * shortcut with no real send) was removed entirely 2026-08-30 — that
+ * information doesn't need to live inside Hold at all; anyone told
+ * separately can simply be added to the instant message or Conversations
+ * if and when relevant, same as anyone else. See docs/09-decision-log.md.
  */
-export type ReachedVia = "sent" | "marked_no_send" | "marked_elsewhere" | "period_superseded";
+export type ReachedVia = "sent" | "marked_elsewhere" | "period_superseded";
 
 export interface HoldPeriod {
   id: string;

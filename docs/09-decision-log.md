@@ -1260,3 +1260,17 @@ Resumes the circle-editing model spec (Core lock, Adjust toggle, plain-text excl
 `tsc --noEmit` and `vitest run` (63/63) both pass. **Not verified on-device** — needs a real check that: untapping someone still shows them in the plain excluded line with no leftover interactive affordance; the Adjust toggle actually reveals/hides non-Core arrows and visibly bolds on tap; Core's own arrow behaviour (locked, or the first-run hint) is unaffected by Adjust's state.
 
 **hold-book**: no update — implements the circle-editing model spec already confirmed and logged as a resolution earlier tonight; not a new decision.
+
+## 2026-08-30 — Circle-editing model, part 2: Reconnect's bundling and "already told" removed entirely
+
+Continues the circle-editing model spec. Reconnect had its own, separate bundling mechanic (mirroring Going Quiet's, now-removed one) plus a second feature, "I've already told them" — both explicitly ruled out by the same correction that resolved Going Quiet's excluded line: no dedicated bundling trigger, and "already told" isn't a feature Hold tracks at all any more. Anyone told separately can simply be added to the instant message or Conversations if and when relevant, same as anyone else — no separate status, no tap target, nothing tracked.
+
+**`app/return/reconnect.tsx`** — removed `bundleSelectedIds` state, `toggleReconnectBundleSelected`, `bundleExcludedIntoCircle`, and `markSinglePersonAlreadyTold`, plus their JSX: the excluded line was a horizontally-scrolling row of tappable, checkbox-styled `AdaptiveCircleChip`s each with its own small "already told" checkmark badge — replaced with a single plain `Text` line, comma-joined names, `accessibilityRole="text"`, matching Going Quiet's own excluded line exactly. The pinned "+" chip was dual-purpose (bundle marked people, or add a new person, switching based on `bundleSelectedIds`) — now single-purpose, always "add a new person," with no bundle branch at all.
+
+**`src/services/holdHistoryService.ts`** — `bundleIntoReconnectCircle` and `markReconnectCoveredWithoutSend` deleted outright, not just unwired: each had exactly one call site (the two removed handlers above), no other reader, so unlike the Going Quiet `HoldFlowContext` overrides plumbing flagged in the previous entry, these were safe to remove cleanly rather than leave inert.
+
+**`src/types/hold.ts`** — `"marked_no_send"` removed from the `ReachedVia` union; confirmed via grep that nothing besides `markReconnectCoveredWithoutSend` ever wrote or read it (no display/rendering logic branched on it), so the type narrows safely with no other call site to update.
+
+`tsc --noEmit` and `vitest run` (63/63) both pass. **Not verified on-device** — needs a real check that the excluded line reads as plain, non-interactive text, and that the "+" chip's add-person behaviour is unaffected by anyone currently excluded.
+
+**hold-book**: no update — implements the same already-confirmed circle-editing model spec as the previous entry.

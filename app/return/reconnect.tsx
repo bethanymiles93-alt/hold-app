@@ -24,13 +24,11 @@ import { combinationKey } from "@/services/templateService";
 import {
   addToReconnectingAudience,
   beginReconnecting,
-  bundleIntoReconnectCircle,
   getHoldPeriodById,
   getReconnectCoverage,
   getReconnectingPeriod,
   markEmailAccountTurnedOff,
   markReconnectContacted,
-  markReconnectCoveredWithoutSend,
   markWiderWorldTakenDown,
   recordReconnectStepReached,
   recordSendChannel,
@@ -188,8 +186,6 @@ export default function ReconnectScreen() {
   const [expandedCircleIds, setExpandedCircleIds] = useState<Set<string>>(new Set());
   const [includedPersonIds, setIncludedPersonIds] = useState<Set<string>>(new Set());
   const [pillLockedIds, setPillLockedIds] = useState<string[] | null>(null);
-  /** Marked-for-bundling on the excluded line, by phone number — mirrors Going Quiet's own bundleSelectedIds. See docs/09-decision-log.md, 2026-08-20. */
-  const [bundleSelectedIds, setBundleSelectedIds] = useState<Set<string>>(new Set());
 
   /**
    * Circles freshly made real from Going Quiet's ad-hoc bundling flow,
@@ -782,62 +778,18 @@ export default function ReconnectScreen() {
   };
 
   /**
-   * The passive excluded line (2026-08-20, corrects the earlier reversed
-   * "auto-spin into Circle-of-one on unselect" instruction) — everyone
-   * currently visible but not included, same underlying data `pillPeople`
-   * itself already carries, just filtered. Unselecting a pill above does
-   * nothing more than this on its own; bundling and "I've already told
-   * them" are both separate, available actions below, not a forced fork
-   * at unselect time. See docs/09-decision-log.md.
+   * The passive excluded line — everyone currently visible but not
+   * included, same underlying data `pillPeople` itself already carries,
+   * just filtered. 100% passive plain text (2026-08-30, removes bundling
+   * and "I've already told them" entirely — neither is a feature any
+   * more): giving someone here their own Circle happens purely through
+   * the ordinary "+ New Circle"/add-person flow, unrelated to this line;
+   * if someone's been told separately, they can simply be added to the
+   * instant message or Conversations if and when relevant, same as
+   * anyone else — no separate status, no tap target, nothing tracked.
+   * See docs/09-decision-log.md.
    */
   const excludedPillPeople = pillPeople.filter((person) => !includedPersonIds.has(person.id));
-
-  const toggleReconnectBundleSelected = (phoneNumber: string) => {
-    setBundleSelectedIds((current) => {
-      const next = new Set(current);
-      if (next.has(phoneNumber)) next.delete(phoneNumber);
-      else next.add(phoneNumber);
-      return next;
-    });
-  };
-
-  /**
-   * Bundles whatever's marked on the excluded line — no "everyone
-   * unclaimed" fallback (removed 2026-08-21, item 10): the shared "+"
-   * this now acts through only ever switches into bundle mode once
-   * something IS marked (see the pinned "+" chip above), so a no-marks
-   * fallback path could never actually run. Going Quiet's own bundle
-   * button keeps its own "selected, or everyone unclaimed" fallback —
-   * that one still has a dedicated "+" with no add-person duty to fall
-   * back to instead.
-   */
-  const bundleExcludedIntoCircle = () => {
-    void (async () => {
-      if (!period || bundleSelectedIds.size === 0) return;
-
-      await bundleIntoReconnectCircle(period.id, [...bundleSelectedIds]);
-      setBundleSelectedIds(new Set());
-      await refresh();
-    })();
-  };
-
-  /**
-   * "I've already told them" — Trigger 2, Reconnect-only, satisfies the
-   * completion gate without a send. **Per-entry, not row-wide** (corrected
-   * 2026-08-21 — a single button acting on "whatever's marked, or
-   * everyone unclaimed" read as one bulk action when the actual intent is
-   * almost always "this one person, specifically." Each excluded pill now
-   * carries its own small "already told" affordance beside it, acting on
-   * that person alone, no reliance on `bundleSelectedIds` at all). See
-   * markReconnectCoveredWithoutSend, docs/09-decision-log.md.
-   */
-  const markSinglePersonAlreadyTold = (phoneNumber: string) => {
-    void (async () => {
-      if (!period) return;
-      await markReconnectCoveredWithoutSend(period.id, phoneNumber);
-      await refresh();
-    })();
-  };
 
   // The real gate for whether there's anything to compose/send right now
   // — not coverage.complete on its own, since a fully-reached Circle's
@@ -1053,29 +1005,18 @@ export default function ReconnectScreen() {
               exactly (2026-08-13, app-wide convention, not
               Reconnect-specific). See docs/09-decision-log.md. */}
           <View style={styles.pinnedRow}>
-            {/*
-             * Dual-purpose "+" (corrected 2026-08-21, item 10 of an
-             * on-device bug pass): this is now the ONLY "+" the excluded
-             * line below acts through — that line no longer has a
-             * dedicated bundle button of its own. With something marked
-             * on the excluded line, this becomes "bundle the marked
-             * people"; otherwise it's unchanged, "add a new person to the
-             * audience." Never both at once — marking something for
-             * bundling takes over this chip until it's bundled or
-             * unmarked, mirroring how a selection takes over a toolbar
-             * button elsewhere. See docs/09-decision-log.md.
-             */}
+            {/* Adds a new person to the audience — single-purpose, no
+                bundling mechanic connected to it (removed 2026-08-30, see
+                the excluded line below). See docs/09-decision-log.md. */}
             <AdaptiveCircleChip
               label="+"
-              accessibilityLabel={
-                bundleSelectedIds.size > 0 ? `New circle from ${bundleSelectedIds.size} selected` : "Add person"
-              }
+              accessibilityLabel="Add person"
               accessibilityRole="button"
               outline
-              isSelected={bundleSelectedIds.size > 0}
+              isSelected={false}
               labelFontSize={28}
               labelBold
-              onPress={bundleSelectedIds.size > 0 ? bundleExcludedIntoCircle : addPersonToAudience}
+              onPress={addPersonToAudience}
             />
             <ScrollView
               horizontal
@@ -1194,56 +1135,17 @@ export default function ReconnectScreen() {
             />
           ) : null}
 
-          {/*
-           * Excluded line — repositioned above the pill row (corrected
-           * 2026-08-21, item 10 of an on-device bug pass): passive,
-           * at-a-glance visibility for who's not currently included, same
-           * underlying data as the pill row below just filtered. Tapping
-           * a pill marks it for bundling — the "+" pinned above (the same
-           * one that adds a new person) picks up marked people the
-           * moment there are any. "Already told them" is per-entry now,
-           * a small badge beside each pill, not a shared row-wide button
-           * — acts on that one person alone. See docs/09-decision-log.md.
-           */}
+          {/* Excluded line — 100% passive plain text, no chip/pill styling,
+              no tap target, no bundling or "already told" mechanic
+              connected to it at all (removed 2026-08-30). Its only job is
+              showing who isn't currently included — giving someone here
+              their own Circle happens purely through the ordinary "+"/add-
+              person flow above, unrelated to this line. See
+              docs/09-decision-log.md. */}
           {excludedPillPeople.length > 0 ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.chipRow}
-              style={styles.pillScroll}
-            >
-              {excludedPillPeople.map((person) => {
-                const hasSentThisSession = coverage.contactedIds.includes(person.id);
-                return (
-                  <View key={person.key} style={styles.excludedPersonUnit}>
-                    <AdaptiveCircleChip
-                      label={person.name}
-                      compact
-                      isSelected={bundleSelectedIds.has(person.id)}
-                      hasSentThisSession={hasSentThisSession}
-                      onPress={() => toggleReconnectBundleSelected(person.id)}
-                      accessibilityRole="checkbox"
-                      accessibilityLabel={
-                        hasSentThisSession
-                          ? `${person.name}, already covered without a message`
-                          : `${person.name}, excluded. Tap to mark for bundling into a new circle.`
-                      }
-                    />
-                    {hasSentThisSession ? null : (
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={`I've already told ${person.name}`}
-                        hitSlop={8}
-                        onPress={() => markSinglePersonAlreadyTold(person.id)}
-                        style={({ pressed }) => [styles.alreadyToldBadge, pressed && styles.alreadyToldPressed]}
-                      >
-                        <Text style={styles.alreadyToldGlyph}>✓</Text>
-                      </Pressable>
-                    )}
-                  </View>
-                );
-              })}
-            </ScrollView>
+            <Text style={styles.excludedLineText} accessibilityRole="text">
+              {excludedPillPeople.map((person) => person.name).join(", ")}
+            </Text>
           ) : null}
 
           {hasComposeTargets ? (
@@ -1545,30 +1447,10 @@ function createStyles(colors: ThemeColors) {
       alignItems: "center",
       gap: theme.spacing.sm
     },
-    // Chip + its own small "already told them" badge beside it, inline —
-    // not absolute-positioned like circleUnit/arrowButton below, since a
-    // compact pill (32pt) is too short for a bottom-right overlay to sit
-    // on cleanly the way it does on a full STANDARD_CHIP_DIAMETER circle.
-    excludedPersonUnit: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.xs
-    },
-    alreadyToldBadge: {
-      width: 22,
-      height: 22,
-      borderRadius: 11,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: "rgba(0, 0, 0, 0.12)"
-    },
-    alreadyToldGlyph: {
+    excludedLineText: {
       color: colors.textMuted,
-      fontSize: 13,
-      fontWeight: "700"
-    },
-    alreadyToldPressed: {
-      opacity: 0.6
+      fontSize: 14,
+      lineHeight: 20
     },
     chipGreyed: {
       opacity: 0.4
