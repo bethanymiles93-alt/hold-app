@@ -108,7 +108,14 @@ export function GroupPicker({
   }
 
   const refresh = useCallback(async () => {
-    setGroups(await getGroups());
+    const fetched = await getGroups();
+    // An empty Circle is hidden from this selectable list entirely — same
+    // logic as any empty suggested/starter circle (e.g. the pre-seeded
+    // Friends circle before it has its first contact) — except Core
+    // (Close), which always shows even empty, since it can't be deleted
+    // and needs a visible way to be populated in the first place. See
+    // docs/09-decision-log.md, 2026-08-30.
+    setGroups(fetched.filter((group) => group.isCloseCircle || group.contacts.length > 0));
   }, []);
 
   useFocusEffect(

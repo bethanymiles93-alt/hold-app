@@ -6,6 +6,11 @@ const GROUP_PREFIX = "hold.circle.group.";
 /** Exported so screens holding a frozen AudienceCircle snapshot (no isCloseCircle field of its own) can still identify Core by id — see the Core-lock rule, docs/09-decision-log.md, 2026-08-29. */
 export const CLOSE_CIRCLE_ID = "close-circle";
 const CLOSE_CIRCLE_NAME = "Close";
+/** Stable, well-known id so re-seeding logic (below) can find it deterministically, same reasoning as CLOSE_CIRCLE_ID. */
+const FRIENDS_CIRCLE_ID = "friends-circle";
+const FRIENDS_CIRCLE_NAME = "Friends";
+/** Seeded once per install, not on every getGroups() call — unlike Close (which can't be deleted and always exists), Friends is a normal, deletable circle; recreating it every time someone deliberately deleted it would be a real annoyance, not a helpful default. */
+const HAS_SEEDED_FRIENDS_KEY = "hold.circle.friendsSeeded";
 /**
  * Every pending (not-yet-real) Circle's id starts with this — moved here
  * from GroupPicker.tsx (2026-08-20, still re-exported there for existing
@@ -107,9 +112,40 @@ async function ensureCloseCircle(): Promise<CircleGroup> {
   return closeCircle;
 }
 
-/** Every saved group, Close Circle first. Creates Close Circle on first call. */
+/**
+ * Seeds an empty "Friends" starter circle the first time this device is
+ * ever asked for its groups — a normal (deletable, not Core-locked)
+ * circle, just pre-created rather than requiring the person to think of
+ * and name it themselves. Grounded in the original circle taxonomy
+ * (Core, Friends, Care, Community, Professional, Social) from the
+ * founding vision doc — a second, real starter alongside Close. Grouped
+ * under the "Core" heading for display purposes only (see coreGroups in
+ * settings/circle/index.tsx) — that's a visual clustering choice, not a
+ * Core-lock designation; Friends never gets the dropdown-arrow lock Close
+ * does. See docs/09-decision-log.md, 2026-08-30.
+ */
+async function ensureFriendsCircleSeeded(): Promise<void> {
+  const alreadySeeded = await SecureStore.getItemAsync(HAS_SEEDED_FRIENDS_KEY);
+  if (alreadySeeded) return;
+
+  await SecureStore.setItemAsync(HAS_SEEDED_FRIENDS_KEY, "true");
+
+  const existing = await readGroup(FRIENDS_CIRCLE_ID);
+  if (existing) return;
+
+  const friendsCircle: CircleGroup = {
+    id: FRIENDS_CIRCLE_ID,
+    name: FRIENDS_CIRCLE_NAME,
+    isCloseCircle: false,
+    contacts: []
+  };
+  await writeGroup(friendsCircle);
+}
+
+/** Every saved group, Close Circle first. Creates Close Circle (and, once per install, an empty Friends starter circle) on first call. */
 export async function getGroups(): Promise<CircleGroup[]> {
   const closeCircle = await ensureCloseCircle();
+  await ensureFriendsCircleSeeded();
   const ids = await readIndex();
   const others = await Promise.all(
     ids.filter((id) => id !== CLOSE_CIRCLE_ID).map((id) => readGroup(id))

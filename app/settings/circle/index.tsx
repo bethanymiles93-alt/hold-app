@@ -1,15 +1,15 @@
 import { useCallback, useLayoutEffect, useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
-import { router, useFocusEffect, useNavigation } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect, useNavigation } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
 import { PrimaryButton } from "@/components/PrimaryButton";
-import { SelectionCircle } from "@/components/SelectionCircle";
 import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
 import { DropdownArrowBadge } from "@/components/DropdownArrowBadge";
+import { CitationMarker } from "@/components/CitationMarker";
 import { DockedInputBar } from "@/components/DockedInputBar";
 import { DockedFieldPreview } from "@/components/DockedFieldPreview";
-import { HeaderAddButton } from "@/components/HeaderAddButton";
 import { HeaderSettingsButton } from "@/components/HeaderSettingsButton";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
@@ -114,6 +114,15 @@ export default function CircleIndexScreen() {
     });
   };
 
+  /** If anyone's currently marked for removal, "All" clears that (restores everyone) — otherwise it marks every existing member for removal. A plain toggle, mirroring toggleAllExpanded's own shape at the top of this screen. */
+  const toggleAllMembers = (group: CircleGroup) => {
+    setStagedExcludedByCircle((current) => {
+      const existing = current[group.id] ?? new Set<string>();
+      const next = existing.size > 0 ? new Set<string>() : new Set(group.contacts.map((contact) => contact.id));
+      return { ...current, [group.id]: next };
+    });
+  };
+
   const addMemberToStaged = async (circleId: string) => {
     const picked = await pickContact();
     if (!picked) return;
@@ -191,16 +200,12 @@ export default function CircleIndexScreen() {
     setCreatingStage("naming");
   };
 
-  // "+ New Circle" moves into the header bar itself, alongside the
-  // hamburger — Going Quiet's own GroupPicker keeps its pinned pill as-is;
-  // this is specific to Your Circles' header/title structure.
+  // "+ New Circle" moved out of the header (2026-08-30) — down onto the
+  // description row instead, next to "Create and amend your circles."
+  // The header now carries only the settings hamburger, same as most
+  // other screens.
   useLayoutEffect(() => {
-    const headerRightElement = () => (
-      <View style={styles.headerActions}>
-        <HeaderAddButton accessibilityLabel="New Circle" onPress={() => void startCreating()} />
-        <HeaderSettingsButton />
-      </View>
-    );
+    const headerRightElement = () => <HeaderSettingsButton />;
     navigation.setOptions({
       headerRight: headerRightElement,
       // See app/_layout.tsx: iOS 26 gives custom headerRight views a native
@@ -210,7 +215,7 @@ export default function CircleIndexScreen() {
         { type: "custom", element: headerRightElement(), hidesSharedBackground: true }
       ]
     });
-  }, [navigation, styles]);
+  }, [navigation]);
 
   const addAnotherNewCircleContact = async () => {
     const picked = await pickContact();
@@ -255,10 +260,15 @@ export default function CircleIndexScreen() {
 
   // Purely organisational/display grouping — does not merge Close and
   // Friends' data, membership, or templates. Close always exists
-  // (ensureCloseCircle), so this heading always has at least one Circle
-  // under it; Friends joins it only if the user has actually created one.
+  // (ensureCloseCircle); Friends is now also seeded automatically, once
+  // per install (ensureFriendsCircleSeeded, 2026-08-30) — this heading
+  // always has both under it unless Friends was later deleted.
   const coreGroups = groups.filter((group) => group.isCloseCircle || group.name === "Friends");
   const otherGroups = groups.filter((group) => !group.isCloseCircle && group.name !== "Friends");
+  // "All" (below) only makes sense with something to sweep across — counts
+  // every non-empty circle app-wide (Core included), not just otherGroups,
+  // since toggleAllExpanded itself acts on the full list.
+  const nonEmptyGroupCount = groups.filter((group) => group.contacts.length > 0).length;
 
   const renderPill = (group: CircleGroup) => {
     const selected = expandedIds.has(group.id);
@@ -296,7 +306,17 @@ export default function CircleIndexScreen() {
         ) : null
       }
     >
-      <StepHeader body="Create and amend your circles." />
+      <View style={styles.headerRow}>
+        <Text style={styles.headerBody}>Create and amend your circles.</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="New Circle"
+          onPress={() => void startCreating()}
+          style={styles.newCircleButton}
+        >
+          <Ionicons name="add" size={22} color={colors.onPrimary} />
+        </Pressable>
+      </View>
 
       {coreGroups.length > 0 ? (
         <View style={styles.coreSection}>
@@ -305,23 +325,21 @@ export default function CircleIndexScreen() {
             Your closest few, and the close friends around them, tend to form one connected group
             in how relationships naturally work.
           </Text>
-          <Pressable
-            accessibilityRole="link"
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            onPress={() => router.push({ pathname: "/(tabs)/library", params: { tab: "research" } })}
-          >
-            <Text style={styles.coreSectionSource}>Where this comes from</Text>
-          </Pressable>
+          <CitationMarker researchSectionId="why-core-groups-close-and-friends" />
           <View style={styles.corePillRow}>{coreGroups.map(renderPill)}</View>
         </View>
       ) : null}
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillRow}>
-        {groups.length > 0 ? (
+      {nonEmptyGroupCount >= 2 ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillRow}>
           <AdaptiveCircleChip label="All" isSelected={allExpanded} onPress={toggleAllExpanded} accessibilityRole="button" />
-        ) : null}
-        {otherGroups.map(renderPill)}
-      </ScrollView>
+          {otherGroups.map(renderPill)}
+        </ScrollView>
+      ) : otherGroups.length > 0 ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillRow}>
+          {otherGroups.map(renderPill)}
+        </ScrollView>
+      ) : null}
 
       {creatingStage === "naming" ? (
         <View style={styles.newCircle}>
@@ -398,19 +416,86 @@ export default function CircleIndexScreen() {
                 <Text style={styles.cardTitle}>{group.name}</Text>
 
                 {group.contacts.length === 0 && additions.length === 0 ? (
-                  <Text style={styles.empty}>No one added yet.</Text>
+                  <View style={styles.emptyCircleRow}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Add from Contacts"
+                      onPress={() => void addMemberToStaged(group.id)}
+                      style={styles.addPill}
+                    >
+                      <Ionicons name="add" size={18} color={colors.primary} />
+                    </Pressable>
+                    <Text style={styles.empty}>Add contacts here.</Text>
+                  </View>
                 ) : (
-                  <View style={styles.memberList}>
-                    {group.contacts.map((contact) => {
-                      const included = !excluded.has(contact.id);
-                      return (
-                        <View key={contact.id} style={styles.memberRow}>
-                          <SelectionCircle
-                            selected={included}
-                            onPress={() => toggleMember(group.id, contact.id)}
-                            accessibilityLabel={`${included ? "Included" : "Excluded"}: ${contact.name}`}
+                  <>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.memberPillRow}
+                    >
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Add from Contacts"
+                        onPress={() => void addMemberToStaged(group.id)}
+                        style={styles.addPill}
+                      >
+                        <Ionicons name="add" size={18} color={colors.primary} />
+                      </Pressable>
+                      {group.contacts.length >= 2 ? (
+                        <AdaptiveCircleChip
+                          label="All"
+                          compact
+                          isSelected={false}
+                          onPress={() => toggleAllMembers(group)}
+                          accessibilityRole="button"
+                        />
+                      ) : null}
+                      {group.contacts.map((contact) => {
+                        const included = !excluded.has(contact.id);
+                        return (
+                          <View key={contact.id} style={!included ? styles.memberPillDimmed : undefined}>
+                            <AdaptiveCircleChip
+                              label={contact.name}
+                              compact
+                              isSelected={false}
+                              onPress={() => toggleMember(group.id, contact.id)}
+                              accessibilityRole="checkbox"
+                              accessibilityLabel={
+                                included
+                                  ? `${contact.name}, included. Tap to mark for removal.`
+                                  : `${contact.name}, marked for removal. Tap to keep.`
+                              }
+                            />
+                          </View>
+                        );
+                      })}
+                      {additions.map((contact) => (
+                        <View key={contact.phoneNumber} style={styles.newPillUnit}>
+                          <AdaptiveCircleChip
+                            label={contact.name}
+                            compact
+                            isSelected
+                            onPress={() => removeStagedAddition(group.id, contact.phoneNumber)}
+                            accessibilityRole="checkbox"
+                            accessibilityLabel={`${contact.name}, new. Tap to remove before saving.`}
                           />
-                          <Text style={[styles.memberName, !included && styles.memberNameExcluded]}>
+                          <Text style={styles.newTag}>New</Text>
+                        </View>
+                      ))}
+                    </ScrollView>
+
+                    {/* Per-contact sending-channel preference — its own
+                        compact list, not on the pill itself (an avatar-style
+                        chip has no room for a second line of text). Existing
+                        members only; a still-staged addition has no
+                        persisted contact.id to key this against yet. */}
+                    <View style={styles.channelList}>
+                      {group.contacts.map((contact) => (
+                        <View key={contact.id} style={styles.channelRow}>
+                          <Text
+                            style={[styles.channelRowName, excluded.has(contact.id) && styles.memberNameExcluded]}
+                          >
                             {contact.name}
                           </Text>
                           <Pressable
@@ -424,25 +509,10 @@ export default function CircleIndexScreen() {
                             </Text>
                           </Pressable>
                         </View>
-                      );
-                    })}
-                    {additions.map((contact) => (
-                      <View key={contact.phoneNumber} style={styles.memberRow}>
-                        <SelectionCircle
-                          selected={true}
-                          onPress={() => removeStagedAddition(group.id, contact.phoneNumber)}
-                          accessibilityLabel={`Remove ${contact.name} before saving`}
-                        />
-                        <Text style={styles.memberName}>{contact.name}</Text>
-                        <Text style={styles.newTag}>New</Text>
-                      </View>
-                    ))}
-                  </View>
+                      ))}
+                    </View>
+                  </>
                 )}
-
-                <Pressable accessibilityRole="button" onPress={() => void addMemberToStaged(group.id)}>
-                  <Text style={styles.linkText}>Add from Contacts</Text>
-                </Pressable>
 
                 <View style={styles.sendAsGroupRow}>
                   <View style={styles.sendAsGroupText}>
@@ -484,9 +554,26 @@ function createStyles(colors: ThemeColors) {
   content: {
     gap: theme.spacing.lg
   },
-  headerActions: {
+  headerRow: {
     flexDirection: "row",
-    alignItems: "center"
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: theme.spacing.md,
+    marginBottom: theme.spacing.lg
+  },
+  headerBody: {
+    flex: 1,
+    color: colors.textMuted,
+    fontSize: 17,
+    lineHeight: 26
+  },
+  newCircleButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primary
   },
   pillRow: {
     flexDirection: "row",
@@ -519,15 +606,6 @@ function createStyles(colors: ThemeColors) {
     fontSize: 13,
     lineHeight: 18
   },
-  // Small and muted, deliberately not styled like a normal in-flow link or
-  // an academic footnote number — a quiet pointer to the reasoning behind
-  // the copy above, not a call to action.
-  coreSectionSource: {
-    color: colors.textMuted,
-    fontSize: 11,
-    fontStyle: "italic",
-    minHeight: 20
-  },
   corePillRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -557,16 +635,51 @@ function createStyles(colors: ThemeColors) {
   memberList: {
     gap: theme.spacing.xs
   },
-  memberRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.sm,
-    minHeight: 36
-  },
   memberName: {
     flex: 1,
     color: colors.text,
     fontSize: 16
+  },
+  emptyCircleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.sm
+  },
+  addPill: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  memberPillRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs
+  },
+  memberPillDimmed: {
+    opacity: 0.4
+  },
+  newPillUnit: {
+    alignItems: "center",
+    gap: 2
+  },
+  channelList: {
+    gap: theme.spacing.xs
+  },
+  channelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    minHeight: 32
+  },
+  channelRowName: {
+    flex: 1,
+    color: colors.text,
+    fontSize: 14
   },
   channelLabel: {
     color: colors.link,
