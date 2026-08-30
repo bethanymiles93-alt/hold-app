@@ -1387,3 +1387,17 @@ Final batch of a "going to sleep" handoff covering several checked-or-build item
 `tsc --noEmit` and `vitest run` (62/62) both pass. **Not verified on-device** — the Reduce Motion override specifically should be checked: toggle it on with the OS setting off, confirm animations actually go static.
 
 **hold-book**: no update — implements the already-confirmed 2026-08-12 spec; the app-wide-application gap is a genuine finding worth having on record here (where the technical reasoning lives) rather than restating in hold-book's own UX-spec doc.
+
+## 2026-08-31 — Settings drawer investigated first, then "Language & Location" built
+
+**Investigated before assuming anything outstanding, per instruction.** Direct read of `SettingsDrawer.tsx` found: "Research" is already a live row (`goToResearch`, reachable from Settings, not just Library) — matches the spec exactly, nothing to build. "Hold+" is already Settings-row-only with no persistent top-bar element — also matches, confirmed by the earlier absence of any top-bar Hold+ code found tonight. "Manage Circles" is the existing live "Your Circles" row. Only "Language & Location" was genuinely outstanding — "Language" was still a `ComingLaterRow` stub.
+
+**Built:** new `languageLocationService.ts` (language + region, own SecureStore keys — not wired into "Delete my data," same "app state, not content" reasoning as `displaySettingsService.ts`'s own exclusion), new `src/constants/crisisResources.ts` (the real "core six" region-keyed crisis-resource table from hold-book's own verified 2026-08-12 research — UK/Ireland/US/Canada/Australia/New Zealand, plus a generic "other" fallback rather than inventing unresearched numbers), new `app/settings/language-location.tsx` screen replacing the stub in the same drawer position (practical top group, not moved near Privacy/Terms — a safety-relevant setting, not legal boilerplate).
+
+**Language selection is stored only, not applied** — flagged the same honest way as text size/font choice: no translation system exists anywhere in this codebase, every screen's copy is English-only. Region IS genuinely functional — it drives the real crisis-resource list shown directly on the screen.
+
+**Confirmed, not assumed: no onboarding location/language step exists to share a preference with.** Hold-book's own `03-safeguarding.md` documents this as a *decided* onboarding confirmation step (App Store storefront country pre-fill, user-confirmed) — but it was never actually built (checked directly: no location/region logic anywhere in `welcome.tsx` or any service). This screen is currently the only source of truth; when that onboarding step is eventually built, it should read/write this exact preference, not a second one — noted in the screen's own top comment so it isn't missed later.
+
+`tsc --noEmit` and `vitest run` (62/62) both pass. **Not verified on-device.**
+
+**hold-book**: no update — this implements the already-confirmed merge/scope instruction using hold-book's own already-published crisis-resource research; no new product decision made.

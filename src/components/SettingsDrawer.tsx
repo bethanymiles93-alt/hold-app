@@ -140,6 +140,7 @@ export function SettingsDrawer() {
       | "/settings/privacy"
       | "/settings/hold-plus"
       | "/settings/manage-purchases"
+      | "/settings/language-location"
       | "/settings/circle"
       | "/settings/sending-channel"
       | "/settings/wider-world"
@@ -243,7 +244,7 @@ export function SettingsDrawer() {
             <NavRow label="Your Wider World" onPress={() => goTo("/settings/wider-world")} />
             <NavRow label="Accessibility & Display" onPress={() => goTo("/settings/accessibility-display")} />
             <ComingLaterRow label="Notifications" />
-            <ComingLaterRow label="Language" />
+            <NavRow label="Language & Location" onPress={() => goTo("/settings/language-location")} />
             <ComingLaterRow label="Connected Accounts" />
           </View>
 
