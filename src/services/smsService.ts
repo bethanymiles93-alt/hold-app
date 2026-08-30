@@ -1,4 +1,4 @@
-import { Linking } from "react-native";
+import { AppState, Linking } from "react-native";
 import * as SMS from "expo-sms";
 import { shareMessage } from "@/services/shareService";
 import type { SendingChannel } from "@/services/sendingPreferencesService";
@@ -49,47 +49,94 @@ export function channelKey(channel: SendChannel): string {
 }
 
 /**
- * Deep-links directly to one WhatsApp conversation, pre-filled — WhatsApp's
- * own scheme only ever addresses a single phone number, there's no way to
- * deep-link into a group (confirmed; see sendToCircles below for how a
- * "send as group" Circle handles this instead). Falls back to the native
- * share sheet if the scheme can't be opened (WhatsApp not installed, or —
- * on Android — the app hasn't granted this package-visibility query;
- * see docs/09-decision-log.md, 2026-08-13 for the native-config caveat).
- * Numbers are best-effort normalised (digits only, no leading "+") since
+ * Deep-links directly to one WhatsApp conversation, pre-filled, via
+ * WhatsApp's own "Click to Chat" web endpoint (https://wa.me/) rather than
+ * the whatsapp:// custom scheme used previously. wa.me only ever addresses
+ * a single phone number, there's no way to deep-link into a group
+ * (confirmed; see sendToCircles below for how a "send as group" Circle
+ * handles this instead).
+ *
+ * Switched from whatsapp://send (2026-08-29): a custom-scheme URL needs
+ * LSApplicationQueriesSchemes on iOS / a <queries> declaration on Android
+ * before Linking.canOpenURL will ever return true for it — neither was
+ * actually present in this app's native config, so the old path silently
+ * fell through to the share-sheet fallback on every device, never once
+ * opening WhatsApp directly. https:// needs no such whitelist entry; it
+ * always opens (WhatsApp itself, if installed and registered for the
+ * universal link, otherwise a browser landing page with its own
+ * "Continue to Chat" option), so there's no reliable "can this open"
+ * check left to make — canOpenURL is gone, not just unused.
+ *
+ * The number is best-effort normalised (digits only, no leading "+") since
  * contacts aren't guaranteed to be stored in international format — the
  * same ambiguity native SMS composition already has to live with.
  */
 export async function sendViaWhatsApp(phoneNumber: string, message: string): Promise<SendChannel> {
   const digitsOnly = phoneNumber.replace(/[^\d+]/g, "").replace(/^\+/, "");
-  const url = `whatsapp://send?phone=${digitsOnly}&text=${encodeURIComponent(message)}`;
-  const canOpen = await Linking.canOpenURL(url).catch(() => false);
+  const url = `https://wa.me/${digitsOnly}?text=${encodeURIComponent(message)}`;
 
-  if (!canOpen) {
+  try {
+    await Linking.openURL(url);
+    return { type: "whatsapp" };
+  } catch {
     const result = await shareMessage(message);
     return { type: "shared", activityType: result.activityType ?? null };
   }
+}
 
-  await Linking.openURL(url);
-  return { type: "whatsapp" };
+/**
+ * Resolves once the app has left the foreground and come back — used after
+ * opening a WhatsApp deep link, since Linking.openURL resolves the instant
+ * the app switch happens, not when the person's actually done in WhatsApp
+ * and returned. Without this, a sequential multi-recipient WhatsApp send
+ * would fire every deep link back-to-back in the same tick, and only the
+ * last one would ever actually surface. SMS and the share sheet don't need
+ * this — their own promises already resolve on the native compose
+ * sheet/share sheet being dismissed. See docs/09-decision-log.md, 2026-08-29.
+ */
+function waitForReturnFromExternalApp(): Promise<void> {
+  return new Promise((resolve) => {
+    let leftForeground = false;
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state !== "active") {
+        leftForeground = true;
+        return;
+      }
+      if (!leftForeground) return;
+      subscription.remove();
+      resolve();
+    });
+  });
 }
 
 /**
  * Individual/BCC-style delivery for one recipient, honouring the given
- * default channel — SMS (the existing sendOrShare) or a WhatsApp deep
- * link. Scoped deliberately to Going Quiet/Reconnect's per-Circle
- * individual delivery specifically (2026-08-13) — every other one-off
- * send in the app (Library's quick message, Taking Time's update,
- * Personalise replies, the safeguarding notify) stays on plain
- * sendOrShare/SMS, unaffected by this preference. See
- * docs/09-decision-log.md.
+ * channel — SMS (the existing sendOrShare) or a WhatsApp deep link. Scoped
+ * deliberately to Going Quiet/Reconnect's per-Circle individual delivery
+ * specifically (2026-08-13) — every other one-off send in the app
+ * (Library's quick message, Taking Time's update, Personalise replies, the
+ * safeguarding notify) stays on plain sendOrShare/SMS, unaffected by this
+ * preference. See docs/09-decision-log.md.
+ *
+ * `channel` is whatever the caller already resolved — a per-contact
+ * preferredChannel if that contact has one set, otherwise the global
+ * default. This function doesn't know or care which; see sendToCircles for
+ * where that fallback actually happens.
+ *
+ * Every sequential-send loop in this file calls through here, so the
+ * WhatsApp foreground-return wait (2026-08-29) lives in exactly one place
+ * rather than being duplicated at each call site.
  */
 export async function sendIndividual(
   phoneNumber: string,
   message: string,
   channel: SendingChannel
 ): Promise<SendChannel> {
-  return channel === "whatsapp" ? sendViaWhatsApp(phoneNumber, message) : sendOrShare([phoneNumber], message);
+  if (channel !== "whatsapp") return sendOrShare([phoneNumber], message);
+
+  const result = await sendViaWhatsApp(phoneNumber, message);
+  if (result.type === "whatsapp") await waitForReturnFromExternalApp();
+  return result;
 }
 
 /**
@@ -112,11 +159,17 @@ async function sendGroup(numbers: string[], message: string, channel: SendingCha
   return sendOrShare(numbers, message);
 }
 
+export interface CircleDeliveryContact {
+  phoneNumber: string;
+  /** This one person's own channel override, if they have one set in Manage Circles. Falls back to defaultChannel when unset. */
+  preferredChannel?: SendingChannel;
+}
+
 export interface CircleDeliveryTarget {
   circleId: string;
   /** Default false — see CircleGroup.sendAsGroup. */
   sendAsGroup: boolean;
-  numbers: string[];
+  contacts: CircleDeliveryContact[];
 }
 
 /**
@@ -135,6 +188,11 @@ export interface CircleDeliveryTarget {
  * for one "Send," not one. `defaultChannel` (2026-08-13) picks SMS vs
  * WhatsApp for both paths — see sendIndividual/sendGroup above for what
  * each one does per channel. See docs/09-decision-log.md, 2026-08-11.
+ *
+ * Per-contact `preferredChannel` (2026-08-29) only ever applies to
+ * individual delivery — a group send is one shared message through one
+ * channel, so there's no per-recipient choice left to honour once
+ * `sendAsGroup` is on; that path still uses `defaultChannel` only.
  */
 export async function sendToCircles(
   targets: CircleDeliveryTarget[],
@@ -144,11 +202,15 @@ export async function sendToCircles(
   const channelByCircle = new Map<string, SendChannel>();
 
   for (const target of targets) {
-    if (target.numbers.length === 0) continue;
+    if (target.contacts.length === 0) continue;
 
     if (target.sendAsGroup) {
       try {
-        const channel = await sendGroup(target.numbers, message, defaultChannel);
+        const channel = await sendGroup(
+          target.contacts.map((contact) => contact.phoneNumber),
+          message,
+          defaultChannel
+        );
         channelByCircle.set(target.circleId, channel);
       } catch {
         // Move on even if this compose sheet was dismissed.
@@ -157,9 +219,9 @@ export async function sendToCircles(
     }
 
     let lastChannel: SendChannel | null = null;
-    for (const number of target.numbers) {
+    for (const contact of target.contacts) {
       try {
-        lastChannel = await sendIndividual(number, message, defaultChannel);
+        lastChannel = await sendIndividual(contact.phoneNumber, message, contact.preferredChannel ?? defaultChannel);
       } catch {
         // Move on to the next recipient even if this compose sheet was dismissed.
       }

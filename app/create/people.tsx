@@ -715,15 +715,27 @@ export default function HoldPeopleScreen() {
       recipientsByCircle.set(recipient.circleId, list);
     }
 
+    // Matched by phone number, same principle as the reconciliation fix
+    // above — GoingQuietRecipient doesn't carry preferredChannel itself
+    // (it's rebuilt fresh from selectedGroups each render), so this looks
+    // it up from the live CircleContact records instead of duplicating the
+    // field onto a second, parallel recipient type.
+    const preferredChannelByPhone = new Map(
+      selectedGroups.flatMap((group) => group.contacts.map((contact) => [contact.phoneNumber, contact.preferredChannel] as const))
+    );
+
     const deliveryTargets = selectedGroups
       .map((group) => ({
         circleId: group.id,
         sendAsGroup: group.sendAsGroup ?? false,
-        numbers: (recipientsByCircle.get(group.id) ?? [])
+        contacts: (recipientsByCircle.get(group.id) ?? [])
           .filter((recipient) => recipient.included)
-          .map((recipient) => recipient.phoneNumber)
+          .map((recipient) => ({
+            phoneNumber: recipient.phoneNumber,
+            preferredChannel: preferredChannelByPhone.get(recipient.phoneNumber)
+          }))
       }))
-      .filter((target) => target.numbers.length > 0);
+      .filter((target) => target.contacts.length > 0);
 
     const defaultChannel = await getDefaultSendingChannel();
     const channelByCircle = await sendToCircles(deliveryTargets, text, defaultChannel);

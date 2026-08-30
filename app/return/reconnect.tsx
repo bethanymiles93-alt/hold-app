@@ -494,7 +494,10 @@ export default function ReconnectScreen() {
     const deliveryTargets = circles.map((circle) => ({
       circleId: circle.circleId,
       sendAsGroup: circle.sendAsGroup ?? false,
-      numbers: circle.contacts.map((contact) => contact.phoneNumber)
+      contacts: circle.contacts.map((contact) => ({
+        phoneNumber: contact.phoneNumber,
+        preferredChannel: contact.preferredChannel
+      }))
     }));
 
     const defaultChannel = await getDefaultSendingChannel();
@@ -505,7 +508,7 @@ export default function ReconnectScreen() {
 
     for (const contact of ungrouped) {
       try {
-        const channel = await sendIndividual(contact.phoneNumber, text, defaultChannel);
+        const channel = await sendIndividual(contact.phoneNumber, text, contact.preferredChannel ?? defaultChannel);
         await recordSendChannel(period.id, contact.phoneNumber, channelKey(channel));
       } catch {
         // Move on to the next recipient even if this compose sheet was dismissed.

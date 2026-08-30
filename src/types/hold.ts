@@ -18,6 +18,8 @@ export type ReturnStyle =
 export interface AudienceContact {
   name: string;
   phoneNumber: string;
+  /** Carried over from CircleContact.preferredChannel at the point the audience was built — same "frozen at send time" principle as AudienceCircle.sendAsGroup. See docs/09-decision-log.md, 2026-08-29. */
+  preferredChannel?: SendingChannel;
 }
 
 export interface AudienceCircle {
@@ -215,6 +217,8 @@ export interface CircleContact {
   id: string;
   name: string;
   phoneNumber: string;
+  /** Overrides the global default sending channel (Settings → Sending channel) for this one person. Unset falls back to the global default. Set from Manage Circles. See docs/09-decision-log.md, 2026-08-29. */
+  preferredChannel?: SendingChannel;
 }
 
 export interface CircleGroup {

@@ -191,7 +191,11 @@ export function buildAudienceCircles(
         // again by default next time. See docs/09-decision-log.md.
         return !excludedContactIds.has(contact.id);
       })
-      .map((contact) => ({ name: contact.name, phoneNumber: contact.phoneNumber })),
+      .map((contact) => ({
+        name: contact.name,
+        phoneNumber: contact.phoneNumber,
+        preferredChannel: contact.preferredChannel
+      })),
     sendAsGroup: group.sendAsGroup ?? false
   }));
 }

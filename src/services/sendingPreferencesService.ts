@@ -1,8 +1,9 @@
 import * as SecureStore from "expo-secure-store";
+import type { SendingChannel } from "@/types/hold";
 
 const DEFAULT_CHANNEL_KEY = "hold.sending.defaultChannel";
 
-export type SendingChannel = "sms" | "whatsapp";
+export type { SendingChannel };
 
 /** SMS is the standing default — unchanged behaviour for anyone who's never visited the setting. */
 export async function getDefaultSendingChannel(): Promise<SendingChannel> {

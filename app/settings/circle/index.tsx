@@ -20,9 +20,23 @@ import {
   deleteGroup,
   getGroups,
   removeContactFromGroup,
+  setContactPreferredChannel,
   setSendAsGroup
 } from "@/services/circleService";
-import type { CircleGroup } from "@/types/hold";
+import type { CircleGroup, SendingChannel } from "@/types/hold";
+
+const CHANNEL_LABELS: Record<"default" | SendingChannel, string> = {
+  default: "Default",
+  sms: "Text",
+  whatsapp: "WhatsApp"
+};
+
+/** Default → Text → WhatsApp → Default. Applies immediately, unlike the rest of this card's staged/"Update circle" changes — there's no meaningful "undo before saving" state for a preference this small. */
+function nextChannel(current: SendingChannel | undefined): SendingChannel | undefined {
+  if (current === undefined) return "sms";
+  if (current === "sms") return "whatsapp";
+  return undefined;
+}
 
 export default function CircleIndexScreen() {
   const navigation = useNavigation();
@@ -234,6 +248,11 @@ export default function CircleIndexScreen() {
     await refresh();
   };
 
+  const cycleContactChannel = async (groupId: string, contactId: string, current: SendingChannel | undefined) => {
+    await setContactPreferredChannel(groupId, contactId, nextChannel(current));
+    await refresh();
+  };
+
   // Purely organisational/display grouping — does not merge Close and
   // Friends' data, membership, or templates. Close always exists
   // (ensureCloseCircle), so this heading always has at least one Circle
@@ -394,6 +413,16 @@ export default function CircleIndexScreen() {
                           <Text style={[styles.memberName, !included && styles.memberNameExcluded]}>
                             {contact.name}
                           </Text>
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={`${contact.name}'s sending channel: ${CHANNEL_LABELS[contact.preferredChannel ?? "default"]}. Tap to change.`}
+                            onPress={() => void cycleContactChannel(group.id, contact.id, contact.preferredChannel)}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          >
+                            <Text style={styles.channelLabel}>
+                              {CHANNEL_LABELS[contact.preferredChannel ?? "default"]}
+                            </Text>
+                          </Pressable>
                         </View>
                       );
                     })}
@@ -535,8 +564,14 @@ function createStyles(colors: ThemeColors) {
     minHeight: 36
   },
   memberName: {
+    flex: 1,
     color: colors.text,
     fontSize: 16
+  },
+  channelLabel: {
+    color: colors.link,
+    fontSize: 13,
+    fontWeight: "600"
   },
   memberNameExcluded: {
     color: colors.textMuted,

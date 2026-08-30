@@ -1,5 +1,5 @@
 import * as SecureStore from "expo-secure-store";
-import type { CircleGroup } from "@/types/hold";
+import type { CircleGroup, SendingChannel } from "@/types/hold";
 
 const INDEX_KEY = "hold.circle.index";
 const GROUP_PREFIX = "hold.circle.group.";
@@ -199,6 +199,31 @@ export async function addContactToGroup(
       ...group.contacts,
       { id: createId(), name: contact.name, phoneNumber: contact.phoneNumber }
     ]
+  };
+
+  await writeGroup(updated);
+  return updated;
+}
+
+/**
+ * Sets or clears (via undefined) one contact's own channel override —
+ * Manage Circles' per-contact SMS/WhatsApp choice. Unset means the contact
+ * follows whatever's chosen in Settings → Sending channel, same as before
+ * this existed. See docs/09-decision-log.md, 2026-08-29.
+ */
+export async function setContactPreferredChannel(
+  groupId: string,
+  contactId: string,
+  channel: SendingChannel | undefined
+): Promise<CircleGroup | null> {
+  const group = await readGroup(groupId);
+  if (!group) return null;
+
+  const updated: CircleGroup = {
+    ...group,
+    contacts: group.contacts.map((contact) =>
+      contact.id === contactId ? { ...contact, preferredChannel: channel } : contact
+    )
   };
 
   await writeGroup(updated);
