@@ -1425,3 +1425,9 @@ Final batch of a "going to sleep" handoff covering several checked-or-build item
 `tsc --noEmit` and `vitest run` (62/62) both pass. **Not verified on-device.**
 
 **hold-book**: no update — implementation-level build against a spec given directly this pass, not a new product decision.
+
+## 2026-08-31 — WhatsApp per-contact channel preference: verified already complete
+
+Checked directly rather than assuming: `SendingChannel` type, `setContactPreferredChannel` (`circleService.ts`), Manage Circles' cycle-tap UI, `buildAudienceCircles` carrying `preferredChannel` through to the frozen audience, and `smsService.ts`'s actual send logic (per-contact override falling back to the global default, `wa.me` deep link, `waitForReturnFromExternalApp`) are all present and correctly wired end to end. Built earlier this session, no gap found — no code change needed.
+
+**hold-book**: no update — verification only.
