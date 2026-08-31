@@ -145,12 +145,34 @@ const PILL_HORIZONTAL_PADDING = theme.spacing.md;
  * State: two independent flags, not one. `isSelected` — part of the
  * current compose action. `hasSentThisSession` — already sent to this
  * session, independent of current selection. Priority, in order:
- * isSelected (ring + normal fill, regardless of hasSentThisSession) →
- * hasSentThisSession (softened/desaturated fill, no ring) → default fill.
- * This is what makes "reselect an already-sent chip, then deselect without
- * sending" correctly land back on the sent look rather than default —
- * hasSentThisSession is never touched by a selection toggle, only by an
- * actual send.
+ * isSelected → hasSentThisSession → default. This is what makes
+ * "reselect an already-sent chip, then deselect without sending" correctly
+ * land back on the sent look rather than default — hasSentThisSession is
+ * never touched by a selection toggle, only by an actual send.
+ *
+ * **Redesigned 2026-08-31 to a hollow/solid binary, for WCAG 1.4.11
+ * (non-text contrast) robustness.** The previous system distinguished
+ * "selected" from "default" mainly by adding a border ring on top of an
+ * otherwise-identical fill, and this component's own docblock (since
+ * corrected) described "sent" as a softened/desaturated fill — a
+ * saturation difference, not a luminance one. WCAG 1.4.11 is explicit
+ * that colour/saturation differences don't substitute for luminance
+ * contrast (a 3:1 floor for meaningful UI state indicators); two
+ * similarly-saturated fills can read as "obviously different" to typical
+ * vision while being unreliable for low vision, degenerative eyesight, or
+ * colour vision deficiency, regardless of whether today's specific shades
+ * happen to pass — saturation-based differentiation is fragile by
+ * construction, tied to getting exact shade values right, where a
+ * hollow-vs-solid change is robust regardless of the specific colours
+ * chosen. New system: **default and selected are both hollow** (no
+ * fill) — default has a thin neutral border, selected has the same
+ * border thickened and grows inward (RN's border box model keeps the
+ * outer diameter fixed, so nothing shifts position in a row). **Sent is
+ * the one and only solid-fill state** — reserved exclusively for "this
+ * happened," never used for mere selection, so the fill itself is
+ * unambiguous. No tick mark, no additional inset ring layered on top —
+ * the hollow-to-solid transition is the one differentiator, deliberately
+ * not stacked with a second cue. See docs/09-decision-log.md.
  *
  * Press feedback: a uniform opacity dim on every chip, applied here once
  * rather than patched per call site (a real gap in an earlier pass — the
@@ -317,8 +339,18 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 16,
       paddingHorizontal: theme.spacing.sm
     },
+    // Hollow by default, as of the 2026-08-31 redesign — no fill, a thin
+    // neutral border. Previously a solid colors.surfaceStrong fill with no
+    // border at all; changed so "selected" (below) reads as the SAME
+    // hollow shape with a thickened border, rather than needing its own
+    // separate fill to read as distinct. This is the most visible change
+    // in the redesign, since it's every chip's resting state — flagged
+    // for on-device confirmation specifically, not just the selected/sent
+    // states themselves.
     chipSecondary: {
-      backgroundColor: colors.surfaceStrong
+      backgroundColor: "transparent",
+      borderWidth: 1.5,
+      borderColor: colors.border
     },
     // Matches the prior hand-styled "+ New Circle" button's own treatment —
     // transparent fill, bordered, primary-tinted text.
@@ -339,7 +371,12 @@ function createStyles(colors: ThemeColors) {
     // regression, not a deliberate softened look, since this shared
     // component is what Going Quiet/Reconnect/Taking Time's update all
     // render sent chips through. See docs/09-decision-log.md, 2026-08-12
-    // and 2026-08-21.
+    // and 2026-08-21. Already satisfies the 2026-08-31 hollow/solid
+    // redesign's "sent is the one exclusive solid-fill state" rule
+    // unchanged — this component's own top-level docblock had gone stale
+    // claiming this fill was still "softened/desaturated," which hadn't
+    // been true since the 2026-08-21 fix below; the docblock is corrected,
+    // this style itself needed no change.
     chipSent: {
       backgroundColor: colors.primary,
       borderWidth: 2.5,
@@ -353,8 +390,13 @@ function createStyles(colors: ThemeColors) {
     chipNotYetSent: {
       backgroundColor: `${colors.surfaceStrong}66`
     },
+    // Thickened from chipSecondary's resting 1.5pt border, same colour
+    // family (colors.text, distinct from the neutral colors.border resting
+    // weight) — still no fill, RN's border box model means this grows
+    // inward, never shifting the chip's own outer diameter. See
+    // docs/09-decision-log.md, 2026-08-31.
     chipSelected: {
-      borderWidth: 2,
+      borderWidth: 3,
       borderColor: colors.text
     },
     // Neutral border colour — never colors.text/primary/focus, which all
@@ -364,14 +406,14 @@ function createStyles(colors: ThemeColors) {
       borderWidth: 1.5,
       borderColor: colors.border
     },
-    // "+"'s own active-state ring — a filled tint plus a visibly thicker
-    // border, since its normal outline treatment (chipOutline) is already a
-    // thin border on transparent, and a same-weight ring on top of that
-    // read as imperceptible on-device. A distinct temporary "open" state,
-    // not the same treatment as a selected Circle's dark-green fill. See
-    // docs/09-decision-log.md, 2026-08-11.
+    // "+"'s own active-state ring — thickened border only, as of the
+    // 2026-08-31 hollow/solid redesign (previously added a surfaceStrong
+    // fill tint on top of the border, which is exactly the "selected uses
+    // a fill" pattern this redesign removes app-wide — sent is now the
+    // only state permitted a fill, everywhere). Still visibly thicker than
+    // chipOutline's own resting 1.5pt border. See docs/09-decision-log.md.
     chipSelectedOutline: {
-      backgroundColor: colors.surfaceStrong,
+      backgroundColor: "transparent",
       borderWidth: 3,
       borderColor: colors.primary
     },
