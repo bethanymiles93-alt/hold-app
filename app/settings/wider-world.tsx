@@ -16,11 +16,14 @@ import {
   getCustomWiderWorldPlatforms,
   getWiderWorldContexts,
   getWiderWorldExpiryReminderOptIns,
+  isWiderWorldFeatureEnabled,
+  removeWiderWorldContext,
   renameWiderWorldContext,
   setWiderWorldContextMessage,
   setWiderWorldContextPlatforms,
   setWiderWorldContextSentAt,
-  setWiderWorldExpiryReminderOptIn
+  setWiderWorldExpiryReminderOptIn,
+  setWiderWorldFeatureEnabled
 } from "@/services/widerWorldContextService";
 import {
   addEmailAccount,
@@ -70,6 +73,7 @@ export default function WiderWorldSettingsScreen() {
   const [emailAccounts, setEmailAccounts] = useState<EmailAccount[]>([]);
   const [activeField, setActiveField] = useState<ActiveField | null>(null);
   const [draftValue, setDraftValue] = useState("");
+  const [featureEnabled, setFeatureEnabled] = useState(true);
 
   useFocusEffect(
     useCallback(() => {
@@ -77,15 +81,27 @@ export default function WiderWorldSettingsScreen() {
         getWiderWorldContexts(),
         getCustomWiderWorldPlatforms(),
         getWiderWorldExpiryReminderOptIns(),
-        getEmailAccounts()
-      ]).then(([nextContexts, nextCustom, nextOptIns, nextEmailAccounts]) => {
+        getEmailAccounts(),
+        isWiderWorldFeatureEnabled()
+      ]).then(([nextContexts, nextCustom, nextOptIns, nextEmailAccounts, nextFeatureEnabled]) => {
         setContexts(nextContexts);
         setCustomPlatforms(nextCustom);
         setExpiryOptIns(nextOptIns);
         setEmailAccounts(nextEmailAccounts);
+        setFeatureEnabled(nextFeatureEnabled);
       });
     }, [])
   );
+
+  const toggleFeatureEnabled = async (enabled: boolean) => {
+    setFeatureEnabled(enabled);
+    await setWiderWorldFeatureEnabled(enabled);
+  };
+
+  const removeContext = async (id: string) => {
+    const next = await removeWiderWorldContext(id);
+    setContexts(next);
+  };
 
   // One-time, not on every focus (migrateLinkedEmailAccounts is itself
   // idempotent via its own stored flag, but there's no reason to re-check
@@ -299,16 +315,41 @@ export default function WiderWorldSettingsScreen() {
     >
       <View style={styles.titleRow}>
         <Text style={styles.title}>Wider World</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Add a context" onPress={() => void addContext()} hitSlop={8}>
-          <Ionicons name="add-circle-outline" size={26} color={colors.primary} />
-        </Pressable>
+        {featureEnabled ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="Add a context" onPress={() => void addContext()} hitSlop={8}>
+            <Ionicons name="add-circle-outline" size={26} color={colors.primary} />
+          </Pressable>
+        ) : null}
       </View>
 
-      <Text style={styles.guidance}>
-        Choose the few places people are most likely to check on you — not everywhere you have an account.
-      </Text>
+      {/* Distinct from deleting a context down to the last one, which
+          removeWiderWorldContext deliberately never allows — this is the
+          actual "I don't want this at all" switch: off, and Going Quiet
+          shows just the plain message, no status/context prompts anywhere
+          in the flow, without deleting contexts one by one. Built
+          2026-08-31, see docs/09-decision-log.md. */}
+      <View style={styles.featureToggleRow}>
+        <View style={styles.featureToggleText}>
+          <Text style={styles.featureToggleLabel}>Use Wider World</Text>
+          <Text style={styles.featureToggleBody}>
+            Off keeps things to the plain message — no status or context prompts.
+          </Text>
+        </View>
+        <Switch
+          accessibilityLabel="Use Wider World"
+          value={featureEnabled}
+          onValueChange={(value) => void toggleFeatureEnabled(value)}
+          trackColor={{ true: colors.primary, false: colors.border }}
+        />
+      </View>
 
-      {contexts.map((context) => {
+      {featureEnabled ? (
+        <>
+          <Text style={styles.guidance}>
+            Choose the few places people are most likely to check on you — not everywhere you have an account.
+          </Text>
+
+          {contexts.map((context) => {
         const showLabel = contexts.length > 1;
         const selectedPresets = context.selectedPlatformIds
           .map((id) => findWiderWorldPreset(id))
@@ -341,10 +382,26 @@ export default function WiderWorldSettingsScreen() {
         return (
           <View key={context.id} style={styles.contextBlock}>
             {showLabel ? (
-              <Pressable accessibilityRole="button" onPress={() => activateLabel(context)} style={styles.labelRow}>
-                <Text style={styles.contextLabel}>{context.label}</Text>
-                <Ionicons name="pencil-outline" size={14} color={colors.textMuted} />
-              </Pressable>
+              <View style={styles.labelRow}>
+                <Pressable accessibilityRole="button" onPress={() => activateLabel(context)} style={styles.labelRowMain}>
+                  <Text style={styles.contextLabel}>{context.label}</Text>
+                  <Ionicons name="pencil-outline" size={14} color={colors.textMuted} />
+                </Pressable>
+                {/* Only shown alongside a real label (2+ contexts) — matches
+                    removeWiderWorldContext's own "always at least one"
+                    behaviour: there's nothing meaningful to delete down to
+                    when this is the sole, unlabeled context. Wiring an
+                    existing function that had no UI, 2026-08-31. See
+                    docs/09-decision-log.md. */}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remove ${context.label}`}
+                  onPress={() => void removeContext(context.id)}
+                  hitSlop={8}
+                >
+                  <Ionicons name="trash-outline" size={16} color={colors.error} />
+                </Pressable>
+              </View>
             ) : null}
 
             <View style={styles.pillWrap}>
@@ -429,7 +486,9 @@ export default function WiderWorldSettingsScreen() {
             </View>
           </View>
         );
-      })}
+          })}
+        </>
+      ) : null}
 
       {/*
        * Linked email accounts — global, not per-Context, placed directly
@@ -500,11 +559,39 @@ function createStyles(colors: ThemeColors) {
       fontSize: 14,
       lineHeight: 20
     },
+    featureToggleRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.md,
+      marginTop: theme.spacing.md,
+      padding: theme.spacing.sm,
+      borderRadius: theme.radius.md,
+      backgroundColor: colors.surface
+    },
+    featureToggleText: {
+      flex: 1,
+      gap: 2
+    },
+    featureToggleLabel: {
+      color: colors.text,
+      fontSize: 15,
+      fontWeight: "600"
+    },
+    featureToggleBody: {
+      color: colors.textMuted,
+      fontSize: 13,
+      lineHeight: 18
+    },
     contextBlock: {
       marginTop: theme.spacing.xl,
       gap: theme.spacing.sm
     },
     labelRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between"
+    },
+    labelRowMain: {
       flexDirection: "row",
       alignItems: "center",
       gap: 6

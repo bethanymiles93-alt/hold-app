@@ -216,3 +216,24 @@ export async function deleteAllWiderWorldContexts(): Promise<void> {
     SecureStore.deleteItemAsync(EXPIRY_OPT_INS_KEY)
   ]);
 }
+
+const FEATURE_ENABLED_KEY = "hold.widerWorld.featureEnabled";
+
+/**
+ * Whole-feature on/off, distinct from a single context's own delete —
+ * removeWiderWorldContext deliberately never lets someone delete their way
+ * down to zero contexts, so this is the actual "I don't want Wider World
+ * at all" switch: turn it off and the flow shows just the plain message
+ * function, no status/context UI at all, without needing to delete
+ * contexts one by one. Defaults to on (true) — Wider World is opt-out, not
+ * opt-in, matching how it's presented today. Built 2026-08-31, see
+ * docs/09-decision-log.md.
+ */
+export async function isWiderWorldFeatureEnabled(): Promise<boolean> {
+  const raw = await SecureStore.getItemAsync(FEATURE_ENABLED_KEY);
+  return raw !== "false";
+}
+
+export async function setWiderWorldFeatureEnabled(enabled: boolean): Promise<void> {
+  await SecureStore.setItemAsync(FEATURE_ENABLED_KEY, enabled ? "true" : "false");
+}

@@ -39,6 +39,7 @@ import { activateOutOfOffice, deactivateOutOfOffice, getEmailAccounts } from "@/
 import {
   getUnionOfSelectedWiderWorldPlatforms,
   getWiderWorldContexts,
+  isWiderWorldFeatureEnabled,
   type SelectableWiderWorldPlatform
 } from "@/services/widerWorldContextService";
 import { copyToClipboard } from "@/services/clipboardService";
@@ -164,6 +165,8 @@ export default function HoldPeopleScreen() {
   // unified platform row below (markedPlatformIds) is itself the
   // selection, matching how social platforms already worked before this.
   const [emailAccounts, setEmailAccounts] = useState<EmailAccount[]>([]);
+  /** The whole-feature on/off Settings switch, distinct from widerWorldEnabled below (this send's own status compose toggle) — re-checked on focus since it can change while this flow is paused in Settings. See docs/09-decision-log.md, 2026-08-31. */
+  const [widerWorldFeatureEnabled, setWiderWorldFeatureEnabled] = useState(true);
   const [widerWorldEnabled, setWiderWorldEnabled] = useState(false);
   const [widerWorldText, setWiderWorldText] = useState(DEFAULT_STATUS_LINE);
   /**
@@ -321,6 +324,10 @@ export default function HoldPeopleScreen() {
     setWiderWorldContextMessages(contexts.map((context) => context.message.trim()).filter(Boolean));
   }, []);
 
+  const refreshWiderWorldFeatureEnabled = useCallback(async () => {
+    setWiderWorldFeatureEnabled(await isWiderWorldFeatureEnabled());
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       void refreshPeriod();
@@ -328,7 +335,15 @@ export default function HoldPeopleScreen() {
       void refreshUnifiedPlatforms();
       void refreshEmailAccounts();
       void refreshWiderWorldContextMessages();
-    }, [refreshPeriod, refreshGroups, refreshUnifiedPlatforms, refreshEmailAccounts, refreshWiderWorldContextMessages])
+      void refreshWiderWorldFeatureEnabled();
+    }, [
+      refreshPeriod,
+      refreshGroups,
+      refreshUnifiedPlatforms,
+      refreshEmailAccounts,
+      refreshWiderWorldContextMessages,
+      refreshWiderWorldFeatureEnabled
+    ])
   );
 
   // The queue only ever grows — every Circle id ever selected joins it and
@@ -1070,7 +1085,7 @@ export default function HoldPeopleScreen() {
         </View>
       ) : null}
 
-      {hasSentAnything ? (
+      {hasSentAnything && widerWorldFeatureEnabled ? (
         <>
           <Pressable
             accessibilityRole="button"
