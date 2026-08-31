@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   addCircleMembers,
   addPerson,
@@ -10,6 +10,7 @@ import {
   type ConversationPerson
 } from "@/services/conversationService";
 import { addContactToGroup, createGroup, getGroup } from "@/services/circleService";
+import { getCircleTemplate } from "@/services/templateService";
 import { saveLastSentMessage } from "@/services/lastSentMessageService";
 import {
   clearReachedVia,
@@ -318,6 +319,34 @@ export function useConversations(scope: ConversationsScope, onPersonAction?: () 
   const activeIndividualPerson = activeIndividualMessageId
     ? people.find((p) => p.id === activeIndividualMessageId)
     : undefined;
+
+  /**
+   * Selecting a recipient switches the whole compose context in
+   * Conversations, not just who's marked included (distinct from Going
+   * Quiet/Reconnect, where the box holds one shared message regardless of
+   * selection) — opening a Circle member's own individual-message field
+   * routes to their Circle's saved Template, the same way Library's own
+   * template lookup already works, if they don't already have a draft
+   * typed. Ungrouped people fall back to DEFAULT_QUICK_MESSAGE as before,
+   * unaffected — there's no Circle template to route to. Runs once per
+   * person id (templateLoadedFor), not on every keystroke into their
+   * field. See docs/09-decision-log.md, 2026-08-31.
+   */
+  const templateLoadedFor = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!activeIndividualMessageId || !activeIndividualPerson?.circleId) return;
+    if (templateLoadedFor.current.has(activeIndividualMessageId)) return;
+    templateLoadedFor.current.add(activeIndividualMessageId);
+
+    const circleId = activeIndividualPerson.circleId;
+    void (async () => {
+      const template = await getCircleTemplate(circleId);
+      if (!template) return;
+      setIndividualMessages((current) =>
+        current[activeIndividualMessageId] !== undefined ? current : { ...current, [activeIndividualMessageId]: template }
+      );
+    })();
+  }, [activeIndividualMessageId, activeIndividualPerson?.circleId]);
 
   const activeFieldValue = (): string => {
     if (activeIndividualMessageId) {

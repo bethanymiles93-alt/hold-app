@@ -96,7 +96,8 @@ export function ConversationsView({ conversations: c, mode }: ConversationsViewP
 
             {c.ungroupedPeople.map((person) => {
               const isSelected = c.selectedIds.has(person.id);
-              const sentLook = person.completed && !isSelected;
+              const hasSent = person.sentAt !== null;
+              const sentLook = hasSent && !isSelected;
 
               return (
                 <AdaptiveCircleChip
@@ -104,7 +105,7 @@ export function ConversationsView({ conversations: c, mode }: ConversationsViewP
                   label={person.name}
                   compact
                   isSelected={isSelected}
-                  hasSentThisSession={person.completed}
+                  hasSentThisSession={hasSent}
                   onPress={() => c.toggleId(person.id)}
                   accessibilityRole="button"
                   accessibilityLabel={sentLook ? `${person.name}, already sent. Tap to send another message.` : person.name}
@@ -123,7 +124,8 @@ export function ConversationsView({ conversations: c, mode }: ConversationsViewP
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
                   {section.people.map((person) => {
                     const isOpen = c.expandedPersonaliseId === person.id;
-                    const sentLook = person.completed && !isOpen;
+                    const hasSent = person.sentAt !== null;
+                    const sentLook = hasSent && !isOpen;
 
                     return (
                       <AdaptiveCircleChip
@@ -131,7 +133,7 @@ export function ConversationsView({ conversations: c, mode }: ConversationsViewP
                         label={person.name}
                         compact
                         isSelected={isOpen}
-                        hasSentThisSession={person.completed}
+                        hasSentThisSession={hasSent}
                         onPress={() => c.togglePersonalisePerson(person.id)}
                         accessibilityRole="button"
                         accessibilityLabel={
