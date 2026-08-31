@@ -1441,3 +1441,13 @@ Checked directly rather than assuming: `SendingChannel` type, `setContactPreferr
 `tsc --noEmit` and `vitest run` (62/62) both pass. **Not verified on-device** — flagged, not claimed.
 
 **hold-book**: `08-decisions/04-open-questions.md` gets two new future-spec entries alongside this (Home-screen widget, tide indicator) — see 2026-08-31 there. `04-navigation-architecture.md`'s moon-phase-visual line is intentionally NOT yet marked built, per instruction to only mark it once confirmed on-device.
+
+## 2026-08-31 — Overnight sweep: dead component cleanup
+
+Requested broad sweep for bugs/discrepancies, research-only pass (background agent), reported back with ranked findings. Two were genuine, safe, mechanical fixes made directly; the rest are flagged in this session's end-of-session summary for review rather than acted on unilaterally (a `.gitignore`/tracked-build-artifact cleanup touches repo-wide git state, held pending confirmation).
+
+**Deleted `src/components/SelectionCircle.tsx` and `src/components/HeaderAddButton.tsx`** — both confirmed zero references anywhere outside their own file (`grep` across `src/`/`app/`). Both were superseded by the 2026-08-30 "Your Circles" redesign (recipient pill row replacing the `SelectionCircle`+text-row UI; "+ New Circle" moving from a header button into a circular button on the description row) but, unlike `EmailOutOfOffice.tsx` in the same pass, weren't deleted at the time.
+
+`tsc --noEmit` and `vitest run` (62/62) both pass.
+
+**hold-book**: two stale-content corrections made same pass — `04-ux-content/04-navigation-architecture.md`'s transition-screen citation-marker section updated to reflect both sequences and both markers are now built (previously described Going Quiet's sequence and both markers as "not yet built," which was stale against work completed 2026-08-30); `08-decisions/01-decision-log.md`'s 2026-08-20 pricing row corrected — its "needs a code update, flagged not fixed" note about `hold-plus.tsx`'s pricing was itself stale (re-checked 2026-08-31, see above in this log: the described bug didn't exist, a different real gap did and was fixed).
