@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
-import { router } from "expo-router";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { router, useFocusEffect } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
 import { HistoryCalendar } from "@/components/HistoryCalendar";
+import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
+import { isHoldPlusActive } from "@/services/holdPlusService";
 import {
   buildMonthGrid,
   formatDateTime,
@@ -30,6 +32,9 @@ type Segment = "history" | "patterns";
 type ViewMode = "list" | "calendar";
 
 const WEEKDAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
+const MONTH_ABBREVIATIONS = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+];
 
 function monthKey(date: Date): string {
   return `${date.getFullYear()}-${date.getMonth()}`;
@@ -81,7 +86,23 @@ interface MonthCalendarViewProps {
   onDelete: (id: string) => void;
 }
 
-/** A month grid with quiet days marked, tap a day for its period(s) — its own independent month/selection state. */
+/**
+ * A month grid with quiet days marked, tap a day for its period(s) — its
+ * own independent month/selection state. **Hold+ gate, built 2026-08-31
+ * alongside this interactivity, not before**: free tier is locked to the
+ * current month (matching "one month at a time in Patterns, full history
+ * in Hold+" — `07-business/02-pricing-principles.md`). Confirmed before
+ * building that no such gate existed in this file at all — prev/next
+ * previously navigated freely for every user. Month/year tap-to-pick
+ * mirrors `HistoryCalendar.tsx`'s own pattern (that component was itself
+ * forked from this one) but deliberately skips its year-list/expand-all
+ * sub-feature — not requested for Patterns, and multi-month browsing is
+ * exactly what free tier must not get anyway. Free-tier taps on any
+ * navigation control (prev/next, month, year) go to the Hold+ screen
+ * rather than silently doing nothing — an honest locked control, not a
+ * dead one. Tap-a-day always works regardless of tier; it never leaves
+ * the current month. See docs/09-decision-log.md.
+ */
 function MonthCalendarView({ periods, onDelete }: MonthCalendarViewProps) {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -90,13 +111,19 @@ function MonthCalendarView({ periods, onDelete }: MonthCalendarViewProps) {
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
   const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
+  const [openPicker, setOpenPicker] = useState<"month" | "year" | null>(null);
+  const [holdPlus, setHoldPlus] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      void isHoldPlusActive().then(setHoldPlus);
+    }, [])
+  );
 
   const grid = buildMonthGrid(monthStart);
   const dayBands = getDayBands(periods, grid);
-  const monthLabel = new Intl.DateTimeFormat(undefined, {
-    month: "long",
-    year: "numeric"
-  }).format(monthStart);
+  const monthName = new Intl.DateTimeFormat(undefined, { month: "long" }).format(monthStart);
+  const year = monthStart.getFullYear();
 
   const selectedDayPeriods = selectedDayKey
     ? periods.filter((period) => {
@@ -113,29 +140,106 @@ function MonthCalendarView({ periods, onDelete }: MonthCalendarViewProps) {
       })
     : [];
 
+  const earliestYear = periods.reduce((earliest, period) => {
+    const started = new Date(period.startedAt).getFullYear();
+    return started < earliest ? started : earliest;
+  }, new Date().getFullYear());
+  const pickableYears: number[] = [];
+  for (let candidate = new Date().getFullYear(); candidate >= earliestYear; candidate -= 1) {
+    pickableYears.push(candidate);
+  }
+
+  const goToPreviousMonth = () => {
+    setMonthStart((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1));
+  };
+  const goToNextMonth = () => {
+    setMonthStart((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1));
+  };
+  const toggleMonthPicker = () => {
+    setOpenPicker((current) => (current === "month" ? null : "month"));
+  };
+  const toggleYearPicker = () => {
+    setOpenPicker((current) => (current === "year" ? null : "year"));
+  };
+  const pickMonth = (monthIndex: number) => {
+    setMonthStart(new Date(year, monthIndex, 1));
+    setOpenPicker(null);
+  };
+  const pickYear = (pickedYear: number) => {
+    setMonthStart(new Date(pickedYear, monthStart.getMonth(), 1));
+    setOpenPicker(null);
+  };
+
   return (
     <View>
       <View style={styles.monthRow}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Previous month"
-          onPress={() =>
-            setMonthStart((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))
-          }
+          accessibilityState={{ disabled: !holdPlus }}
+          disabled={!holdPlus}
+          onPress={goToPreviousMonth}
         >
-          <Text style={styles.monthNav}>‹</Text>
+          <Text style={[styles.monthNav, !holdPlus && styles.monthNavLocked]}>‹</Text>
         </Pressable>
-        <Text style={styles.monthLabel}>{monthLabel}</Text>
+        <View style={styles.monthLabelRow}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={holdPlus ? `Change month, currently ${monthName}` : monthName}
+            accessibilityState={{ disabled: !holdPlus }}
+            disabled={!holdPlus}
+            onPress={toggleMonthPicker}
+          >
+            <Text style={styles.monthLabel}>{monthName}</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={holdPlus ? `Change year, currently ${year}` : String(year)}
+            accessibilityState={{ disabled: !holdPlus }}
+            disabled={!holdPlus}
+            onPress={toggleYearPicker}
+          >
+            <Text style={styles.monthLabel}>{year}</Text>
+          </Pressable>
+        </View>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Next month"
-          onPress={() =>
-            setMonthStart((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))
-          }
+          accessibilityState={{ disabled: !holdPlus }}
+          disabled={!holdPlus}
+          onPress={goToNextMonth}
         >
-          <Text style={styles.monthNav}>›</Text>
+          <Text style={[styles.monthNav, !holdPlus && styles.monthNavLocked]}>›</Text>
         </Pressable>
       </View>
+
+      {holdPlus && openPicker === "month" ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pickerRow}>
+          {MONTH_ABBREVIATIONS.map((label, index) => (
+            <AdaptiveCircleChip
+              key={label}
+              label={label}
+              compact
+              isSelected={monthStart.getMonth() === index}
+              onPress={() => pickMonth(index)}
+            />
+          ))}
+        </ScrollView>
+      ) : null}
+
+      {holdPlus && openPicker === "year" ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pickerRow}>
+          {pickableYears.map((candidate) => (
+            <AdaptiveCircleChip
+              key={candidate}
+              label={String(candidate)}
+              compact
+              isSelected={year === candidate}
+              onPress={() => pickYear(candidate)}
+            />
+          ))}
+        </ScrollView>
+      ) : null}
 
       <View style={styles.weekdayRow}>
         {WEEKDAY_LABELS.map((label, index) => (
@@ -518,10 +622,23 @@ function createStyles(colors: ThemeColors) {
     fontSize: 24,
     paddingHorizontal: theme.spacing.md
   },
+  monthNavLocked: {
+    color: colors.textMuted,
+    opacity: 0.5
+  },
+  monthLabelRow: {
+    flexDirection: "row",
+    gap: theme.spacing.sm
+  },
   monthLabel: {
     color: colors.text,
     fontSize: 17,
     fontWeight: "600"
+  },
+  pickerRow: {
+    flexDirection: "row",
+    gap: theme.spacing.sm,
+    paddingBottom: theme.spacing.sm
   },
   weekdayRow: {
     flexDirection: "row"
