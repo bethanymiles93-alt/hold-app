@@ -1,13 +1,15 @@
 import { useCallback, useState } from "react";
 import {
+  addCircleMembers,
   addPerson,
   getAll as getAllConversationPeople,
   markQuickSent,
+  removePerson,
   seedPersonaliseRecipient,
   toggleComplete,
   type ConversationPerson
 } from "@/services/conversationService";
-import { addContactToGroup, createGroup } from "@/services/circleService";
+import { addContactToGroup, createGroup, getGroup } from "@/services/circleService";
 import { saveLastSentMessage } from "@/services/lastSentMessageService";
 import { clearReachedVia, getReconnectingPeriod, recordReachedVia } from "@/services/holdHistoryService";
 import { pickContact } from "@/services/contactPickerService";
@@ -235,6 +237,67 @@ export function useConversations(scope: ConversationsScope, onPersonAction?: () 
     setExpandedPersonaliseId((current) => (current === personId ? null : personId));
   };
 
+  /**
+   * "Expand to full Circle" — backfills anyone from the real Circle who
+   * isn't already tracked in Conversations (people only get seeded here
+   * when actually sent to during Going Quiet/Reconnect, so a Circle grown
+   * or only partially reached can genuinely be missing members). Safe to
+   * call even when nothing's missing — `addCircleMembers` itself dedupes
+   * against who's already listed, so this is a harmless no-op then rather
+   * than something that needs its own "anything to add?" check first. Built
+   * 2026-08-31 — the function existed since Conversations' own
+   * reconciliation work but was never wired to any UI. See
+   * docs/09-decision-log.md.
+   */
+  const expandCircleToFull = useCallback(
+    async (circleId: string, circleName: string) => {
+      const group = await getGroup(circleId);
+      if (!group) return;
+      await addCircleMembers(
+        circleId,
+        circleName,
+        group.contacts.map((contact) => ({ name: contact.name, phoneNumber: contact.phoneNumber }))
+      );
+      await refresh();
+    },
+    [refresh]
+  );
+
+  /**
+   * Removes one person from Conversations entirely (their record and their
+   * last-sent message, see `removePerson`'s own cleanup). Matches the same
+   * low-friction, no-confirmation-dialog pattern already established for
+   * comparable exclude/remove actions elsewhere (GroupPicker's own exclude
+   * pill, Reconnect's staged removal) rather than adding a new, heavier
+   * pattern just for this — removing one person from your own Conversations
+   * list is a smaller, more reversible-in-spirit action than a full data
+   * wipe, which is the one place this app does confirm. Clears any
+   * dangling UI state that referenced them (selection, expanded accordion,
+   * an in-progress reply target) so nothing points at a person who no
+   * longer exists after this. Built 2026-08-31 — see docs/09-decision-log.md.
+   */
+  const removePersonFromConversations = useCallback(
+    async (personId: string) => {
+      await removePerson(personId);
+      setSelectedIds((current) => {
+        if (!current.has(personId)) return current;
+        const next = new Set(current);
+        next.delete(personId);
+        return next;
+      });
+      setSelectedOtherIds((current) => {
+        if (!current.has(personId)) return current;
+        const next = new Set(current);
+        next.delete(personId);
+        return next;
+      });
+      setExpandedPersonaliseId((current) => (current === personId ? null : current));
+      setPersonaliseReplyTarget((current) => (current?.personId === personId ? null : current));
+      await refresh();
+    },
+    [refresh]
+  );
+
   const activeIndividualMessageId = activeField?.startsWith("individual-message:")
     ? activeField.slice("individual-message:".length)
     : null;
@@ -407,6 +470,8 @@ export function useConversations(scope: ConversationsScope, onPersonAction?: () 
     toggleAll,
     toggleId,
     toggleCircleExpanded,
+    expandCircleToFull,
+    removePersonFromConversations,
     togglePersonalisePerson,
     togglePersonaliseSwap,
     sendIndividual,

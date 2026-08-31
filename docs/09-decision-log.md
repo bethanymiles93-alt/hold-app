@@ -1587,3 +1587,27 @@ Re-checked `ResearchIndex.tsx`, `app/(tabs)/library.tsx`'s wiring, and `research
 **Working theory, not confirmed**: last night's Research restructure was a large structural change — a deleted file (`ResearchContent.tsx`), new routes, new `Stack.Screen` registrations, a new `navTier.ts` prefix — all committed while no Metro instance was running. Metro was only started fresh this session. A device or simulator holding a JS bundle from before that restructure would show exactly this symptom: the old code paths gone, nothing rendering in their place. This matches a documented, repeated pattern for this project specifically (Fast Refresh missing structural changes before). No code fix applied here, since I found nothing to fix — recommend a full force-quit and reopen (or a fresh reload against the now-running Metro instance) as the first troubleshooting step before assuming a code-level bug, and reporting back whether that resolves it.
 
 **hold-book**: no update.
+
+## 2026-08-31 — Wired up Conversations' expand-to-full-circle / remove-person; deliberately did not wire moveToPersonalise
+
+Per direct instruction: `addCircleMembers`, `moveToPersonalise`, `removePerson` should function like the same circle-picker pattern already used elsewhere (`RecipientPersonalisation.tsx`, Going Quiet), Going Quiet's own locked-Circle exceptions untouched (they were never touched — different screen, different function).
+
+**`addCircleMembers` → "Expand to full Circle"**: new link inside each expanded Circle section in `ConversationsView.tsx`, calling a new `expandCircleToFull(circleId, circleName)` in `useConversations.ts` — reads the real Circle via `circleService.getGroup`, backfills anyone not yet tracked in Conversations (people only get seeded here when actually sent to, so a Circle grown since or only partially reached can genuinely be missing members). Safe to tap even with nothing missing — `addCircleMembers` itself already dedupes.
+
+**`removePerson` → "Remove"**: new link on every Conversations card, calling a new `removePersonFromConversations(personId)` — deletes the record and last-sent message together (existing `removePerson` cleanup), and clears any dangling selection/expansion/reply-target state that referenced them. No confirmation dialog, matching the same low-friction pattern already established for comparable exclude/remove actions elsewhere (GroupPicker's exclude pill, Reconnect's staged removal) — this app confirms exactly one action, a full data wipe; removing one person from your own list is smaller and more reversible-in-spirit than that.
+
+**`moveToPersonalise` — investigated, deliberately NOT wired.** Its own purpose ("unticking someone out of Quick message, they move to Personalise/Conversations") turns out to already be fully achieved today by `togglePersonaliseSwap`, a session-local `Set` already wired to the "Conversations"/"Use a quick message instead" links on every card — a different mechanism than `moveToPersonalise`'s persisted `bucket` field, but the same user-facing result. Wiring `moveToPersonalise` alongside the already-working swap would create two competing sources of truth for the same "is this person shown as quick-message or Personalise" question, which is a real bug risk, not a straightforward win. Flagging for confirmation rather than wiring on the "same function name implies same intent" assumption — if the persisted `bucket` field is meant to eventually replace the session-local swap (e.g. so the choice survives a re-visit, which the current mechanism doesn't), that's a real, separate decision, not a mechanical wiring job.
+
+`tsc --noEmit` and `vitest run` (62/62) both pass. **Not verified on-device.**
+
+**hold-book**: no update — implementation-level wiring against an already-established UI pattern, not a new product decision.
+
+## 2026-08-31 — Wider World: context deletion + whole-feature toggle
+
+**`removeWiderWorldContext` wired to real UI**: a trash icon beside each context's own rename control in `app/settings/wider-world.tsx`, shown only alongside a real label (2+ contexts) — matches `removeWiderWorldContext`'s own existing "always at least one" guard, which was correct as written and left unchanged: there's nothing meaningful to delete down to when a context is the sole, unlabeled one.
+
+**New whole-feature toggle, distinct from the above.** A single context you can't fully delete isn't the same as "I don't want Wider World at all" — new `isWiderWorldFeatureEnabled`/`setWiderWorldFeatureEnabled` in `widerWorldContextService.ts` (persisted, defaults to on — opt-out, not opt-in, matching how the feature is presented today), a Switch on the Wider World settings screen. Wired into Going Quiet (`app/create/people.tsx`): the entire "Wider World" collapsible section (status compose, platform-marking row — both social and linked email) is skipped entirely when off, re-checked on screen focus since it can change while the flow is paused in Settings, same pattern `useDockedAiAmend.ts` already uses for its own Hold+ re-check. Linked email accounts themselves stay untouched by this toggle — that's a separate, adjacent feature (connected-accounts linking), not part of "status/context prompts."
+
+`tsc --noEmit` and `vitest run` (62/62) both pass. **Not verified on-device.**
+
+**hold-book**: no update — implementation-level build against a spec given directly this pass, not a new product decision.

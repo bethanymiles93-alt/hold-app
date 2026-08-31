@@ -115,27 +115,53 @@ export function ConversationsView({ conversations: c, mode }: ConversationsViewP
         </View>
       ) : null}
 
-      {mode === "browse" && c.expandedPeople.length > 0 ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-          {c.expandedPeople.map((person) => {
-            const isOpen = c.expandedPersonaliseId === person.id;
-            const sentLook = person.completed && !isOpen;
+      {mode === "browse"
+        ? c.circleSections
+            .filter((section) => c.expandedCircleIds.has(section.circleId))
+            .map((section) => (
+              <View key={section.circleId} style={styles.expandedSection}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+                  {section.people.map((person) => {
+                    const isOpen = c.expandedPersonaliseId === person.id;
+                    const sentLook = person.completed && !isOpen;
 
-            return (
-              <AdaptiveCircleChip
-                key={person.id}
-                label={person.name}
-                compact
-                isSelected={isOpen}
-                hasSentThisSession={person.completed}
-                onPress={() => c.togglePersonalisePerson(person.id)}
-                accessibilityRole="button"
-                accessibilityLabel={sentLook ? `${person.name}, already replied to. Tap to send another message.` : person.name}
-              />
-            );
-          })}
-        </ScrollView>
-      ) : null}
+                    return (
+                      <AdaptiveCircleChip
+                        key={person.id}
+                        label={person.name}
+                        compact
+                        isSelected={isOpen}
+                        hasSentThisSession={person.completed}
+                        onPress={() => c.togglePersonalisePerson(person.id)}
+                        accessibilityRole="button"
+                        accessibilityLabel={
+                          sentLook ? `${person.name}, already replied to. Tap to send another message.` : person.name
+                        }
+                      />
+                    );
+                  })}
+                </ScrollView>
+                {/* "Expand to full Circle" — backfills anyone from the real
+                    Circle not yet tracked here (only people actually sent
+                    to during Going Quiet/Reconnect get seeded, so a Circle
+                    grown since, or only partially reached, can genuinely
+                    be missing members). Safe to tap even when nothing's
+                    missing — a harmless no-op then, not something gated
+                    behind its own "is there anything to add?" check. Same
+                    circle-picker pattern RecipientPersonalisation.tsx (Going
+                    Quiet) already uses for per-Circle membership, minus
+                    Going Quiet's own locked-Circle exceptions, which are
+                    that screen's business, not this one's. See
+                    docs/09-decision-log.md, 2026-08-31. */}
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => void c.expandCircleToFull(section.circleId, section.circleName)}
+                >
+                  <Text style={styles.linkText}>Expand to full Circle</Text>
+                </Pressable>
+              </View>
+            ))
+        : null}
 
       {mode === "browse" && c.expandedPersonalisePerson
         ? (() => {
@@ -211,6 +237,24 @@ export function ConversationsView({ conversations: c, mode }: ConversationsViewP
                   <Text style={styles.conversationCompleteLabel}>Conversation complete</Text>
                 </Pressable>
               </View>
+
+              {/* Same low-friction, no-confirmation-dialog remove pattern
+                  already established for comparable actions elsewhere
+                  (GroupPicker's exclude pill, Reconnect's staged removal)
+                  — removing one person from your own Conversations list
+                  is smaller and more reversible-in-spirit than the app's
+                  one confirmed action (a full data wipe). Clears their
+                  record and last-sent message together, see
+                  removePerson's own cleanup. Built 2026-08-31, wiring an
+                  existing function that had no UI. See
+                  docs/09-decision-log.md. */}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Remove ${person.name} from Conversations`}
+                onPress={() => void c.removePersonFromConversations(person.id)}
+              >
+                <Text style={styles.removeText}>Remove</Text>
+              </Pressable>
 
               {c.personaliseSwapIds.has(person.id) ? (
                 <>
@@ -290,6 +334,9 @@ function createStyles(colors: ThemeColors) {
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.sm
+    },
+    expandedSection: {
+      gap: theme.spacing.xs
     },
     circleUnit: {
       position: "relative",
@@ -374,6 +421,12 @@ function createStyles(colors: ThemeColors) {
       color: colors.link,
       fontSize: 13,
       fontWeight: "600"
+    },
+    removeText: {
+      color: colors.error,
+      fontSize: 13,
+      fontWeight: "600",
+      alignSelf: "flex-start"
     },
     createCirclePrompt: {
       gap: theme.spacing.sm,
