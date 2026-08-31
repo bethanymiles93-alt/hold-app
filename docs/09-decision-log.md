@@ -1620,6 +1620,14 @@ UI: "I'll send something more personal in Conversations instead" inside each Cir
 
 `tsc --noEmit` and `vitest run` (62/62) both pass. **Not verified on-device.**
 
-**hold-book**: `04-ux-content/01-core-journeys.md`'s Reconnect section needs the 13 August gate description corrected to describe both paths — done in the same pass, see hold-book's own log.
+**hold-book**: `04-ux-content/01-core-journeys.md`'s Reconnect coverage-gate section (point 5) corrected to describe both paths, and its own stale "a real send is now the only thing that satisfies this gate" line removed — done in the same pass, see hold-book's own log.
 
-**hold-book**: no update — implementation-level build against a spec given directly this pass, not a new product decision.
+## 2026-08-31 — Conversations circle-picker auto-open: confirmed already correct, not built
+
+Checked current state before building anything, per instruction. `ConversationsView.tsx`'s own circle chip (`mode === "browse"`) and its dropdown arrow already call the exact same `c.toggleCircleExpanded(section.circleId)` — tapping the chip itself already opens straight to that Circle's recipient pill row, no separate "select the whole Circle" step exists to remove. This was already correct before tonight, not something this pass built.
+
+Checked the second location named — Reconnect's own embedded Conversations step (`mode === "flat"`) — and confirmed it renders no circle-picker at all (the entire pinned row is gated on `mode === "browse"`), so there's nothing to fix there either; it's moot, not a second confirmed-correct instance.
+
+No code changed. Logged the reasoning in hold-book per direct instruction, so a future sweep doesn't read this as an inconsistency with Going Quiet/Reconnect/Templates' own circle-pickers (where the chip and arrow deliberately do different things) and "fix" it to match them — see hold-book's own log for the full reasoning.
+
+**hold-book**: `04-ux-content/04-navigation-architecture.md`'s Library/Conversations circle-picker description corrected — it previously said this "matched Going Quiet's own circle/arrow pattern exactly," which was true of the visual arrow but not the tap behaviour; rewritten to state the intentional difference and why, explicitly flagged as not-a-bug for future reference.
