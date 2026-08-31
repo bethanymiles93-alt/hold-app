@@ -6,6 +6,7 @@ import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
 import { SecondaryButton } from "@/components/SecondaryButton";
 import { DockedInputBar } from "@/components/DockedInputBar";
+import { CopyMessageLink } from "@/components/CopyMessageLink";
 import { DockedFieldPreview } from "@/components/DockedFieldPreview";
 import { MemoryNoteSuggestion } from "@/components/MemoryNoteSuggestion";
 import { RemovalPromptSuggestion } from "@/components/RemovalPromptSuggestion";
@@ -1146,6 +1147,7 @@ export default function ReconnectScreen() {
                   }
                 : undefined
             }
+            copyMessage
           />
         ) : conversations.personaliseReplyTarget ? (
           <DockedInputBar
@@ -1575,6 +1577,8 @@ export default function ReconnectScreen() {
                   </Pressable>
                 ) : null}
               </View>
+
+              <CopyMessageLink value={message} />
             </View>
           ) : needsNamingGroups.length > 0 ? (
             // Optional rename opportunity for a freshly-bundled Circle —

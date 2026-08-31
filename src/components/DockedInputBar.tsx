@@ -10,6 +10,7 @@ import { useDockedAiAmend } from "@/hooks/useDockedAiAmend";
 import { useHighlightedInsertions } from "@/hooks/useHighlightedInsertions";
 import { DictationMicButton } from "@/components/DictationMicButton";
 import { AiIdleNudge } from "@/components/AiIdleNudge";
+import { CopyMessageLink } from "@/components/CopyMessageLink";
 import { mixColors } from "@/utils/colorMix";
 import { getSuggestedPhrases } from "@/services/suggestedPhrasesService";
 import type { AiDraftContext, AiSurface } from "@/services/aiProxyClient";
@@ -107,6 +108,14 @@ interface DockedInputBarProps {
    * prompt or as the box's raw starting value. See docs/09-decision-log.md.
    */
   pendingInsert?: string;
+  /**
+   * Renders a "Copy message" secondary link below the Template/Save row —
+   * see CopyMessageLink.tsx. Present only where a caller has a real
+   * "message that gets sent" (group message, Reconnect message,
+   * Personalise reply) — omit for label-shaped fields like a Circle name.
+   * See docs/09-decision-log.md, 2026-08-31.
+   */
+  copyMessage?: boolean;
 }
 
 /**
@@ -151,7 +160,8 @@ export function DockedInputBar({
   template,
   saveDefault,
   extraPhrases = [],
-  pendingInsert
+  pendingInsert,
+  copyMessage
 }: DockedInputBarProps) {
   const { colors, isDark } = useAppTheme("normal");
   const styles = createStyles(colors, isDark);
@@ -570,6 +580,8 @@ export function DockedInputBar({
             )}
           </View>
         ) : null}
+
+        {copyMessage ? <CopyMessageLink value={value} /> : null}
       </SafeAreaView>
     </KeyboardStickyView>
   );

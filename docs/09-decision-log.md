@@ -1451,3 +1451,17 @@ Requested broad sweep for bugs/discrepancies, research-only pass (background age
 `tsc --noEmit` and `vitest run` (62/62) both pass.
 
 **hold-book**: two stale-content corrections made same pass — `04-ux-content/04-navigation-architecture.md`'s transition-screen citation-marker section updated to reflect both sequences and both markers are now built (previously described Going Quiet's sequence and both markers as "not yet built," which was stale against work completed 2026-08-30); `08-decisions/01-decision-log.md`'s 2026-08-20 pricing row corrected — its "needs a code update, flagged not fixed" note about `hold-plus.tsx`'s pricing was itself stale (re-checked 2026-08-31, see above in this log: the described bug didn't exist, a different real gap did and was fixed).
+
+## 2026-08-31 — Copy-to-clipboard fallback for broadcast-list users
+
+**Confirmed closed research finding, per direct instruction:** no public API, deep link, or share-sheet target exists for a WhatsApp broadcast list (personal or Business), or equivalently for any other app's own list/distribution mechanism — Hold cannot detect one exists or address it programmatically, so this is a generic, always-available fallback, not conditional on anything.
+
+**New `src/components/CopyMessageLink.tsx`** — a small, muted, secondary-weight "Copy message" link (13px icon, 12px text, `colors.textMuted`), reusing the existing `copyToClipboard` helper (`src/services/clipboardService.ts`, already used by `WiderWorldStatus.tsx`'s own Copy button) and the same "Copied" `Alert.alert` confirmation pattern. Disabled when the message is empty.
+
+**Scope: circle-broadcast compose only, not 1:1 replies.** Wired into `DockedInputBar.tsx` behind a new optional `copyMessage` prop (rendered below the existing Template/Save footer row — i.e. below the primary Send action, never equal-weight with it) and into the inline collapsed-preview `messageControls` rows in `app/create/people.tsx` (Going Quiet) and `app/return/reconnect.tsx` (Reconnect's own group message). **Deliberately not added** to Personalise-reply or the generic label-shaped `DockedInputBar` fields (Circle naming, etc.) — the copy fallback exists specifically for the broadcast-list use case (many recipients via a list Hold can't reach), and a 1:1 reply already has a working per-contact deep link with no broadcast-list concept in play; adding it there would be a confusing, unscoped addition, not requested.
+
+Default send behaviour (sequential per-contact deep link, or share-sheet-to-group for `sendAsGroup` Circles) is completely unchanged — copy sits alongside it as a secondary, never-recommended-as-default option, per direct instruction.
+
+`tsc --noEmit` and `vitest run` (62/62) both pass. **Not verified on-device.**
+
+**hold-book**: no update — implementation-level build against a spec given directly this pass, not a new product decision.

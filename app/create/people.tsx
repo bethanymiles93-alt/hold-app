@@ -12,6 +12,7 @@ import { RecipientPersonalisation } from "@/components/RecipientPersonalisation"
 import { SecondaryButton } from "@/components/SecondaryButton";
 import { CompactSendButton } from "@/components/CompactSendButton";
 import { DockedInputBar } from "@/components/DockedInputBar";
+import { CopyMessageLink } from "@/components/CopyMessageLink";
 import { DockedFieldPreview } from "@/components/DockedFieldPreview";
 import { WiderWorldStatus } from "@/components/WiderWorldStatus";
 import { WiderWorldPlatformRow } from "@/components/WiderWorldPlatformRow";
@@ -825,6 +826,7 @@ export default function HoldPeopleScreen() {
                 ? { isSaved, onSave: () => void saveSingleCircleDefault() }
                 : undefined
             }
+            copyMessage={activeField === "group-message"}
           />
         ) : null
       }
@@ -1012,6 +1014,8 @@ export default function HoldPeopleScreen() {
                   <View />
                 )}
               </View>
+
+              <CopyMessageLink value={message} />
 
               <SafeguardingBanner visible={safeguardingTriggered} />
             </View>
