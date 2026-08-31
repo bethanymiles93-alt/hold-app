@@ -29,10 +29,11 @@ const FONT_OPTIONS: { value: FontChoice; label: string }[] = [
   { value: "openDyslexic", label: "OpenDyslexic" }
 ];
 
-// Only "default" renders a real palette — the rest are named here so the
-// intended option set is visible, not invented on the spot. Disabled until
-// each one actually has palette values designed. See
-// src/services/displaySettingsService.ts.
+// Beach/Forest/Meadow got real colours 2026-08-31 (a background-tint blend,
+// same safe pattern warmth uses — see displayThemeColors.ts). Seasonal
+// stays disabled deliberately, not just unfinished — it implies
+// auto-rotating by time of year, a different kind of feature needing real
+// date logic, not just an anchor colour. See docs/09-decision-log.md.
 const DISPLAY_THEME_OPTIONS: { value: DisplayTheme; label: string }[] = [
   { value: "default", label: "Default" },
   { value: "beach", label: "Beach" },
@@ -180,12 +181,12 @@ export default function AccessibilityDisplayScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Display theme</Text>
         <Text style={styles.sectionBody}>
-          Only Default is built so far — the rest are shown so you can see what's planned.
+          Seasonal isn't built yet — the rest are shown so you can see what's planned.
         </Text>
         <View style={styles.optionRow}>
           {DISPLAY_THEME_OPTIONS.map((option) => {
             const selected = displayTheme === option.value;
-            const disabled = option.value !== "default";
+            const disabled = option.value === "seasonal";
             return (
               <Pressable
                 key={option.value}

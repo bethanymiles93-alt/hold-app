@@ -8,11 +8,13 @@ import { SecondaryButton } from "@/components/SecondaryButton";
 import { HeaderSettingsButton } from "@/components/HeaderSettingsButton";
 import { TakingTimeUpdateDrawer } from "@/components/TakingTimeUpdateDrawer";
 import { AddToGoingQuietDrawer } from "@/components/AddToGoingQuietDrawer";
+import { MoonPhaseMarker } from "@/components/MoonPhaseMarker";
 import { theme } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { useHoldFlow } from "@/context/HoldFlowContext";
 import { useQuietPalette } from "@/context/QuietPaletteContext";
+import { useDisplaySettings } from "@/context/DisplaySettingsContext";
 import {
   addCircleToAudience,
   endOpenHoldPeriod,
@@ -64,6 +66,7 @@ type HomeState = "loading" | "normal" | "taking-time" | "reconnecting" | "post-r
 export default function HomeScreen() {
   const { resetFlow, setAudience } = useHoldFlow();
   const { setIsQuiet } = useQuietPalette();
+  const { moonPhaseEnabled } = useDisplaySettings();
   const normalTheme = useAppTheme("normal");
   const quietTheme = useAppTheme("quiet");
   const [openPeriod, setOpenPeriod] = useState<HoldPeriod | null>(null);
@@ -412,9 +415,12 @@ export default function HomeScreen() {
                 Taking time
               </Text>
               {openPeriod ? (
-                <Text style={[styles.quietSinceText, { color: currentTheme.colors.textMuted }]}>
-                  Quiet since {formatShortDate(openPeriod.startedAt)}
-                </Text>
+                <View style={styles.quietSinceRow}>
+                  <Text style={[styles.quietSinceText, { color: currentTheme.colors.textMuted }]}>
+                    Quiet since {formatShortDate(openPeriod.startedAt)}
+                  </Text>
+                  {moonPhaseEnabled ? <MoonPhaseMarker /> : null}
+                </View>
               ) : null}
             </View>
           ) : null}
@@ -633,6 +639,11 @@ const styles = StyleSheet.create({
     gap: theme.spacing.xl
   },
   takingTimeHeader: {
+    alignItems: "center",
+    gap: theme.spacing.xs
+  },
+  quietSinceRow: {
+    flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing.xs
   },
