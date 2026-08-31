@@ -12,6 +12,13 @@ import { isHoldPlusActive } from "@/services/holdPlusService";
 // not build custom in-app cancel/change-plan UI").
 const APPLE_MANAGE_SUBSCRIPTIONS_URL = "itms-apps://apps.apple.com/account/subscriptions";
 
+// Same settled pricing model as hold-plus.tsx's own PRICING_ROWS — kept as
+// a separate constant rather than imported, since this screen's own
+// dev/test flag can't actually tell which tier a real subscriber would be
+// on; showing the full ladder is the honest thing to show until real
+// entitlement data exists. See hold-book's 07-business/02-pricing-principles.md.
+const PRICING_TIERS = ["First 3 months: £4.50 one-time", "Then, monthly: £3.49/month", "Then, yearly: £19.99/year"];
+
 /**
  * "Manage Purchases" (2026-08-30) — distinct from the existing "Hold+" row,
  * which stays the informational/upsell entry point for non-subscribers.
@@ -49,7 +56,16 @@ export default function ManagePurchasesScreen() {
         {holdPlusActive ? (
           <>
             <Text style={styles.planName}>Hold+</Text>
-            <Text style={styles.planDetail}>£3.49/month — no real renewal date yet (dev/test state, not a live subscription).</Text>
+            <Text style={styles.planDetail}>
+              No real renewal date yet (dev/test state, not a live subscription) — full pricing below.
+            </Text>
+            <View style={styles.pricingList}>
+              {PRICING_TIERS.map((tier) => (
+                <Text key={tier} style={styles.pricingRow}>
+                  {tier}
+                </Text>
+              ))}
+            </View>
           </>
         ) : (
           <Text style={styles.planDetail}>You're on the free plan.</Text>
@@ -58,10 +74,12 @@ export default function ManagePurchasesScreen() {
 
       {holdPlusActive ? (
         <View style={styles.section}>
-          <SecondaryButton
-            label="Manage subscription"
-            onPress={() => void Linking.openURL(APPLE_MANAGE_SUBSCRIPTIONS_URL)}
-          />
+          <View style={styles.buttonRow}>
+            <SecondaryButton
+              label="Manage subscription"
+              onPress={() => void Linking.openURL(APPLE_MANAGE_SUBSCRIPTIONS_URL)}
+            />
+          </View>
           <Text style={styles.helperText}>
             Changing or cancelling your subscription happens through Apple, not here.
           </Text>
@@ -101,6 +119,23 @@ function createStyles(colors: ThemeColors) {
       color: colors.textMuted,
       fontSize: 13,
       lineHeight: 18
+    },
+    pricingList: {
+      gap: theme.spacing.xs,
+      marginTop: theme.spacing.xs
+    },
+    pricingRow: {
+      color: colors.text,
+      fontSize: 15,
+      lineHeight: 21
+    },
+    // Pill-tight, not full-width — SecondaryButton itself has no fixed
+    // width, it stretches to fill whatever parent it's given (needed by
+    // other callers that deliberately want that); this screen constrains
+    // it to hug its own label and sit left-aligned instead, matching the
+    // app's own pill convention rather than stretching across the screen.
+    buttonRow: {
+      alignItems: "flex-start"
     },
     emptyText: {
       color: colors.textMuted,
