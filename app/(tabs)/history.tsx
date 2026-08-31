@@ -213,6 +213,14 @@ function MonthCalendarView({ periods, onDelete }: MonthCalendarViewProps) {
         </Pressable>
       </View>
 
+      {/* Dimming alone isn't a valid non-colour differentiator (see the
+          app's own "never rely on colour alone" rule) — this caption is
+          the real signal for sighted users, same job the accessibility
+          label already does for screen readers. Found missing in a
+          same-night compliance pass, fixed immediately rather than just
+          flagged. See docs/09-decision-log.md, 2026-08-31. */}
+      {!holdPlus ? <Text style={styles.lockedCaption}>Hold+ unlocks other months</Text> : null}
+
       {holdPlus && openPicker === "month" ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pickerRow}>
           {MONTH_ABBREVIATIONS.map((label, index) => (
@@ -625,6 +633,12 @@ function createStyles(colors: ThemeColors) {
   monthNavLocked: {
     color: colors.textMuted,
     opacity: 0.5
+  },
+  lockedCaption: {
+    color: colors.textMuted,
+    fontSize: 12,
+    textAlign: "center",
+    marginBottom: theme.spacing.sm
   },
   monthLabelRow: {
     flexDirection: "row",

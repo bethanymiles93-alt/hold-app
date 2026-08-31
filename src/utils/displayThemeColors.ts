@@ -11,6 +11,11 @@ import type { DisplayTheme } from "@/services/displaySettingsService";
  * only, text/border/primary/accent colours untouched, so contrast
  * guarantees already verified for the base palette carry over unchanged —
  * a theme is a background tint, never an independent palette override.
+ * Combined worst case (full warmth + full theme strength together, the
+ * two layers that actually stack) hand-verified against the WCAG
+ * formula 2026-08-31 — see warmth.ts's own docblock for the numbers;
+ * tightest result 8.18:1, still comfortably clear of the 4.5:1 AA
+ * floor.
  *
  * **Seasonal deliberately excluded, not just unfinished.** It's a
  * different KIND of feature from the other three (a fixed environment) —

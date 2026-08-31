@@ -4,11 +4,16 @@ import { mixColors } from "@/utils/colorMix";
  * Warmth anchors — reasoned approximations, not sampled/measured (same
  * caveat as DockedInputBar.tsx's own KEYBOARD_BACKDROP constants). Chosen
  * to be close in *lightness* to each mode's own typical background, so a
- * warmth shift reads as a hue nudge, not a brightness change — verified by
- * hand (WCAG contrast against fixed text colours barely moves even at the
- * full extreme, see docs/09-decision-log.md, 2026-08-22) but not yet
- * confirmed on a real device or against every possible background these
- * blend into. Flagged, not assumed safe, per hold-book
+ * warmth shift reads as a hue nudge, not a brightness change — hand-
+ * verified against the WCAG relative-luminance formula at the full ±1
+ * extreme (2026-08-22), and re-verified 2026-08-31 for the combined
+ * worst case now that displayThemeColors.ts composes on top of this:
+ * full warmth (offset=1) + each of Beach/Forest/Meadow at full strength,
+ * against fixed text colour, in both light and dark mode. Tightest
+ * result was light-mode + Forest at 8.18:1 — still comfortably clear of
+ * the 4.5:1 AA floor. This is a hand-computed check against real hex
+ * values, not a device screenshot/measurement — genuinely confirmed at
+ * the maths level, still not confirmed on a real device. Per hold-book
  * 04-ux-content/04-navigation-architecture.md's own "WCAG contrast
  * compliance must be verified across the full warmth range" note.
  *

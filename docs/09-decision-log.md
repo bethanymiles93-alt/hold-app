@@ -1549,3 +1549,17 @@ Background sweep across the whole app (not scoped to tonight's changes), finding
 `tsc --noEmit` and `vitest run` (62/62) both pass.
 
 **hold-book**: no update — dead-code removal and a privacy-completeness fix on hold-app's own internals, not a product or spec decision.
+
+## 2026-08-31 — Compliance pass against already-decided design/accessibility rules
+
+Checked compliance with standing rules rather than assuming it because a rule was stated once, per direct instruction — enforcing already-decided rules, not making new design calls, so fixed directly rather than only listing findings.
+
+**Found and fixed**: Patterns calendar's locked prev/next arrows (free tier) relied on dimming alone with no accompanying icon or text — a real violation of "never communicate status by colour alone" (opacity/dimming is a luminance signal, not a genuine second channel). Added a visible "Hold+ unlocks other months" caption, same job the accessibility label already did for screen readers, now also true for sighted users. `app/(tabs)/history.tsx`.
+
+**Checked and confirmed genuinely resolved, not just re-asserted**: the standing "WCAG contrast must hold across the full warmth range" flag — previously verified only for warmth in isolation (2026-08-22). Since `displayThemeColors.ts` now composes on top of warmth's own blend, the combined worst case had never actually been checked. Hand-computed against the real WCAG relative-luminance formula (same methodology as the original check, not a new one invented): full warmth (offset=1) + each of Beach/Forest/Meadow at full strength, against fixed text colour, both light and dark mode. Tightest result: light-mode + Forest, 8.18:1 — comfortably clear of the 4.5:1 AA floor; every other combination checked higher. Both `warmth.ts` and `displayThemeColors.ts` docblocks updated to reflect this as hand-verified-at-the-maths-level, still explicitly not device-confirmed.
+
+**Checked, no violation found**: type-scale (no `allowFontScaling={false}` anywhere in tonight's new files, matching the app-wide default); low-capacity design (every new interaction tonight — Research hide, citation tap, share, Patterns calendar navigation, last-sent insert, copy-to-clipboard — is a single tap, no long-press, no multi-state cycling, no confirmation dialogs added beyond what already existed); statements-not-questions (no question marks in any new user-facing copy, grepped directly); moon-phase visual already shape-based, not colour-alone, by original design. Psychological-safety-checklist items specific to AI-draft authenticity and prior-distress-language surfacing weren't applicable — no AI-drafting or distress-language-adjacent feature was touched tonight.
+
+`tsc --noEmit` and `vitest run` (62/62) both pass.
+
+**hold-book**: no update — enforces already-decided rules against hold-app's own code, doesn't change what any rule says.
