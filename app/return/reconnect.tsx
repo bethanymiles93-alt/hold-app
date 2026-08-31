@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect, useNavigation } from "expo-router";
@@ -16,7 +16,7 @@ import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
 import { DropdownArrowBadge } from "@/components/DropdownArrowBadge";
 import { HoldMark } from "@/components/HoldMark";
 import { ConversationsView } from "@/components/ConversationsView";
-import { LinkedCircleCluster, LinkGroupToggle, type LinkedClusterMember } from "@/components/LinkedCircleCluster";
+import { LinkedCircleCluster, type LinkedClusterMember } from "@/components/LinkedCircleCluster";
 import { PENDING_CIRCLE_ID_PREFIX } from "@/components/GroupPicker";
 import { NEWLY_ADDED_APOLOGY_PHRASE } from "@/services/circleService";
 import { theme, type ThemeColors } from "@/constants/theme";
@@ -243,6 +243,17 @@ export default function ReconnectScreen() {
   const [renamingGroupId, setRenamingGroupId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
 
+  /**
+   * Distinguishes "Continue Reconnecting" (progress already existed before
+   * this screen instance ever mounted) from "just sent within this same
+   * visit" — refresh() uses this once, on its first call, to auto-open
+   * Conversations straight away only for a genuine resume. A same-visit
+   * send instead surfaces the lighter "Want to reply to anyone properly?"
+   * prompt (coverage.contactedIds.length > 0 below), not a forced jump
+   * into the Conversations view. See docs/09-decision-log.md, 2026-08-31.
+   */
+  const isFirstRefresh = useRef(true);
+
   const refresh = useCallback(async () => {
     // Prefer the durable marker (force-quit-resume, or any visit after the first
     // genuine send). Before that marker exists — the very first visit this
@@ -298,6 +309,19 @@ export default function ReconnectScreen() {
       setIncludedPersonIds(new Set());
       setPillLockedIds(null);
     }
+
+    // Genuine resume ("Continue Reconnecting", or reopening after a
+    // force-quit) — progress from before this screen instance existed.
+    // Open straight into Conversations rather than the lighter prompt, per
+    // the 2026-08-31 fix: a same-visit send still surfaces the "Want to
+    // reply to anyone properly?" prompt instead (coverage.contactedIds.length
+    // > 0 gate below), since jumping straight into Conversations right after
+    // a send someone hasn't asked for yet would be presumptuous.
+    if (isFirstRefresh.current && current && (current.reconnectContactedIds ?? []).length > 0) {
+      setShowPersonalise(true);
+      void conversations.refresh();
+    }
+    isFirstRefresh.current = false;
   }, [reconnectPeriodId]);
 
   useFocusEffect(
@@ -455,8 +479,10 @@ export default function ReconnectScreen() {
   // GroupPicker's own single expandedCircleId. Opening a new one closes
   // whichever else was open, rather than adding to it. See
   // docs/09-decision-log.md.
-  const toggleCircleArrow = (circleId: string) => {
-    setExpandedCircleIds((current) => (current.has(circleId) ? new Set() : new Set([circleId])));
+  const toggleCircleArrow = (circleIds: string[]) => {
+    setExpandedCircleIds((current) =>
+      circleIds.every((id) => current.has(id)) ? new Set() : new Set(circleIds)
+    );
     lockPillSelection();
   };
 
@@ -1074,9 +1100,11 @@ export default function ReconnectScreen() {
   // — not coverage.complete on its own, since a fully-reached Circle's
   // people are still reselectable for a further message (2026-08-13,
   // "sent pills are never locked", matching the same rule used everywhere
-  // else this chip pattern exists). coverage.complete alone only decides
-  // whether the "everyone's been reached" framing/Personalise choice shows
-  // once nothing's currently included. See docs/09-decision-log.md.
+  // else this chip pattern exists). Once nothing's currently included, the
+  // Conversations prompt/Wider World show whenever anyone's been reached
+  // yet (coverage.contactedIds.length > 0) — not coverage.complete, since
+  // that would hide them until the whole audience is done, exactly when
+  // they're no longer needed (2026-08-31 fix). See docs/09-decision-log.md.
   const hasComposeTargets = includedPersonIds.size > 0;
 
   // Once everyone's been reached, a Circle can still legitimately show as
@@ -1123,30 +1151,6 @@ export default function ReconnectScreen() {
     if (!cluster) return null;
     return ungroupedLinkKeys.has(combinationKey(cluster)) ? null : cluster;
   };
-  const clusterFullyIncluded = (circleIds: string[]): boolean =>
-    circleIds.every((circleId) => {
-      const circle = audienceCircles.find((c) => c.circleId === circleId);
-      return (
-        !!circle && circle.contacts.length > 0 && circle.contacts.every((contact) => includedPersonIds.has(contact.phoneNumber))
-      );
-    });
-  // The one cluster (if any) currently selected together, in the same
-  // sense Taking Time's own `showGroupToggle` means it — every member
-  // Circle's people all included at once. Only one toggle shows at a time,
-  // matching that established single-toggle-for-the-current-selection
-  // shape even though Reconnect's own selection is derived from per-person
-  // inclusion rather than an explicit Set of selected Circle ids.
-  //
-  // Deliberately NOT filtered by ungroupedLinkKeys (2026-08-29 fix, item
-  // 10) — the earlier version excluded any already-ungrouped cluster here,
-  // which made LinkGroupToggle stop rendering the moment someone ungrouped
-  // once, with no way back to "Group" ever again for that cluster. This
-  // must resolve in both states; the toggle's own `grouped` prop (below,
-  // at the render site) is what actually reflects current state, matching
-  // TakingTimeUpdateDrawer's own `showGroupToggle`, which never had this
-  // filter and has always supported both directions.
-  const fullySelectedCluster = linkedClusters.find((circleIds) => clusterFullyIncluded(circleIds)) ?? null;
-
   const toggleLinkGroup = (circleIds: string[]) => {
     if (!period) return;
     const key = combinationKey(circleIds);
@@ -1334,15 +1338,18 @@ export default function ReconnectScreen() {
                       hasSentThisSession:
                         c.contacts.length > 0 &&
                         c.contacts.every((contact) => coverage.contactedIds.includes(contact.phoneNumber)),
-                      newlyAdded: c.circleId.startsWith(PENDING_CIRCLE_ID_PREFIX),
-                      isExpanded: expandedCircleIds.has(c.circleId)
+                      newlyAdded: c.circleId.startsWith(PENDING_CIRCLE_ID_PREFIX)
                     }));
+                    const clusterKey = combinationKey(cluster);
                     return (
                       <LinkedCircleCluster
-                        key={combinationKey(cluster)}
+                        key={clusterKey}
                         members={members}
                         onToggle={() => toggleCircleGroup(memberCircles)}
-                        onToggleArrow={toggleCircleArrow}
+                        isExpanded={cluster.every((id) => expandedCircleIds.has(id))}
+                        onToggleArrow={() => toggleCircleArrow(cluster)}
+                        grouped={!ungroupedLinkKeys.has(clusterKey)}
+                        onToggleGroup={() => toggleLinkGroup(cluster)}
                       />
                     );
                   }
@@ -1383,7 +1390,7 @@ export default function ReconnectScreen() {
                         <DropdownArrowBadge
                           expanded={isExpanded}
                           checked={sentLook}
-                          onPress={() => toggleCircleArrow(circle.circleId)}
+                          onPress={() => toggleCircleArrow([circle.circleId])}
                           accessibilityLabel={
                             sentLook
                               ? `${circle.circleName}, already sent. ${isExpanded ? "Hide" : "Show"} people.`
@@ -1398,23 +1405,6 @@ export default function ReconnectScreen() {
               })()}
             </ScrollView>
           </View>
-
-          {/*
-           * Linked-circles Group/Ungroup toggle — the identical shared
-           * component/toggle Taking Time's "Send an Update" already uses,
-           * extended here (2026-08-21): appears only when a linked
-           * cluster's Circles are currently all included together.
-           * Persisted via setLinkClusterGrouped (period.ungroupedLinkKeys),
-           * not session-local, so the choice carries forward into
-           * Conversations rather than resetting on reopen. See
-           * docs/09-decision-log.md.
-           */}
-          {fullySelectedCluster ? (
-            <LinkGroupToggle
-              grouped={!ungroupedLinkKeys.has(combinationKey(fullySelectedCluster))}
-              onPress={() => toggleLinkGroup(fullySelectedCluster)}
-            />
-          ) : null}
 
           {/*
            * Real-Circle membership editing — one card per currently
@@ -1706,13 +1696,20 @@ export default function ReconnectScreen() {
                 </View>
               ))}
             </View>
-          ) : coverage.complete ? (
-            // Inline, in the space the text box vacated — nothing left to
-            // compose once everyone's been reached and nobody's currently
-            // reselected. "Not now" collapses this rather than dismissing
-            // it, so it can be reopened and reconsidered later, same
-            // reveal-on-demand pattern as OOO/status below. See
-            // docs/09-decision-log.md, 2026-08-12.
+          ) : coverage.contactedIds.length > 0 ? (
+            // Inline, in the space the text box vacated — nobody's
+            // currently reselected, so there's nothing to compose right
+            // now. Gated on "reached anyone yet" (2026-08-31 fix), not
+            // coverage.complete — Conversations is precisely the tool for
+            // reaching whoever wasn't instant-messaged, so hiding it until
+            // the whole audience is already resolved made it unreachable
+            // for exactly the people it exists to help. coverage.complete
+            // still governs the StepHeader body copy and final "everyone's
+            // been reached" framing elsewhere. "Not now" collapses this
+            // rather than dismissing it, so it can be reopened and
+            // reconsidered later, same reveal-on-demand pattern as
+            // OOO/status below. See docs/09-decision-log.md, 2026-08-12,
+            // refined 2026-08-31.
             <View>
               {notNowCollapsed ? (
                 <Pressable
@@ -1753,8 +1750,11 @@ export default function ReconnectScreen() {
             completion-screen order (2026-08-13): circle row → Conversations
             → Wider World → Done. Was rendering before Conversations, the
             reverse of spec — moved 2026-08-29 (item 5); nothing else about
-            this block changed. */}
-        {coverage.complete && showOoo ? (
+            this block changed. Gated on "reached anyone yet", not
+            coverage.complete, same 2026-08-31 fix as the Conversations
+            prompt above — Wider World shouldn't need the whole audience
+            resolved first either. */}
+        {coverage.contactedIds.length > 0 && showOoo ? (
           <>
             <Pressable
               accessibilityRole="button"

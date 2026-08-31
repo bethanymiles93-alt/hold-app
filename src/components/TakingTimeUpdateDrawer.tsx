@@ -5,7 +5,7 @@ import { useAppTheme } from "@/hooks/useAppTheme";
 import { BottomSheetDrawer } from "@/components/BottomSheetDrawer";
 import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
 import { DropdownArrowBadge } from "@/components/DropdownArrowBadge";
-import { LinkedCircleCluster, LinkGroupToggle, type LinkedClusterMember } from "@/components/LinkedCircleCluster";
+import { LinkedCircleCluster, type LinkedClusterMember } from "@/components/LinkedCircleCluster";
 import { CompactSendButton } from "@/components/CompactSendButton";
 import { combinationKey } from "@/services/templateService";
 import {
@@ -151,8 +151,10 @@ export function TakingTimeUpdateDrawer({ visible, onClose, period, onSent }: Tak
 
   // Only one Circle's dropdown open at a time (standing rule, 2026-08-31)
   // — see docs/09-decision-log.md.
-  const toggleArrow = (circleId: string) => {
-    setExpandedCircleIds((current) => (current.has(circleId) ? new Set() : new Set([circleId])));
+  const toggleArrow = (circleIds: string[]) => {
+    setExpandedCircleIds((current) =>
+      circleIds.every((id) => current.has(id)) ? new Set() : new Set(circleIds)
+    );
   };
 
   const visibleCircles = audienceCircles.filter((circle) => expandedCircleIds.has(circle.circleId));
@@ -215,10 +217,15 @@ export function TakingTimeUpdateDrawer({ visible, onClose, period, onSent }: Tak
     onSent();
   };
 
-  const selectedClusterKey =
-    selectedCircleIds.size > 1 ? combinationKey([...selectedCircleIds]) : null;
-  const showGroupToggle =
-    selectedClusterKey !== null && linkedCombos.some((ids) => combinationKey(ids) === selectedClusterKey);
+  const toggleLinkGroup = (circleIds: string[]) => {
+    const key = combinationKey(circleIds);
+    setUngroupedKeys((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   return (
     <BottomSheetDrawer
@@ -242,15 +249,18 @@ export function TakingTimeUpdateDrawer({ visible, onClose, period, onSent }: Tak
                     circleId: c.circleId,
                     circleName: c.circleName,
                     isSelected: selectedCircleIds.has(c.circleId),
-                    hasSentThisSession: sentCircleIds.includes(c.circleId),
-                    isExpanded: expandedCircleIds.has(c.circleId)
+                    hasSentThisSession: sentCircleIds.includes(c.circleId)
                   }));
+                const clusterKey = combinationKey(cluster);
                 return (
                   <LinkedCircleCluster
-                    key={combinationKey(cluster)}
+                    key={clusterKey}
                     members={members}
                     onToggle={() => toggleCircle(circle.circleId)}
-                    onToggleArrow={toggleArrow}
+                    isExpanded={cluster.every((id) => expandedCircleIds.has(id))}
+                    onToggleArrow={() => toggleArrow(cluster)}
+                    grouped={!ungroupedKeys.has(clusterKey)}
+                    onToggleGroup={() => toggleLinkGroup(cluster)}
                   />
                 );
               }
@@ -273,7 +283,7 @@ export function TakingTimeUpdateDrawer({ visible, onClose, period, onSent }: Tak
                   <DropdownArrowBadge
                     expanded={isExpanded}
                     checked={sentLook}
-                    onPress={() => toggleArrow(circle.circleId)}
+                    onPress={() => toggleArrow([circle.circleId])}
                     accessibilityLabel={
                       sentLook
                         ? `${circle.circleName}, already sent. ${isExpanded ? "Hide" : "Show"} people.`
@@ -286,20 +296,6 @@ export function TakingTimeUpdateDrawer({ visible, onClose, period, onSent }: Tak
             });
           })()}
         </View>
-
-        {showGroupToggle && selectedClusterKey ? (
-          <LinkGroupToggle
-            grouped={!ungroupedKeys.has(selectedClusterKey)}
-            onPress={() => {
-              setUngroupedKeys((current) => {
-                const next = new Set(current);
-                if (next.has(selectedClusterKey)) next.delete(selectedClusterKey);
-                else next.add(selectedClusterKey);
-                return next;
-              });
-            }}
-          />
-        ) : null}
 
         {pillPeople.length > 0 ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillRow}>
