@@ -1761,7 +1761,20 @@ export default function ReconnectScreen() {
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     content: {
-      justifyContent: "space-between",
+      // NOT justifyContent: "space-between" — the same Yoga trap fixed on
+      // welcome.tsx and Home (2026-08-31): on a ScrollView's own
+      // flexGrow:1 content container, it clamps the container to viewport
+      // height instead of letting it grow past that once content is
+      // taller, which both cuts content off and blocks scrolling
+      // entirely. Especially risky here — this is "one continuous screen
+      // throughout" with many conditional sections (Circle rows, message
+      // compose, naming prompts, edit cards), routinely taller than the
+      // viewport, unlike a short arrival screen. `gap` alone already
+      // provides the spacing rhythm between sections; space-between's
+      // marginal contribution here was distributing leftover space, not a
+      // deliberate pinned-to-bottom layout the way Home's 2-child brand/
+      // hero split was, so plain removal is the right fix, not a spacer.
+      // See docs/09-decision-log.md.
       gap: theme.spacing.xl
     },
     lockCatcher: {

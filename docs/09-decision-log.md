@@ -1563,3 +1563,27 @@ Checked compliance with standing rules rather than assuming it because a rule wa
 `tsc --noEmit` and `vitest run` (62/62) both pass.
 
 **hold-book**: no update — enforces already-decided rules against hold-app's own code, doesn't change what any rule says.
+
+## 2026-08-31 — Urgent on-device bug: Welcome screen unreachable, root cause found in 2 more screens
+
+**Root cause**: `justifyContent: "space-between"` on a ScrollView's own `contentContainerStyle`, combined with `flexGrow: 1` (either Screen.tsx's own default, or set locally). This is a real Yoga/RN trap, not a hypothesis — it works fine while content fits the viewport, but clamps the content container to viewport height instead of letting it grow past that once content is taller (a longer message, a larger accessibility text size), which both cuts the last child off (rendered just below the visible edge — matches "only its top edge is visible" exactly) and blocks scrolling entirely (RN sees no overflow to scroll to).
+
+**welcome.tsx** (the reported screen): fixed by removing `justifyContent: "space-between"` entirely — its three sections (brand, body text, button) now just stack with `gap`, growing and scrolling naturally regardless of message length or text size.
+
+**Checked every other screen for the same pattern, per instruction, not fixed in isolation.** Grepped for `justifyContent: "space-between"` combined with a Screen/ScrollView `content`-style role across the whole app. Found two more real instances, both fixed:
+- **`app/(tabs)/index.tsx` (Home)** — the app's most-visited screen. Its `content` has exactly two children (brand, hero), and the space-between was doing real, deliberate work (pinning hero toward the bottom on short content) — not just vestigial. Fixed with a `flex: 1` spacer View between them instead of removing it outright: a spacer degrades correctly (expands to push hero down when there's room, shrinks to nothing and lets the ScrollView grow/scroll when there isn't), preserving the same visual result on short content while fixing the tall-content case. Home's "taking-time" state has real, variable extra height (an optional "Send an update" button, a "Someone new reached out?" link) — genuinely reachable today, not theoretical.
+- **`app/return/reconnect.tsx`** — "one continuous screen throughout" per its own comment, many conditional sections (Circle rows, message compose, naming prompts, edit cards), routinely taller than the viewport, the single most likely screen in the app to have silently hit this. `gap` was already providing the real spacing rhythm here; space-between's own contribution was marginal, so plain removal (matching welcome.tsx) was the right fix, not a spacer.
+
+Checked every other `justifyContent: "space-between"` hit in the codebase individually before ruling them out — the rest are all horizontal `flexDirection: "row"` layouts (a title next to a button, a label next to a value), a completely different, unaffected use of the property.
+
+`tsc --noEmit` and `vitest run` (62/62) both pass. **Not verified on-device** — flagged explicitly, since this was found on-device and needs the same to confirm the fix, which this sandbox can't do.
+
+**hold-book**: no update — a rendering bug fix, not a product or spec change.
+
+## 2026-08-31 — Urgent on-device bug: Research index/scroll — investigated, likely stale bundle, not a code defect
+
+Re-checked `ResearchIndex.tsx`, `app/(tabs)/library.tsx`'s wiring, and `researchContent.ts`'s exports line by line, twice, specifically hunting for a render-empty or crash bug. Found none: `RESEARCH_PAGES` is populated at module scope, imports resolve, `activeTab === "research"` correctly renders `<ResearchIndex />`, and `ResearchIndex.tsx` itself isn't a ScrollView at all (it's a plain `View`, meant to render inside Library's own `Screen`/ScrollView) — none of the space-between scroll bug found and fixed above applies to it.
+
+**Working theory, not confirmed**: last night's Research restructure was a large structural change — a deleted file (`ResearchContent.tsx`), new routes, new `Stack.Screen` registrations, a new `navTier.ts` prefix — all committed while no Metro instance was running. Metro was only started fresh this session. A device or simulator holding a JS bundle from before that restructure would show exactly this symptom: the old code paths gone, nothing rendering in their place. This matches a documented, repeated pattern for this project specifically (Fast Refresh missing structural changes before). No code fix applied here, since I found nothing to fix — recommend a full force-quit and reopen (or a fresh reload against the now-running Metro instance) as the first troubleshooting step before assuming a code-level bug, and reporting back whether that resolves it.
+
+**hold-book**: no update.

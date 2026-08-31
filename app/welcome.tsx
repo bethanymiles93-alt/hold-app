@@ -51,7 +51,17 @@ export default function WelcomeScreen() {
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     content: {
-      justifyContent: "space-between",
+      // NOT justifyContent: "space-between" — a known Yoga trap on a
+      // ScrollView's own contentContainerStyle when combined with
+      // Screen's flexGrow: 1: it works while content fits the viewport,
+      // but clamps the container to viewport height instead of growing
+      // past it once content is taller (a longer welcome message, a
+      // larger accessibility text size), which both cut the button off
+      // (rendered just below the visible edge) and disabled scrolling
+      // (RN saw no overflow to scroll to). Plain gap-based stacking
+      // instead — content grows naturally, always reachable by
+      // scrolling regardless of device or text size. Found on-device,
+      // 2026-08-31. See docs/09-decision-log.md.
       paddingTop: 56,
       gap: theme.spacing.xl
     },

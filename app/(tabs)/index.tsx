@@ -408,6 +408,20 @@ export default function HomeScreen() {
           <Text style={[styles.wordmark, { color: currentTheme.colors.text }]}>Hold</Text>
         </View>
 
+        {/* A flex:1 spacer, not justifyContent: "space-between" on
+            `content` above — the same Yoga trap fixed on welcome.tsx
+            (2026-08-31): space-between on a ScrollView's own flexGrow:1
+            content container clamps it to viewport height instead of
+            letting it grow past that when the hero content below is
+            taller than the screen (many action rows, larger accessibility
+            text), which both cuts content off and blocks scrolling
+            entirely. A spacer child degrades correctly: it expands to
+            push hero toward the bottom when there's room, same visual
+            result as space-between had for short content, but shrinks to
+            nothing and lets the ScrollView grow/scroll normally once
+            there isn't. See docs/09-decision-log.md. */}
+        <View style={styles.heroSpacer} />
+
         <View style={styles.hero}>
           {homeState === "taking-time" ? (
             <View style={styles.takingTimeHeader}>
@@ -614,7 +628,6 @@ const styles = StyleSheet.create({
   },
   content: {
     flexGrow: 1,
-    justifyContent: "space-between",
     paddingHorizontal: theme.spacing.lg,
     paddingTop: theme.spacing.xxl,
     // Home is always Tier 2 (see src/utils/navTier.ts) — the floating nav
@@ -622,6 +635,10 @@ const styles = StyleSheet.create({
     // of), so this always needs the reserved space, unlike Screen.tsx's
     // conditional version shared between both tiers.
     paddingBottom: theme.spacing.lg + NAV_BAR_RESERVED_HEIGHT
+  },
+  heroSpacer: {
+    flex: 1,
+    minHeight: theme.spacing.xl
   },
   brand: {
     flexDirection: "row",
