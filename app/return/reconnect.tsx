@@ -244,13 +244,15 @@ export default function ReconnectScreen() {
   const [renameDraft, setRenameDraft] = useState("");
 
   /**
-   * Distinguishes "Continue Reconnecting" (progress already existed before
-   * this screen instance ever mounted) from "just sent within this same
-   * visit" — refresh() uses this once, on its first call, to auto-open
-   * Conversations straight away only for a genuine resume. A same-visit
-   * send instead surfaces the lighter "Want to reply to anyone properly?"
-   * prompt (coverage.contactedIds.length > 0 below), not a forced jump
-   * into the Conversations view. See docs/09-decision-log.md, 2026-08-31.
+   * Distinguishes resuming into **Post-Reconnect** (coverage gate already
+   * satisfied before this screen instance mounted, per hold-book's Home
+   * states: "appears once the coverage gate is satisfied... Resumes...
+   * 'Continue where you left off'") from resuming into **Reconnecting**
+   * (gate not yet satisfied — "resumes straight back into the picker, not
+   * a fresh start"). refresh() uses this once, on its first call, to
+   * auto-open Conversations only for the former; the latter leaves
+   * showPersonalise false and shows the ordinary picker, same as any other
+   * visit. See docs/09-decision-log.md, 2026-08-31.
    */
   const isFirstRefresh = useRef(true);
 
@@ -310,14 +312,13 @@ export default function ReconnectScreen() {
       setPillLockedIds(null);
     }
 
-    // Genuine resume ("Continue Reconnecting", or reopening after a
-    // force-quit) — progress from before this screen instance existed.
-    // Open straight into Conversations rather than the lighter prompt, per
-    // the 2026-08-31 fix: a same-visit send still surfaces the "Want to
-    // reply to anyone properly?" prompt instead (coverage.contactedIds.length
-    // > 0 gate below), since jumping straight into Conversations right after
-    // a send someone hasn't asked for yet would be presumptuous.
-    if (isFirstRefresh.current && current && (current.reconnectContactedIds ?? []).length > 0) {
+    // Resuming into Post-Reconnect specifically (coverage already complete
+    // before this mount) — open straight into Conversations, matching
+    // hold-book's own Post-Reconnect resume description. A Reconnecting
+    // resume (gate still open) leaves showPersonalise false; the picker
+    // shows as normal, same as hold-book's "resumes straight back into the
+    // picker" for that state.
+    if (isFirstRefresh.current && current && getReconnectCoverage(current).complete) {
       setShowPersonalise(true);
       void conversations.refresh();
     }
@@ -1101,10 +1102,20 @@ export default function ReconnectScreen() {
   // people are still reselectable for a further message (2026-08-13,
   // "sent pills are never locked", matching the same rule used everywhere
   // else this chip pattern exists). Once nothing's currently included, the
-  // Conversations prompt/Wider World show whenever anyone's been reached
-  // yet (coverage.contactedIds.length > 0) — not coverage.complete, since
-  // that would hide them until the whole audience is done, exactly when
-  // they're no longer needed (2026-08-31 fix). See docs/09-decision-log.md.
+  // Conversations prompt/Wider World show once coverage.complete — every
+  // person in the whole audience reached by *some* channel (an instant
+  // message, a Conversations reply, or a circle marked "I'll send
+  // something more personal in Conversations instead"). **Corrected
+  // 2026-08-31**: briefly changed this to "anyone reached yet," which
+  // reopened the "no escape hatch" gate hold-book explicitly closed
+  // (`01-core-journeys.md`, "no separate 'remove someone already dealt
+  // with' escape hatch") — reverted. The real fix for "reached anyone but
+  // the prompt never shows" is per-person, not audience-wide: a person
+  // resolved purely via a Conversations reply (no instant message) now
+  // also counts toward coverage (see markReconnectContacted's new call
+  // sites in useConversations.ts), so coverage.complete can actually
+  // become true through either channel — but it still requires *every*
+  // person, not just one. See docs/09-decision-log.md.
   const hasComposeTargets = includedPersonIds.size > 0;
 
   // Once everyone's been reached, a Circle can still legitimately show as
@@ -1696,20 +1707,17 @@ export default function ReconnectScreen() {
                 </View>
               ))}
             </View>
-          ) : coverage.contactedIds.length > 0 ? (
-            // Inline, in the space the text box vacated — nobody's
-            // currently reselected, so there's nothing to compose right
-            // now. Gated on "reached anyone yet" (2026-08-31 fix), not
-            // coverage.complete — Conversations is precisely the tool for
-            // reaching whoever wasn't instant-messaged, so hiding it until
-            // the whole audience is already resolved made it unreachable
-            // for exactly the people it exists to help. coverage.complete
-            // still governs the StepHeader body copy and final "everyone's
-            // been reached" framing elsewhere. "Not now" collapses this
+          ) : coverage.complete ? (
+            // Inline, in the space the text box vacated — nothing left to
+            // compose once everyone's been reached (by any channel — see
+            // hasComposeTargets's own comment above) and nobody's currently
+            // reselected. **Briefly changed to "anyone reached yet" on
+            // 2026-08-31, reverted the same day** — that reopened the
+            // "no escape hatch" gate hold-book explicitly documents as
+            // deliberate (`01-core-journeys.md`). "Not now" collapses this
             // rather than dismissing it, so it can be reopened and
             // reconsidered later, same reveal-on-demand pattern as
-            // OOO/status below. See docs/09-decision-log.md, 2026-08-12,
-            // refined 2026-08-31.
+            // OOO/status below. See docs/09-decision-log.md, 2026-08-12.
             <View>
               {notNowCollapsed ? (
                 <Pressable
@@ -1750,11 +1758,10 @@ export default function ReconnectScreen() {
             completion-screen order (2026-08-13): circle row → Conversations
             → Wider World → Done. Was rendering before Conversations, the
             reverse of spec — moved 2026-08-29 (item 5); nothing else about
-            this block changed. Gated on "reached anyone yet", not
-            coverage.complete, same 2026-08-31 fix as the Conversations
-            prompt above — Wider World shouldn't need the whole audience
-            resolved first either. */}
-        {coverage.contactedIds.length > 0 && showOoo ? (
+            this block changed. **Briefly gated on "reached anyone yet" on
+            2026-08-31, reverted the same day** — same escape-hatch
+            regression as the Conversations prompt above. */}
+        {coverage.complete && showOoo ? (
           <>
             <Pressable
               accessibilityRole="button"

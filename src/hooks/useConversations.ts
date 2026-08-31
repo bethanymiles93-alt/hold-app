@@ -11,7 +11,12 @@ import {
 } from "@/services/conversationService";
 import { addContactToGroup, createGroup, getGroup } from "@/services/circleService";
 import { saveLastSentMessage } from "@/services/lastSentMessageService";
-import { clearReachedVia, getReconnectingPeriod, recordReachedVia } from "@/services/holdHistoryService";
+import {
+  clearReachedVia,
+  getReconnectingPeriod,
+  markReconnectContacted,
+  recordReachedVia
+} from "@/services/holdHistoryService";
 import { pickContact } from "@/services/contactPickerService";
 import { sendOrShare } from "@/services/smsService";
 import { QUICK_RECONNECT_MESSAGES } from "@/constants/copy";
@@ -337,6 +342,32 @@ export function useConversations(scope: ConversationsScope, onPersonAction?: () 
     return "Message";
   };
 
+  /**
+   * A real Conversations reply (Quick message or Personalise) actually
+   * dispatched — counts toward Reconnect's own per-person coverage the
+   * exact same way an instant message does, via the same
+   * `markReconnectContacted` a Reconnect send calls. **Distinct from
+   * `markConversationComplete` below**, which stays exactly as documented
+   * ("never gating Reconnect's own completion") — that's a broader,
+   * separate completion log covering non-Hold paths too (a phone call,
+   * seeing someone in person), which still gates nothing here. This is
+   * narrower and does gate: someone reached purely via a Conversations
+   * reply, with no instant message ever sent, now correctly counts as
+   * reached for Reconnect's own coverage.complete — a person needs *some*
+   * channel, either counts, but every person in the audience still needs
+   * one (2026-08-31, correcting a same-day fix that had this open the gate
+   * on any single person being reached rather than requiring all of them).
+   * Only attaches within an active Continue-reconnecting session for that
+   * period, same guard `markConversationComplete` already uses — no
+   * lookup-by-phone-number, no guessing at "most recent period" outside
+   * one. See docs/09-decision-log.md.
+   */
+  const markReachedIfReconnecting = async (phoneNumber: string) => {
+    const reconnectingPeriod = await getReconnectingPeriod();
+    if (!reconnectingPeriod) return;
+    await markReconnectContacted(reconnectingPeriod.id, phoneNumber);
+  };
+
   const togglePersonaliseSwap = (personId: string) => {
     setPersonaliseSwapIds((current) => {
       const next = new Set(current);
@@ -358,6 +389,7 @@ export function useConversations(scope: ConversationsScope, onPersonAction?: () 
       }
       await markQuickSent([person.id]);
       await saveLastSentMessage(person.id, text);
+      await markReachedIfReconnecting(person.phoneNumber);
       await refresh();
       setStopPermissionShown(true);
       onPersonAction?.();
@@ -440,6 +472,10 @@ export function useConversations(scope: ConversationsScope, onPersonAction?: () 
 
   const onSentFromAccordion = (personId: string, sentText: string) => {
     void saveLastSentMessage(personId, sentText);
+
+    const person = people.find((candidate) => candidate.id === personId);
+    if (person) void markReachedIfReconnecting(person.phoneNumber);
+
     void refresh();
     setStopPermissionShown(true);
     onPersonAction?.();
