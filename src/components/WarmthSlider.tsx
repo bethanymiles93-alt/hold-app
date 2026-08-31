@@ -29,26 +29,43 @@ const A11Y_STEP = 0.05;
  * so the slider didn't visibly move while dragging). `.measure()` gives an
  * absolute `pageX` to anchor against instead. See docs/09-decision-log.md,
  * 2026-08-30.
+ *
+ * **Bug fixed 2026-08-31: dial stuck, couldn't move.** `PanResponder.create`
+ * was wrapped in `useRef(...).current`, so it — and the `onPanResponderGrant`/
+ * `onPanResponderMove` closures inside it — were created exactly once, on
+ * the very first render, closing over `trackWidth`/`trackPageX` at their
+ * initial value of 0. `measureTrack`'s later `setTrackWidth`/`setTrackPageX`
+ * calls did update state and re-render (correctly positioning the thumb
+ * visually), but the PanResponder itself was never recreated, so every
+ * touch's `updateFromPageX` call kept reading the stale, permanently-zero
+ * closure values — `trackWidth <= 0` was true forever, so every tap/drag
+ * silently no-opped. Fixed by tracking the measured values in refs
+ * (mutable, read fresh at call-time, no stale-closure risk) instead of
+ * relying on state read from inside a one-time closure; state is kept
+ * alongside purely to trigger the re-render the thumb's own visual
+ * position needs.
  */
 export function WarmthSlider({ value, onChange }: WarmthSliderProps) {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
   const trackRef = useRef<View>(null);
   const [trackWidth, setTrackWidth] = useState(0);
-  const [trackPageX, setTrackPageX] = useState(0);
+  const trackWidthRef = useRef(0);
+  const trackPageXRef = useRef(0);
 
   const clamp = (n: number) => Math.max(0, Math.min(1, n));
 
   const measureTrack = () => {
     trackRef.current?.measure((_x, _y, width, _height, pageX) => {
+      trackWidthRef.current = width;
+      trackPageXRef.current = pageX;
       setTrackWidth(width);
-      setTrackPageX(pageX);
     });
   };
 
   const updateFromPageX = (pageX: number) => {
-    if (trackWidth <= 0) return;
-    onChange(clamp((pageX - trackPageX) / trackWidth));
+    if (trackWidthRef.current <= 0) return;
+    onChange(clamp((pageX - trackPageXRef.current) / trackWidthRef.current));
   };
 
   const panResponder = useRef(
