@@ -414,6 +414,29 @@ export default function ReconnectScreen() {
 
   const coverage = period ? getReconnectCoverage(period) : null;
 
+  /**
+   * Once every circle's instant message is resolved (coverage.complete),
+   * collapse any open dropdown so the instant-message stage settles to
+   * its resting state: just the circle-picker row, no compose box, no
+   * pill row, no templates — matching Going Quiet's pattern (one shared
+   * message per circle, closing entirely once done). `hasComposeTargets`
+   * already hides the compose box once nothing's included; this handles
+   * the other half, a dropdown left open at the moment of the final send.
+   * Fires once on the false→true transition only (wasComplete ref), not
+   * on every render while already complete — a circle is never locked
+   * after sending (Going Quiet's own "reselecting it is a normal part of
+   * the loop" rule applies here too), so re-tapping an arrow afterward to
+   * send a further message must stay possible, not fight this effect.
+   * See docs/09-decision-log.md, 2026-08-31.
+   */
+  const wasComplete = useRef(false);
+  useEffect(() => {
+    if (coverage?.complete && !wasComplete.current) {
+      setExpandedCircleIds(new Set());
+    }
+    wasComplete.current = coverage?.complete ?? false;
+  }, [coverage?.complete]);
+
   // Which Circles are actually contributing to the message right now —
   // Reconnect's own equivalent of Going Quiet's selectedGroups, derived
   // rather than directly toggled, since inclusion here is per-person. The
@@ -1606,8 +1629,6 @@ export default function ReconnectScreen() {
 
               {pillPeople.map((person) => {
                 const isIncluded = includedPersonIds.has(person.id);
-                const hasSentThisSession = coverage.contactedIds.includes(person.id);
-                const sentLook = hasSentThisSession && !isIncluded;
                 const isGreyedOut = lockedIds !== null && !lockedIds.has(person.id);
 
                 return (
@@ -1616,15 +1637,12 @@ export default function ReconnectScreen() {
                       label={person.name}
                       compact
                       isSelected={isIncluded}
-                      hasSentThisSession={hasSentThisSession}
                       onPress={() => togglePersonIncluded(person.id)}
                       accessibilityRole="button"
                       accessibilityLabel={
                         isIncluded
                           ? `${person.name}, included in this message. Tap to opt out.`
-                          : sentLook
-                            ? `${person.name}, already reached. Tap to include in this message.`
-                            : `${person.name}, not included in this message. Tap to include.`
+                          : `${person.name}, not included in this message. Tap to include.`
                       }
                     />
                   </View>
