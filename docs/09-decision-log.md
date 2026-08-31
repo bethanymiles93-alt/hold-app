@@ -1535,3 +1535,17 @@ Investigated before building (per direct instruction): confirmed `MonthCalendarV
 `tsc --noEmit` and `vitest run` (62/62) both pass. **Not verified on-device** — flagged, not claimed, same as everything else tonight.
 
 **hold-book**: `04-ux-content/04-navigation-architecture.md`'s Research section needs updating to describe this new structure — done in the same pass, see hold-book's own log.
+
+## 2026-08-31 — Overnight sweep: dead code removed, one real privacy gap fixed
+
+Background sweep across the whole app (not scoped to tonight's changes), findings verified independently before acting, not applied blind.
+
+**Removed, confirmed zero remaining callers each:** `markPendingCircleResolved` (`holdHistoryService.ts`) — genuinely superseded by `resolvePendingCircleInPeriod`'s auto-resolve per the 2026-08-13 "no more yes/no gate" redesign; the `resolvedPendingCircleIds` field itself stays, still actively read/written elsewhere, only this one dead writer removed. `deleteLinkedAccountToken` (`emailAccountService.ts`) — its own "symmetric to activateOutOfOffice" comment described intent, but no per-account "unlink" UI exists anywhere to call it from, and `deleteAllEmailOAuthTokens()` already covers bulk deletion independently, so removing it leaves no privacy gap. `widerWorldSettingsService.ts`'s `getWiderWorldPlatforms`/`add`/`remove`/`renameWiderWorldPlatform` — confirmed superseded by `widerWorldContextService.ts`'s Context system (different storage key, actively used by four real call sites) rather than simply unwired; `deleteAllWiderWorldPlatforms` kept as legacy-key cleanup for any device that set it before the redesign.
+
+**Explicitly NOT removed, despite zero current callers**: `conversationService.ts`'s `addCircleMembers` ("Expand to full Circle"), `moveToPersonalise` ("Unticking someone out of Quick message"), and `removePerson` (which correctly cleans up `deleteLastSentMessage` alongside itself — built with real care, not leftover). Each has a comment describing specific, real UI intent, unlike the confirmed-dead functions above — this reads as built-ahead-of-its-UI, not orphaned-by-a-redesign. Flagged for a product decision rather than deleted on the same "zero callers" logic; see end-of-session summary.
+
+**Real gap found and fixed, not just flagged**: `circleLastSentMessageService.ts` (built earlier tonight) had no deletion path at all — real message content that survived a full "Delete my data" wipe. Its "no index, on-demand lookup only" design was deliberate for `get`, but that same choice quietly ruled out ever enumerating the store for bulk deletion. Added a light index, written on every save, read only by a new `deleteAllCircleLastSentMessages()` — wired into `SettingsDrawer.tsx`'s delete-everything flow alongside every other content store. `get`/single-item `delete` are unchanged, still pure on-demand lookups.
+
+`tsc --noEmit` and `vitest run` (62/62) both pass.
+
+**hold-book**: no update — dead-code removal and a privacy-completeness fix on hold-app's own internals, not a product or spec decision.

@@ -396,23 +396,6 @@ export async function setLinkClusterGrouped(periodId: string, key: string, group
 }
 
 /**
- * Marks a pending (Going-Quiet-created, not-yet-real) Circle's "add
- * permanently?" prompt as resolved — Yes or Not now, both idempotent — so a
- * later Reconnect visit (possibly after a force-quit) doesn't re-ask. Takes
- * an explicit periodId rather than reading OPEN_KEY, since this prompt fires
- * at Reconnect, after the period has already closed.
- */
-export async function markPendingCircleResolved(periodId: string, circleId: string): Promise<void> {
-  const period = await readRecord(periodId);
-  if (!period) return;
-
-  const existing = period.resolvedPendingCircleIds ?? [];
-  if (existing.includes(circleId)) return;
-
-  await writeRecord({ ...period, resolvedPendingCircleIds: [...existing, circleId] });
-}
-
-/**
  * Swaps a still-pending audienceCircles entry for the now-real Circle it
  * became (2026-08-13) — a bundled ad-hoc Circle is made real automatically,
  * as soon as Reconnect loads, not behind a yes/no tap any more; this keeps

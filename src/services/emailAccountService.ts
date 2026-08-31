@@ -1,6 +1,5 @@
 import * as SecureStore from "expo-secure-store";
 import {
-  deleteEmailOAuthToken,
   fetchLinkedEmailAddress,
   getLinkedEmailAccountIds,
   isEmailOAuthConfigured,
@@ -156,10 +155,6 @@ export async function activateOutOfOffice(accounts: (EmailAccount & { message: s
 /** Symmetric to activateOutOfOffice, called from Reconnect with the minimal id+provider pairs persisted onto the period at Going Quiet's Done step (HoldPeriod.emailLinkedAccounts) — Reconnect never has the full EmailAccount records, which are Going Quiet's own local, per-session state. */
 export async function deactivateOutOfOffice(accounts: { id: string; provider: EmailProvider }[]): Promise<void> {
   await Promise.all(accounts.map((account) => setRealAutoReply(account.id, account.provider, false, "")));
-}
-
-export async function deleteLinkedAccountToken(accountId: string): Promise<void> {
-  await deleteEmailOAuthToken(accountId);
 }
 
 export function createEmailAccountId(): string {

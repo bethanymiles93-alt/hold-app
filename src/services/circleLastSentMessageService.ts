@@ -2,9 +2,19 @@ import * as SecureStore from "expo-secure-store";
 import { combinationKey } from "@/services/templateService";
 
 const RECORD_PREFIX = "hold.circleLastSentMessage.";
+const INDEX_KEY = "hold.circleLastSentMessage.index";
 
 function recordKey(circleIds: string[]): string {
   return `${RECORD_PREFIX}${combinationKey(circleIds)}`;
+}
+
+async function readIndex(): Promise<string[]> {
+  const raw = await SecureStore.getItemAsync(INDEX_KEY);
+  return raw ? (JSON.parse(raw) as string[]) : [];
+}
+
+async function writeIndex(keys: string[]): Promise<void> {
+  await SecureStore.setItemAsync(INDEX_KEY, JSON.stringify(keys));
 }
 
 /**
@@ -30,9 +40,14 @@ function recordKey(circleIds: string[]): string {
  * multi-Circle key back today — no dropdown currently represents more
  * than one Circle at a time.
  *
- * Permanent (no expiry), no index kept — looked up on demand for a
- * known set of ids when a dropdown opens, never enumerated, same
- * reasoning as `lastSentMessageService.ts`'s own per-person store.
+ * Permanent (no expiry). `get`/individual `delete` stay pure on-demand
+ * lookups by known ids, same reasoning as `lastSentMessageService.ts`'s
+ * own per-person store — no index needed for that. **A light index was
+ * added 2026-08-31**, purely so "Delete my data" can actually enumerate
+ * and clear this store — found missing in an overnight sweep: real
+ * message content that survived a full data wipe. The index only ever
+ * grows a key on save and is wiped wholesale by
+ * `deleteAllCircleLastSentMessages`, never read for anything else.
  * Separate from History (metadata-only, never message text; untouched
  * by this service). See docs/09-decision-log.md.
  */
@@ -44,10 +59,28 @@ export async function getCircleLastSentMessage(circleIds: string[]): Promise<str
 export async function saveCircleLastSentMessage(circleIds: string[], text: string): Promise<void> {
   const trimmed = text.trim();
   if (!trimmed || circleIds.length === 0) return;
-  await SecureStore.setItemAsync(recordKey(circleIds), trimmed);
+  const key = recordKey(circleIds);
+  await SecureStore.setItemAsync(key, trimmed);
+
+  const index = await readIndex();
+  if (!index.includes(key)) {
+    await writeIndex([...index, key]);
+  }
 }
 
 export async function deleteCircleLastSentMessage(circleIds: string[]): Promise<void> {
   if (circleIds.length === 0) return;
-  await SecureStore.deleteItemAsync(recordKey(circleIds));
+  const key = recordKey(circleIds);
+  await SecureStore.deleteItemAsync(key);
+  const index = await readIndex();
+  if (index.includes(key)) {
+    await writeIndex(index.filter((existing) => existing !== key));
+  }
+}
+
+/** Wipes every recorded circle-combination last-sent message — the "Delete my data" path. */
+export async function deleteAllCircleLastSentMessages(): Promise<void> {
+  const index = await readIndex();
+  await Promise.all(index.map((key) => SecureStore.deleteItemAsync(key)));
+  await SecureStore.deleteItemAsync(INDEX_KEY);
 }
