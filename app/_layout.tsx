@@ -107,21 +107,55 @@ function RootLayoutNav() {
                 options={{ title: "Reconnect", gestureEnabled: false, animation: "none" }}
               />
               <Stack.Screen name="return/done" options={{ headerShown: false, gestureEnabled: false }} />
-              <Stack.Screen name="settings/mission" options={{ title: "Our Mission" }} />
-              <Stack.Screen name="settings/privacy" options={{ title: "Privacy Policy" }} />
-              <Stack.Screen name="settings/hold-plus" options={{ title: "Hold+" }} />
-              <Stack.Screen name="settings/manage-purchases" options={{ title: "Manage Purchases" }} />
-              <Stack.Screen name="settings/language-location" options={{ title: "Language & Location" }} />
-              <Stack.Screen name="settings/sending-channel" options={{ title: "Sending channel" }} />
-              <Stack.Screen name="settings/circle/index" options={{ title: "Your Circles" }} />
-              <Stack.Screen name="settings/wider-world" options={{ title: "Your Wider World" }} />
-              <Stack.Screen name="settings/accessibility-display" options={{ title: "Accessibility & Display" }} />
+              {/* gestureEnabled: false on every settings/* screen and
+                  research/[slug] (2026-08-31) — standing convention now,
+                  not a one-off fix: found via a real on-device bug
+                  (swipe-back on Accessibility & Display could win gesture
+                  arbitration against the warmth slider's own left-edge-
+                  adjacent horizontal drag), but applied broadly rather
+                  than just to that one screen, matching the flow-screens'
+                  own existing precedent above. Every one of these screens
+                  already has an explicit Back button (SettingsBackButton,
+                  headerLeft in screenOptions) — this only removes the
+                  gestural shortcut, nothing becomes unreachable. Any new
+                  settings/* or research-style screen added later should
+                  get this by default as part of how that category of
+                  screen is built, not something to remember to add after
+                  the fact — see docs/09-decision-log.md and hold-book's
+                  own standing-conventions note. */}
+              <Stack.Screen name="settings/mission" options={{ title: "Our Mission", gestureEnabled: false }} />
+              <Stack.Screen name="settings/privacy" options={{ title: "Privacy Policy", gestureEnabled: false }} />
+              <Stack.Screen name="settings/hold-plus" options={{ title: "Hold+", gestureEnabled: false }} />
+              <Stack.Screen
+                name="settings/manage-purchases"
+                options={{ title: "Manage Purchases", gestureEnabled: false }}
+              />
+              <Stack.Screen
+                name="settings/language-location"
+                options={{ title: "Language & Location", gestureEnabled: false }}
+              />
+              <Stack.Screen
+                name="settings/sending-channel"
+                options={{ title: "Sending channel", gestureEnabled: false }}
+              />
+              <Stack.Screen
+                name="settings/circle/index"
+                options={{ title: "Your Circles", gestureEnabled: false }}
+              />
+              <Stack.Screen
+                name="settings/wider-world"
+                options={{ title: "Your Wider World", gestureEnabled: false }}
+              />
+              <Stack.Screen
+                name="settings/accessibility-display"
+                options={{ title: "Accessibility & Display", gestureEnabled: false }}
+              />
               {/* Research concept pages (2026-08-31) — one dynamic route for
                   all six, so no single static title fits; the page renders
                   its own title + share button inline instead. Header stays
                   shown (title blank) purely for the default back arrow,
                   same mechanism every settings/* route above already uses. */}
-              <Stack.Screen name="research/[slug]" options={{ title: "" }} />
+              <Stack.Screen name="research/[slug]" options={{ title: "", gestureEnabled: false }} />
             </Stack>
       {/* Sibling to the Stack, not inside it — a root-level overlay so
           it can show over any screen regardless of which navigator
