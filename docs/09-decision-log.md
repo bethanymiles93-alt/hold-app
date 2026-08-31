@@ -1465,3 +1465,15 @@ Default send behaviour (sequential per-contact deep link, or share-sheet-to-grou
 `tsc --noEmit` and `vitest run` (62/62) both pass. **Not verified on-device.**
 
 **hold-book**: no update — implementation-level build against a spec given directly this pass, not a new product decision.
+
+## 2026-08-31 — Reconnect "add person" ungrouped-bucket bug: false alarm, stale comments corrected
+
+Reported as a still-open bug ("addPersonToAudience doesn't create a Circle-of-one, contradicting the confirmed design") citing a 2026-08-13 comment in `reconnect.tsx`. Investigated before changing anything, per direct instruction. **Not currently a bug**: `addToReconnectingAudience` (`holdHistoryService.ts`) was already fixed 2026-08-20 to create a real provisional Circle-of-one (`PENDING_CIRCLE_ID_PREFIX`, auto-named by initials) — its own docstring says so. The actual source of the report was almost certainly `reconnect.tsx`'s own comment on `addPersonToAudience`, which still said "still ungrouped... left as-is" a full week after the function it calls was fixed — never updated to match. A second, related stale reference found in the same pass: `addCircleToAudience`'s docstring in `holdHistoryService.ts` called itself the counterpart to a function named `addToAudience`, which doesn't exist anywhere in the codebase, and claimed `addToReconnectingAudience` was "untouched," directly contradicted by that function's own docstring three lines later.
+
+Confirmed no current code path writes a non-empty value into `audienceUngrouped` on any period going forward — the field is initialized to `[]` in `HoldFlowContext.tsx` and every other reference is a defensive read (`?? []`). Whether any pre-2026-08-20 test/dev period on-device still has real ungrouped entries can't be checked from here (no on-device SecureStore access); if any do, every read site already guards for it safely (no crash/data-loss risk), just without the Circle-of-one mechanics. Migration and field-removal both left to the user's own judgment, not decided here.
+
+Fixed both stale comments to reflect current behaviour accurately. No functional/behavioural code changed.
+
+`tsc --noEmit` passes.
+
+**hold-book**: no update — corrects an internal hold-app comment inaccuracy, not a product decision or spec change.

@@ -676,15 +676,19 @@ export default function ReconnectScreen() {
   };
 
   /**
-   * Adds a new ungrouped person to this period's audience mid-Reconnect —
-   * a dedicated `addToReconnectingAudience` rather than Home's own
+   * Adds a new person to this period's audience mid-Reconnect — a
+   * dedicated `addToReconnectingAudience` rather than Home's own
    * Circle-of-one "Add to Going Quiet" flow, since this no longer has the
    * currently-OPEN period that flow requires by the time Reconnect is on
-   * screen. Still ungrouped, not a Circle-of-one — a real, flagged
-   * inconsistency with the confirmed Circle-of-one design, left as-is
-   * here (see docs/09-decision-log.md, 2026-08-13). refresh() re-seeds
-   * includedPersonIds afterward, which already includes the new
-   * (not-yet-contacted) person — no separate include step needed.
+   * screen. **Corrected, 2026-08-31:** this comment previously said the
+   * added person stayed ungrouped, a flagged inconsistency — that was
+   * fixed 2026-08-20 (see `addToReconnectingAudience`'s own docstring in
+   * holdHistoryService.ts). It creates a real provisional Circle-of-one
+   * (`PENDING_CIRCLE_ID_PREFIX`, auto-named by initials), matching Going
+   * Quiet's convention; this comment just wasn't updated when that
+   * changed. refresh() re-seeds includedPersonIds afterward, which
+   * already includes the new (not-yet-contacted) person — no separate
+   * include step needed.
    */
   const addPersonToAudience = () => {
     void (async () => {

@@ -80,16 +80,18 @@ export async function recordSendChannel(periodId: string, id: string, channel: s
 
 /**
  * Appends a whole Circle to the currently-open period's tracked audience —
- * the "Add to Going Quiet" drawer's send-time counterpart to `addToAudience`
- * above, for a Circle rather than an ungrouped contact (2026-08-13: every
- * person added via this specific flow becomes their own Circle of one, not
- * an ungrouped entry, matching Going Quiet's own "+ New Circle" convention
- * — a deliberate change for this one flow; `addToAudience` and
- * `addToReconnectingAudience` are untouched and still add ungrouped,
- * flagged as a real inconsistency rather than silently also changed). A
- * no-op if there's no open period, or if this exact Circle id is already
- * present (re-sending to an already-added Circle shouldn't duplicate it).
- * See docs/09-decision-log.md.
+ * the "Add to Going Quiet" drawer's send-time counterpart to
+ * `addToReconnectingAudience` below, for a Circle rather than a brand-new
+ * contact (2026-08-13: every person added via this specific flow becomes
+ * their own Circle of one, not an ungrouped entry, matching Going Quiet's
+ * own "+ New Circle" convention). **Correction, 2026-08-31:**
+ * `addToReconnectingAudience` was itself fixed to match on 2026-08-20 (see
+ * its own docstring below) — this comment previously, incorrectly, still
+ * called that flow "untouched." No function named `addToAudience` exists
+ * in this file; that was a stale reference, also removed here. A no-op if
+ * there's no open period, or if this exact Circle id is already present
+ * (re-sending to an already-added Circle shouldn't duplicate it). See
+ * docs/09-decision-log.md.
  */
 export async function addCircleToAudience(circle: AudienceCircle): Promise<void> {
   const openId = await SecureStore.getItemAsync(OPEN_KEY);
