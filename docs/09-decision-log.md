@@ -1610,4 +1610,16 @@ Per direct instruction: `addCircleMembers`, `moveToPersonalise`, `removePerson` 
 
 `tsc --noEmit` and `vitest run` (62/62) both pass. **Not verified on-device.**
 
+## 2026-08-31 — Reconnect completion gate: "marked for Conversations instead" now resolves a Circle too
+
+Checked current state first, per instruction: confirmed `getReconnectCoverage`'s `complete` only ever recognised the "sent" path (`totalIds.every(id => contactedIds.includes(id))`) — no "explicitly skipped" concept existed anywhere.
+
+Added `HoldPeriod.reconnectMarkedForConversationsCircleIds` and `setCircleMarkedForConversations` (toggleable both ways). `getReconnectCoverage` refined to resolve per-Circle: a Circle counts as done if every member's been contacted, **or** the whole Circle is marked — `totalIds`/`contactedIds` themselves untouched, so every other call site reading them for "already sent" chip styling is unaffected; only `complete`'s own derivation changed. Ungrouped contacts have no marking path — Circle-scoped only, since "instead" only makes sense against a Circle's own upcoming Personalise entry.
+
+UI: "I'll send something more personal in Conversations instead" inside each Circle's own expanded edit card (reconnect.tsx), toggleable, hidden once that Circle's already fully sent (nothing left to skip).
+
+`tsc --noEmit` and `vitest run` (62/62) both pass. **Not verified on-device.**
+
+**hold-book**: `04-ux-content/01-core-journeys.md`'s Reconnect section needs the 13 August gate description corrected to describe both paths — done in the same pass, see hold-book's own log.
+
 **hold-book**: no update — implementation-level build against a spec given directly this pass, not a new product decision.

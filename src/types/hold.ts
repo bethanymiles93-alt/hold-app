@@ -146,6 +146,18 @@ export interface HoldPeriod {
   emailLinkedAccounts?: { id: string; provider: EmailProvider }[];
   /** Circle ids and ungrouped phone numbers already sent an instant message this Reconnect session — see docs/03-privacy-model.md. */
   reconnectContactedIds?: string[];
+  /**
+   * Circle ids explicitly marked "I'll send something more personal in
+   * Conversations instead" on Reconnect's instant-message row — a
+   * deliberate skip, not a silent one. Refines the 13 August
+   * "sent to all at least once" completion gate: a Circle now counts as
+   * resolved via either path, not sent-only. Ungrouped contacts have no
+   * equivalent — marking is Circle-scoped, since "instead" only makes
+   * sense against a Circle's own upcoming Personalise entry, and an
+   * ungrouped contact has no Circle-level Personalise moment to defer
+   * to. See docs/09-decision-log.md, 2026-08-31.
+   */
+  reconnectMarkedForConversationsCircleIds?: string[];
   /** Circle ids already sent a Taking Time "update" this Hold period — durable equivalent of Reconnect's reconnectContactedIds, scoped to the still-open period rather than a separate marker. */
   updateSentCircleIds?: string[];
   /**

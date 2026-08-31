@@ -33,6 +33,7 @@ import {
   getReconnectingPeriod,
   markEmailAccountTurnedOff,
   markReconnectContacted,
+  setCircleMarkedForConversations,
   markRemovalPromptResolved,
   markWiderWorldTakenDown,
   recordReconnectStepReached,
@@ -602,6 +603,22 @@ export default function ReconnectScreen() {
       await updateAudienceCircleContacts(period.id, circle.circleId, nextContacts);
 
       clearStagedFor(circle.circleId);
+      await refresh();
+    })();
+  };
+
+  /**
+   * "I'll send something more personal in Conversations instead" —
+   * refines the 13 August "sent to all" completion gate: a Circle now
+   * counts as resolved via either path. Toggleable both ways, in case
+   * someone changes their mind before the screen moves on. See
+   * getReconnectCoverage's own use of this list, docs/09-decision-log.md,
+   * 2026-08-31.
+   */
+  const toggleMarkedForConversations = (circleId: string, currentlyMarked: boolean) => {
+    void (async () => {
+      if (!period) return;
+      await setCircleMarkedForConversations(period.id, circleId, !currentlyMarked);
       await refresh();
     })();
   };
@@ -1393,6 +1410,12 @@ export default function ReconnectScreen() {
               const excluded = stagedExcludedByCircle[circle.circleId] ?? new Set<string>();
               const additions = stagedAdditionsByCircle[circle.circleId] ?? [];
               const hasStagedChanges = excluded.size > 0 || additions.length > 0;
+              const alreadySent =
+                circle.contacts.length > 0 &&
+                circle.contacts.every((contact) => coverage.contactedIds.includes(contact.phoneNumber));
+              const markedForConversations = (period?.reconnectMarkedForConversationsCircleIds ?? []).includes(
+                circle.circleId
+              );
 
               return (
                 <View key={circle.circleId} style={styles.editCard}>
@@ -1450,6 +1473,29 @@ export default function ReconnectScreen() {
                       style={styles.saveChangesButton}
                     >
                       <Text style={styles.saveChangesText}>Save changes</Text>
+                    </Pressable>
+                  ) : null}
+                  {/* Refines the 13 August "sent to all" completion gate —
+                      a deliberate, explicit skip, not a silent one. Not
+                      shown once already sent: nothing left to skip. See
+                      getReconnectCoverage, docs/09-decision-log.md,
+                      2026-08-31. */}
+                  {!alreadySent ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityState={{ checked: markedForConversations }}
+                      accessibilityLabel={
+                        markedForConversations
+                          ? `${circle.circleName} marked for Conversations instead. Tap to undo.`
+                          : `Send something more personal to ${circle.circleName} in Conversations instead`
+                      }
+                      onPress={() => toggleMarkedForConversations(circle.circleId, markedForConversations)}
+                    >
+                      <Text style={styles.linkText}>
+                        {markedForConversations
+                          ? "✓ Sending in Conversations instead"
+                          : "I'll send something more personal in Conversations instead"}
+                      </Text>
                     </Pressable>
                   ) : null}
                   <CircleLastSentMessage

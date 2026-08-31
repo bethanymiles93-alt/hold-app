@@ -482,6 +482,30 @@ export async function markReconnectContacted(periodId: string, phoneNumber: stri
 }
 
 /**
+ * "I'll send something more personal in Conversations instead" — a
+ * deliberate skip on the instant-message row, not silent. Toggleable both
+ * ways (marking is reversible if someone changes their mind before
+ * sending). See HoldPeriod.reconnectMarkedForConversationsCircleIds and
+ * getReconnectCoverage's own use of this list. See docs/09-decision-log.md,
+ * 2026-08-31.
+ */
+export async function setCircleMarkedForConversations(
+  periodId: string,
+  circleId: string,
+  marked: boolean
+): Promise<void> {
+  const period = await readRecord(periodId);
+  if (!period) return;
+
+  const existing = period.reconnectMarkedForConversationsCircleIds ?? [];
+  const alreadyMarked = existing.includes(circleId);
+  if (marked === alreadyMarked) return;
+
+  const next = marked ? [...existing, circleId] : existing.filter((id) => id !== circleId);
+  await writeRecord({ ...period, reconnectMarkedForConversationsCircleIds: next });
+}
+
+/**
  * Records that a Reconnect step was reached this period — idempotent,
  * takes an explicit periodId (this fires from both the instant-message
  * send and, separately, a Personalise reply completing, potentially well
@@ -557,14 +581,36 @@ export interface ReconnectCoverage {
  * list) is naturally deduped by `totalIds.every`, which only needs their
  * number present once, not counted per appearance. See
  * docs/09-decision-log.md, 2026-08-13.
+ *
+ * **Refined 2026-08-31**: `complete` now also accepts a Circle explicitly
+ * marked "I'll send something more personal in Conversations instead" as
+ * resolved, alongside "sent to all" — the two paths the 13 August spec's
+ * completion gate should have recognised together. `totalIds`/
+ * `contactedIds` themselves are untouched (still literal "who's actually
+ * been sent an instant message," which other call sites read for their
+ * own "already sent" chip styling) — only `complete`'s own derivation
+ * changes, computed per-Circle for Circles (a marked Circle's members
+ * don't need to be individually contacted) and per-person for ungrouped
+ * contacts (marking is Circle-scoped; there's no Circle-level Personalise
+ * moment for an ungrouped contact to defer to).
  */
 export function getReconnectCoverage(period: HoldPeriod): ReconnectCoverage {
+  const circles = period.audienceCircles ?? [];
+  const ungrouped = period.audienceUngrouped ?? [];
   const totalIds = [
-    ...(period.audienceCircles ?? []).flatMap((circle) => circle.contacts.map((contact) => contact.phoneNumber)),
-    ...(period.audienceUngrouped ?? []).map((contact) => contact.phoneNumber)
+    ...circles.flatMap((circle) => circle.contacts.map((contact) => contact.phoneNumber)),
+    ...ungrouped.map((contact) => contact.phoneNumber)
   ];
   const contactedIds = period.reconnectContactedIds ?? [];
-  const complete = totalIds.length > 0 && totalIds.every((id) => contactedIds.includes(id));
+  const markedCircleIds = period.reconnectMarkedForConversationsCircleIds ?? [];
+
+  const circlesResolved = circles.every(
+    (circle) =>
+      markedCircleIds.includes(circle.circleId) ||
+      circle.contacts.every((contact) => contactedIds.includes(contact.phoneNumber))
+  );
+  const ungroupedResolved = ungrouped.every((contact) => contactedIds.includes(contact.phoneNumber));
+  const complete = totalIds.length > 0 && circlesResolved && ungroupedResolved;
 
   return { totalIds, contactedIds, complete };
 }
