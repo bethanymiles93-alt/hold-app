@@ -47,18 +47,29 @@ interface LinkedCircleClusterProps {
  * **Redesigned 2026-08-31**: one shared dropdown arrow for the whole
  * cluster, not one per member — several expandable things doing the same
  * underlying job read as confusing/overwhelming for what's visually
- * presented as one linked group. Right-anchored on the last (topmost,
- * highest-zIndex) chip, same right-side convention every standalone
- * circle uses — this also resolves the old left-side placement, which
- * existed only to dodge the next chip's overlap; with a single arrow for
- * the whole cluster there's nothing left to overlap. The group/ungroup
- * control moved in from the separate `LinkGroupToggle` text link below
- * the row (now removed, no other callers) to a small chain-link icon
- * beside the arrow, always visible whenever a cluster exists — no longer
- * gated behind first selecting every member. Icon over text specifically
- * for compactness: this needs to stay small enough that the row still
- * reads as one continuous scrollable line, not one broken up by a wide
- * control between chips.
+ * presented as one linked group. The group/ungroup control moved in from
+ * the separate `LinkGroupToggle` text link below the row (now removed, no
+ * other callers) to a small chain-link icon beside the arrow, always
+ * visible whenever a cluster exists — no longer gated behind first
+ * selecting every member. Icon over text specifically for compactness:
+ * this needs to stay small enough that the row still reads as one
+ * continuous scrollable line, not one broken up by a wide control between
+ * chips.
+ *
+ * **Bug fixed the same day: both controls sat absolutely positioned over
+ * the last chip's own corner, not beside the cluster.** Copied the
+ * standalone circle's own `arrowButton` treatment (`right: 10, bottom:
+ * 12`, correct for a container that wraps exactly one chip) onto a
+ * container that wraps *several* overlapping chips — since that
+ * container's width is its content's width, "right: 10" landed on the
+ * last chip's own corner, overlapping it rather than clearing it. This
+ * also broke the chain icon's own tap target: overlapping the last chip's
+ * touch area meant taps landed on whichever view actually captured the
+ * gesture, reading as "tapping the icon just toggles the circles."
+ * Restructured so the chip row and the controls (arrow, then chain icon)
+ * sit side by side in normal flow instead — circles → shared arrow →
+ * chain icon, left to right, each its own fully separate, non-overlapping
+ * tap target.
  */
 export function LinkedCircleCluster({
   members,
@@ -76,29 +87,41 @@ export function LinkedCircleCluster({
   const clusterLabel = members.map((member) => member.circleName).join(" & ");
 
   return (
-    <View style={styles.clusterUnit}>
-      <View style={clusterLineStyle(colors, isSelected)} />
-      <View style={styles.clusterRow}>
-        {members.map((member, index) => (
-          <View
-            key={member.circleId}
-            style={[styles.clusterChip, index > 0 && styles.clusterChipOverlap, { zIndex: index }]}
-          >
-            <AdaptiveCircleChip
-              label={member.circleName}
-              isSelected={member.isSelected}
-              hasSentThisSession={member.hasSentThisSession}
-              notYetSent={member.notYetSent}
-              newlyAdded={member.newlyAdded}
-              clusterSeam
-              onPress={onToggle}
-              accessibilityRole="button"
-            />
-          </View>
-        ))}
+    <View style={styles.clusterOuter}>
+      <View style={styles.clusterUnit}>
+        <View style={clusterLineStyle(colors, isSelected)} />
+        <View style={styles.clusterRow}>
+          {members.map((member, index) => (
+            <View
+              key={member.circleId}
+              style={[styles.clusterChip, index > 0 && styles.clusterChipOverlap, { zIndex: index }]}
+            >
+              <AdaptiveCircleChip
+                label={member.circleName}
+                isSelected={member.isSelected}
+                hasSentThisSession={member.hasSentThisSession}
+                notYetSent={member.notYetSent}
+                newlyAdded={member.newlyAdded}
+                clusterSeam
+                onPress={onToggle}
+                accessibilityRole="button"
+              />
+            </View>
+          ))}
+        </View>
       </View>
 
       <View style={styles.clusterControls}>
+        <DropdownArrowBadge
+          expanded={isExpanded}
+          checked={sentLook}
+          onPress={onToggleArrow}
+          accessibilityLabel={
+            sentLook
+              ? `${clusterLabel}, already sent. ${isExpanded ? "Hide" : "Show"} people.`
+              : `${clusterLabel}, ${isExpanded ? "hide" : "show"} people`
+          }
+        />
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={grouped ? `Ungroup ${clusterLabel}` : `Group ${clusterLabel}`}
@@ -114,16 +137,6 @@ export function LinkedCircleCluster({
             />
           )}
         </Pressable>
-        <DropdownArrowBadge
-          expanded={isExpanded}
-          checked={sentLook}
-          onPress={onToggleArrow}
-          accessibilityLabel={
-            sentLook
-              ? `${clusterLabel}, already sent. ${isExpanded ? "Hide" : "Show"} people.`
-              : `${clusterLabel}, ${isExpanded ? "hide" : "show"} people`
-          }
-        />
       </View>
     </View>
   );
@@ -148,6 +161,11 @@ function clusterLineStyle(colors: ThemeColors, grouped: boolean) {
 
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
+    clusterOuter: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xs
+    },
     clusterUnit: {
       alignItems: "center",
       position: "relative"
@@ -164,9 +182,6 @@ function createStyles(colors: ThemeColors) {
       marginLeft: -18
     },
     clusterControls: {
-      position: "absolute",
-      right: 10,
-      bottom: 12,
       flexDirection: "row",
       alignItems: "center",
       gap: 6
