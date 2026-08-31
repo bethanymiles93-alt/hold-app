@@ -7,6 +7,8 @@ import { StepHeader } from "@/components/StepHeader";
 import { SecondaryButton } from "@/components/SecondaryButton";
 import { DockedInputBar } from "@/components/DockedInputBar";
 import { CopyMessageLink } from "@/components/CopyMessageLink";
+import { CircleLastSentMessage } from "@/components/CircleLastSentMessage";
+import { saveCircleLastSentMessage } from "@/services/circleLastSentMessageService";
 import { DockedFieldPreview } from "@/components/DockedFieldPreview";
 import { MemoryNoteSuggestion } from "@/components/MemoryNoteSuggestion";
 import { RemovalPromptSuggestion } from "@/components/RemovalPromptSuggestion";
@@ -110,7 +112,7 @@ export default function ReconnectScreen() {
     // durable account records live in Settings, not on the period itself.
     void getEmailAccounts().then(setEmailAccounts);
   }, []);
-  /** A memory note's text, staged for a one-shot highlighted insert into the docked bar — see DockedInputBar's own pendingInsert prop. Corrected 2026-08-21: used to feed AI-amend's initialPrompt instead, which silently made stale note text an unreviewed AI input rather than clearly-marked inserted content. */
+  /** Staged text for a one-shot highlighted insert into the group-message docked bar — see DockedInputBar's own pendingInsert prop. Originally a memory note's text only (corrected 2026-08-21: used to feed AI-amend's initialPrompt instead, which silently made stale note text an unreviewed AI input rather than clearly-marked inserted content); reused as-is for a Circle's last-sent message too (2026-08-31) rather than adding a second, parallel one-shot-insert state for the same bar. */
   const [pendingMemoryInsert, setPendingMemoryInsert] = useState<string | undefined>(undefined);
   // Collapsed by default — 2026-08-13 confirmed correction, superseding
   // the 2026-08-12 entry that had flipped this to expanded for this exact
@@ -744,6 +746,9 @@ export default function ReconnectScreen() {
     for (const [id, channel] of channelByCircle) {
       await recordSendChannel(period.id, id, channelKey(channel));
     }
+    for (const target of deliveryTargets) {
+      await saveCircleLastSentMessage(target.circleId, text);
+    }
 
     for (const contact of ungrouped) {
       try {
@@ -785,6 +790,7 @@ export default function ReconnectScreen() {
     }
 
     await clearDraft(RECONNECT_DRAFT_KEY);
+    setPendingMemoryInsert(undefined);
     await refresh();
   };
 
@@ -1437,6 +1443,13 @@ export default function ReconnectScreen() {
                       <Text style={styles.saveChangesText}>Save changes</Text>
                     </Pressable>
                   ) : null}
+                  <CircleLastSentMessage
+                    circleId={circle.circleId}
+                    onInsert={(text) => {
+                      openMessageField();
+                      setPendingMemoryInsert(text);
+                    }}
+                  />
                 </View>
               );
             })}

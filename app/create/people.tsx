@@ -42,6 +42,8 @@ import {
   type SelectableWiderWorldPlatform
 } from "@/services/widerWorldContextService";
 import { copyToClipboard } from "@/services/clipboardService";
+import { saveCircleLastSentMessage } from "@/services/circleLastSentMessageService";
+import { CircleLastSentMessage } from "@/components/CircleLastSentMessage";
 import { channelKey, sendToCircles } from "@/services/smsService";
 import { getDefaultSendingChannel } from "@/services/sendingPreferencesService";
 import { pickContact } from "@/services/contactPickerService";
@@ -145,6 +147,9 @@ export default function HoldPeopleScreen() {
   // Which one Circle's member dropdown is open, if any — single value, only
   // one at a time (2026-08-11).
   const [expandedCircleId, setExpandedCircleId] = useState<string | null>(null);
+
+  /** One-shot insert trigger for a Circle's own last-sent message — see CircleLastSentMessage.tsx. */
+  const [pendingCircleLastSent, setPendingCircleLastSent] = useState<string | null>(null);
 
   const [oooExpanded, setOooExpanded] = useState(false);
   const [newCircleName, setNewCircleName] = useState("");
@@ -701,6 +706,9 @@ export default function HoldPeopleScreen() {
     for (const [circleId, channel] of channelByCircle) {
       await recordSendChannel(periodId, circleId, channelKey(channel));
     }
+    for (const target of deliveryTargets) {
+      await saveCircleLastSentMessage(target.circleId, text);
+    }
 
     const sentGroups = selectedGroups;
     const wasCombo = selectedGroups.length > 1;
@@ -731,6 +739,7 @@ export default function HoldPeopleScreen() {
     setSavedDefaultText(null);
     setStartingPoints([]);
     setIntent(null);
+    setPendingCircleLastSent(null);
   };
 
   const finish = async () => {
@@ -827,6 +836,7 @@ export default function HoldPeopleScreen() {
                 : undefined
             }
             copyMessage={activeField === "group-message"}
+            pendingInsert={activeField === "group-message" ? (pendingCircleLastSent ?? undefined) : undefined}
           />
         ) : null
       }
@@ -898,6 +908,13 @@ export default function HoldPeopleScreen() {
             onToggleIncluded={(contactId) => toggleRecipientIncluded(contactId, message)}
             onAddPerson={() => void handleAddPerson(expandedGroup)}
             readOnly={!isExpandedGroupSelected}
+          />
+          <CircleLastSentMessage
+            circleId={expandedGroup.id}
+            onInsert={(text) => {
+              setActiveField("group-message");
+              setPendingCircleLastSent(text);
+            }}
           />
         </View>
       ) : null}

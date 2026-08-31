@@ -1477,3 +1477,19 @@ Fixed both stale comments to reflect current behaviour accurately. No functional
 `tsc --noEmit` passes.
 
 **hold-book**: no update — corrects an internal hold-app comment inaccuracy, not a product decision or spec change.
+
+## 2026-08-31 — Per-Circle last-sent-message built (Going Quiet / Reconnect)
+
+Distinct from Conversations' own per-person last-sent (built earlier tonight): this is the last message actually sent **to a Circle**, shown inside that Circle's own expanded dropdown on Going Quiet and Reconnect — not Conversations, which is untouched. New `src/services/circleLastSentMessageService.ts` (SecureStore, one overwritten string per circleId, no expiry) and `src/components/CircleLastSentMessage.tsx` (read-only preview, truncated to 3 lines, with a down-arrow insert button).
+
+**Never auto-inserted, by design.** A message that was true when it was sent can go stale — a Circle told "not feeling well, need time" three weeks ago may not still be accurate, and if it silently pre-filled and went out again unedited, that's both confusing for the recipient and potentially inaccurate. Same principle Template already follows (tap-to-insert, never auto-fill); this uses the identical pattern for the identical reason, not a new one invented for this feature.
+
+**Insertion mechanic**: the down-arrow triggers a one-shot highlighted insert (green on insert, reverts if edited) via each screen's existing `pendingInsert` wiring on `DockedInputBar` — `people.tsx` gets a new `pendingCircleLastSent` state (no equivalent existed there before), `reconnect.tsx` reuses its existing `pendingMemoryInsert` state (originally built for `MemoryNoteSuggestion`, now generalised in its own comment to describe both uses rather than adding a second, parallel one-shot-insert state for the same bar).
+
+**Saved on every successful send**: both screens' own `send()` functions now write the just-sent text into this store for every Circle actually included in that send's `deliveryTargets`, alongside the existing `recordSendChannel` calls.
+
+**Deliberately not cleaned up on Circle deletion** — matches Template's own existing per-Circle store (`templateService.ts`), which also leaves an orphaned-but-harmless SecureStore entry behind when a Circle is deleted; consistent with existing behaviour rather than a new gap.
+
+`tsc --noEmit` and `vitest run` (62/62) both pass. **Not verified on-device.**
+
+**hold-book**: no dedicated spec doc existed for this feature before tonight (checked directly — no hold-book file anywhere mentions "last-sent" prior to this entry). No hold-book update made now either: this was a spec given directly this session, not a new product decision, matching how the Conversations last-sent feature was logged earlier tonight.
