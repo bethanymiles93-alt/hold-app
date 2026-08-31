@@ -6,7 +6,7 @@ import { SecondaryButton } from "@/components/SecondaryButton";
 import { DockedInputBar } from "@/components/DockedInputBar";
 import { DockedFieldPreview } from "@/components/DockedFieldPreview";
 import { ConversationsView } from "@/components/ConversationsView";
-import { ResearchContent } from "@/components/ResearchContent";
+import { ResearchIndex } from "@/components/ResearchIndex";
 import { SuggestedPhrasesEditor } from "@/components/SuggestedPhrasesEditor";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
@@ -32,11 +32,13 @@ export default function LibraryScreen() {
   // Segmented tab structure (2026-08-13) — Conversations/Templates/Research,
   // Conversations default. Research moved here from its own Settings screen
   // (removed); the Settings drawer's Research row now links into this tab
-  // instead of maintaining a second copy of the content — see
-  // ResearchContent.tsx. Initial tab honours ?tab=research so the drawer
-  // link and the "Where this comes from" link (settings/circle/index.tsx)
-  // land directly on the right pane. See docs/09-decision-log.md.
-  const { tab: tabParam, section: sectionParam } = useLocalSearchParams<{ tab?: string; section?: string }>();
+  // instead of maintaining a second copy of the content. The Research tab
+  // itself is an index of six concept-page links since 2026-08-31 (see
+  // ResearchIndex.tsx) rather than an inline scrollable page. Initial tab
+  // honours ?tab=research so the drawer link and the "Where this comes
+  // from" link (settings/circle/index.tsx) land directly on the index.
+  // See docs/09-decision-log.md.
+  const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
   const [activeTab, setActiveTab] = useState<LibraryTab>(
     tabParam === "research" || tabParam === "templates" ? tabParam : "conversations"
   );
@@ -237,7 +239,7 @@ export default function LibraryScreen() {
       </View>
 
       {activeTab === "research" ? (
-        <ResearchContent scrollRef={scrollRef} anchorSectionId={tabParam === "research" ? sectionParam ?? null : null} />
+        <ResearchIndex />
       ) : null}
 
       {activeTab === "conversations" && conversations.people.length === 0 ? (

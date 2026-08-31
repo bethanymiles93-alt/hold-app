@@ -17,8 +17,14 @@
  * behind the Tier 2 `isComposing` check. Reconciled 2026-08-13 against
  * this file's rewrite, which landed after Library's own no-nav-bar
  * revision and didn't yet account for it.
+ *
+ * `/research` added 2026-08-31, same reasoning as `/library` above:
+ * Research's six concept pages are real routes now (previously part of
+ * Library's own Research tab as one long scroll), each with its own
+ * back button in place of the bottom nav — a permanent, route-based
+ * rule, not composition-driven.
  */
-const TIER_1_PREFIXES = ["/create", "/return", "/welcome", "/library"];
+const TIER_1_PREFIXES = ["/create", "/return", "/welcome", "/library", "/research"];
 
 export function isTier1Route(pathname: string): boolean {
   return TIER_1_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));

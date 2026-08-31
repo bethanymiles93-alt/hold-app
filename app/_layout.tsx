@@ -116,6 +116,12 @@ function RootLayoutNav() {
               <Stack.Screen name="settings/circle/index" options={{ title: "Your Circles" }} />
               <Stack.Screen name="settings/wider-world" options={{ title: "Your Wider World" }} />
               <Stack.Screen name="settings/accessibility-display" options={{ title: "Accessibility & Display" }} />
+              {/* Research concept pages (2026-08-31) — one dynamic route for
+                  all six, so no single static title fits; the page renders
+                  its own title + share button inline instead. Header stays
+                  shown (title blank) purely for the default back arrow,
+                  same mechanism every settings/* route above already uses. */}
+              <Stack.Screen name="research/[slug]" options={{ title: "" }} />
             </Stack>
       {/* Sibling to the Stack, not inside it — a root-level overlay so
           it can show over any screen regardless of which navigator
