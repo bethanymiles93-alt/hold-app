@@ -1505,3 +1505,13 @@ Investigated before building (per direct instruction): confirmed `MonthCalendarV
 `tsc --noEmit` and `vitest run` (62/62) both pass. **Not verified on-device** — in particular, the free/Hold+ disabled-vs-enabled visual states need an on-device check with the dev/test flag toggled both ways.
 
 **hold-book**: no update — closes a pre-existing implementation gap against an already-stated pricing model, not a new product decision.
+
+## 2026-08-31 — Per-Circle last-sent-message: storage key corrected to exact-combination match, same day as the original build
+
+**Correction, not a reversal** — the feature itself (read-only preview, down-arrow insert, never auto-filled, staleness rationale) is unchanged; only what it tracks at changed. As shipped earlier tonight, `circleLastSentMessageService.ts` stored one record per single circleId, written for every Circle in a send's `deliveryTargets` individually — so a Close+Friends send wrote to both Close's and Friends' own records, and Close's dropdown would then show that Close+Friends message even though Close alone was never sent that text.
+
+**Fixed by reusing `combinationKey()`** (`templateService.ts`) rather than inventing a second scheme — the same sorted, `_`-joined key Templates' own combination feature already established. Confirmed the key property this fix depends on before relying on it: `combinationKey(['x'])` degenerates to the bare string `'x'`, identical to a plain single-circle key, so no dual single/combo storage scheme (like Templates has) is needed — one function handles both cases correctly. `saveCircleLastSentMessage`/`getCircleLastSentMessage`/`deleteCircleLastSentMessage` now all take `circleIds: string[]` instead of a single `circleId`. Both screens' `send()` functions now write **one** record for the whole `deliveryTargets` set per send, not one per Circle in it. `CircleLastSentMessage.tsx`'s own prop stayed a single `circleId` (its display context is always "this one Circle's dropdown"), just changed its internal lookup to `getCircleLastSentMessage([circleId])` — exact-match against that Circle alone, never a partial match against any combination it happened to be part of. No fuzzy matching anywhere in this service by design.
+
+`tsc --noEmit` and `vitest run` (62/62) both pass; hand-verified the degeneration property (`close-id` vs `close-id_friends-id`, order-independence) directly rather than assuming it. **Not verified on-device.**
+
+**hold-book**: still no update — checked again, no hold-book file mentions this feature (same finding as the original build tonight); nothing to reconcile.

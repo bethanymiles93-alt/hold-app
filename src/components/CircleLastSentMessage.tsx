@@ -11,15 +11,19 @@ interface CircleLastSentMessageProps {
 }
 
 /**
- * Read-only preview of the last message actually sent to this Circle,
- * shown inside its own expanded dropdown — see
- * circleLastSentMessageService.ts. Never auto-inserted: a down-arrow is
- * the only way it reaches the compose box, same no-auto-insert rule
- * Template already follows, and for the same reason — a message that was
- * true when it was sent can go stale (a Circle told "not feeling well,
- * need time" three weeks ago may not still be accurate), so bringing it
- * back in has to be a conscious, editable choice, never something that
- * could go back out unedited and unintended. Insertion reuses the shared
+ * Read-only preview of the last message actually sent to this Circle
+ * ALONE — shown inside its own expanded dropdown, see
+ * circleLastSentMessageService.ts for the exact-combination-match
+ * rules (corrected 2026-08-31: looks up `[circleId]` specifically, so
+ * a Circle only ever shown a message from a send that included other
+ * Circles too shows nothing here, never that other send's text).
+ * Never auto-inserted: a down-arrow is the only way it reaches the
+ * compose box, same no-auto-insert rule Template already follows, and
+ * for the same reason — a message that was true when it was sent can
+ * go stale (a Circle told "not feeling well, need time" three weeks
+ * ago may not still be accurate), so bringing it back in has to be a
+ * conscious, editable choice, never something that could go back out
+ * unedited and unintended. Insertion reuses the shared
  * highlighted-insertion mechanic (green on insert, reverts if edited),
  * via the caller's own `pendingInsert`-style wiring — no separate
  * toggle-revert button here, matching how MemoryNoteSuggestion and the
@@ -33,7 +37,7 @@ export function CircleLastSentMessage({ circleId, onInsert }: CircleLastSentMess
 
   useEffect(() => {
     let cancelled = false;
-    void getCircleLastSentMessage(circleId).then((value) => {
+    void getCircleLastSentMessage([circleId]).then((value) => {
       if (!cancelled) setText(value);
     });
     return () => {

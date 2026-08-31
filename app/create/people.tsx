@@ -706,9 +706,14 @@ export default function HoldPeopleScreen() {
     for (const [circleId, channel] of channelByCircle) {
       await recordSendChannel(periodId, circleId, channelKey(channel));
     }
-    for (const target of deliveryTargets) {
-      await saveCircleLastSentMessage(target.circleId, text);
-    }
+    // One record for the exact set of Circles this send went to, not one
+    // per Circle in it — corrected 2026-08-31, see
+    // circleLastSentMessageService.ts. A Close+Friends send must never
+    // surface as "Close alone"'s own last-sent message.
+    await saveCircleLastSentMessage(
+      deliveryTargets.map((target) => target.circleId),
+      text
+    );
 
     const sentGroups = selectedGroups;
     const wasCombo = selectedGroups.length > 1;
