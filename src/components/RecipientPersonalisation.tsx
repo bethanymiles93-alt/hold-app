@@ -30,6 +30,14 @@ interface RecipientPersonalisationProps {
    * docs/09-decision-log.md, 2026-08-14.
    */
   readOnly?: boolean;
+  /**
+   * Core's own case, distinct from `readOnly` above — Core is locked
+   * (editable only via Your Circles), so unlike a merely-unselected
+   * Circle being previewed, there's no "+" to add someone here either.
+   * Implies `readOnly` (no need to also pass both). See
+   * docs/09-decision-log.md, 2026-08-31.
+   */
+  locked?: boolean;
 }
 
 /**
@@ -50,27 +58,31 @@ export function RecipientPersonalisation({
   recipients,
   onToggleIncluded,
   onAddPerson,
-  readOnly = false
+  readOnly = false,
+  locked = false
 }: RecipientPersonalisationProps) {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
 
+  const effectiveReadOnly = readOnly || locked;
   const isSoleContact = recipients.length === 1;
   const visible = recipients.filter((recipient) => recipient.included);
 
   return (
     <View style={styles.container}>
       <View style={styles.pinnedRow}>
-        <AdaptiveCircleChip
-          label="+"
-          accessibilityLabel="Add person"
-          accessibilityRole="button"
-          outline
-          compact
-          isSelected={false}
-          labelBold
-          onPress={onAddPerson}
-        />
+        {locked ? null : (
+          <AdaptiveCircleChip
+            label="+"
+            accessibilityLabel="Add person"
+            accessibilityRole="button"
+            outline
+            compact
+            isSelected={false}
+            labelBold
+            onPress={onAddPerson}
+          />
+        )}
 
         {isSoleContact ? (
           <View style={styles.soleContactRow}>
@@ -84,7 +96,7 @@ export function RecipientPersonalisation({
             style={styles.pillScroll}
           >
             {visible.map((recipient) =>
-              readOnly ? (
+              effectiveReadOnly ? (
                 <AdaptiveCircleChip
                   key={recipient.contactId}
                   label={recipient.name}

@@ -1692,3 +1692,15 @@ Per direct confirmation: the single-dropdown-open accordion rule (see the standi
 **hold-book**: the standing-rule entry in `04-ux-content/04-navigation-architecture.md` (logged earlier this session, flagging Manage Circles as "left untouched pending confirmation") updated to state this as resolved/confirmed exempt, with the reasoning above — done in the same pass, see hold-book's own log.
 
 **hold-book**: no update — the manual-Done spec is already correctly documented; nothing here contradicts it, only surfaces a question about whether it should stay that way given Library's own auto-detect exists alongside it.
+
+## 2026-08-31 — Going Quiet: redundant title removed, Core gets a read-only member view
+
+**Redundant title removed**: the Circle name repeated directly above its own recipient pill row (`circleSection`) was dropped — the Circle is already labelled where it was selected from (its own chip).
+
+**Core Circle — new read-only member view.** Core's dropdown arrow was previously shown only in the first-run onboarding coach-mark case; every other session, Core got no arrow at all (its lock meant nothing to expand). Core now gets its own arrow every session after the first, opening the exact same `expandedCircleId` slot every other Circle uses (so it correctly participates in the single-dropdown-open rule too) — but distinctly, deliberately never gated behind "Adjust" the way named Circles' arrows are, since it only ever opens a **read-only** view, carrying none of the in-the-moment-exclusion risk Core's own lock exists to prevent.
+
+**Reused `RecipientPersonalisation`'s existing scrollable read-only rendering rather than building a new one.** New `locked` prop (distinct from the existing `readOnly`): implies read-only pills *and* also hides the "+" add-person control, since Core is editable only via Your Circles — `readOnly` alone (the existing "previewing an unselected Circle" case) still showed "+", which would be wrong for Core specifically. `expandedGroupRecipients`'s own data sourcing was untouched — Core is always selected, so it was already reading from the real, live recipient data either way; `locked` only changes how that data renders, not where it comes from.
+
+`tsc --noEmit` and `vitest run` (62/62) both pass. **Not verified on-device.**
+
+**hold-book**: `01-core-journeys.md`'s Going Quiet section (point 2, Core's own lock description) needs a note that Core now has a read-only member view reachable every session, distinct from the editable arrow other Circles get — done in the same pass, see hold-book's own log.

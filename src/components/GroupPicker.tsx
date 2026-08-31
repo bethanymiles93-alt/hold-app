@@ -339,6 +339,24 @@ export function GroupPicker({
                     accessibilityLabel="Add the people who matter most to Core"
                     style={styles.arrowButton}
                   />
+                ) : group.isCloseCircle ? (
+                  // Core's own arrow, every session after the first — unlike
+                  // every other Circle's arrow, never gated behind Adjust,
+                  // since it only ever opens a READ-ONLY view (see
+                  // people.tsx's own expandedGroup rendering: Core renders
+                  // a plain, untappable member line, never
+                  // RecipientPersonalisation). Reassurance, not editing —
+                  // seeing who's included without being able to change it
+                  // here carries none of the "in-the-moment exclusion"
+                  // risk Core's own lock exists to prevent, so it doesn't
+                  // need the same guard. See docs/09-decision-log.md,
+                  // 2026-08-31.
+                  <DropdownArrowBadge
+                    expanded={isExpanded}
+                    onPress={() => onToggleExpanded(group.id)}
+                    accessibilityLabel={`Core, ${isExpanded ? "hide" : "show"} who's included`}
+                    style={styles.arrowButton}
+                  />
                 ) : null}
               </View>
             );

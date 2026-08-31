@@ -922,11 +922,15 @@ export default function HoldPeopleScreen() {
 
       {expandedGroup ? (
         <View style={styles.circleSection}>
-          <Text style={styles.sectionLabel}>{expandedGroup.name}</Text>
+          {/* Redundant title removed 2026-08-31 — the circle is already
+              labelled where it was selected from (its own chip); repeating
+              the name again directly above its own recipient row added
+              nothing. See docs/09-decision-log.md. */}
           <RecipientPersonalisation
             recipients={expandedGroupRecipients}
             onToggleIncluded={(contactId) => toggleRecipientIncluded(contactId, message)}
             onAddPerson={() => void handleAddPerson(expandedGroup)}
+            locked={expandedGroup.isCloseCircle}
             readOnly={!isExpandedGroupSelected}
           />
           <CircleLastSentMessage
