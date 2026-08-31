@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useState, useMemo } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
@@ -8,14 +8,7 @@ import type { GoingQuietRecipient } from "@/types/hold";
 interface RecipientPersonalisationProps {
   /** Full Circle membership, unfiltered — isSoleContact is judged against real membership, not whichever subset happens to still be included. */
   recipients: GoingQuietRecipient[];
-  /**
-   * Excluding someone here moves them out of this list entirely and into
-   * the screen-level removed-people roster (2026-08-11 — replaces the
-   * earlier inline excluded-row/instant-message/Personalise sub-flow,
-   * itself replaced screen-wide by the ad-hoc-circle mechanic). The parent
-   * owns both the context toggle and the roster bookkeeping; this only
-   * reports which person was tapped.
-   */
+  /** Toggles a person between included/excluded for this send, in place — never removes them from view. See docs/09-decision-log.md, 2026-08-31. */
   onToggleIncluded: (contactId: string) => void;
   /** "+" row, pinned first — opens the contact picker to add a new member to this Circle, reusing the same mechanism Settings' Manage Circles already uses. See docs/09-decision-log.md, 2026-08-11. */
   onAddPerson: () => void;
@@ -41,13 +34,28 @@ interface RecipientPersonalisationProps {
 }
 
 /**
- * One Circle's member list, on demand (behind its own dropdown arrow — see
- * GroupPicker.tsx). Pinned "+" beside a horizontal row of AdaptiveCircleChip
- * pills, one per included person — matching the same pill-row convention
- * Reconnect and Library use for their own per-person rows. Tapping a pill
- * excludes that person, which removes them from this list outright rather
- * than revealing a second-level sub-row, since excluded people live in the
- * screen-level removed-people list instead (2026-08-11).
+ * One Circle's full member list, on demand (behind its own dropdown arrow —
+ * see GroupPicker.tsx). Pinned "+" beside a horizontal row of
+ * AdaptiveCircleChip pills — one per member, always, whether currently
+ * included or not. Tapping a pill toggles it between included (thick
+ * outline, AdaptiveCircleChip's own selected treatment) and excluded
+ * (hollow, thin outline) in place — nothing disappears or moves to a
+ * second line. **Redesigned 2026-08-31**, superseding the earlier design
+ * where excluding someone removed their pill from this list entirely and
+ * surfaced them instead on a separate passive excluded-line below —
+ * confirmed as one unified row for a reason: exclusion here is temporary
+ * and per-send only (it never touches the Circle's real membership, which
+ * only changes via Your Circles), so a person who's momentarily excluded
+ * is still fully part of what this row is showing, not demoted to a
+ * different visual class. See docs/09-decision-log.md.
+ *
+ * **Order freezes on open, not live.** Included members sort first,
+ * excluded last, computed once — this component unmounts on collapse and
+ * remounts fresh on reopen (see its own conditional render at the call
+ * site), so a plain one-time sort on mount already gives "reorder on
+ * close→reopen, never while open" for free, with no extra state needed.
+ * Reordering live while someone's actively tapping pills would make pills
+ * jump position under their finger mid-tap — deliberately avoided.
  *
  * A Circle with only one contact never shows a removable pill at all —
  * excluding your only recipient already has the same effect as not
@@ -66,7 +74,15 @@ export function RecipientPersonalisation({
 
   const effectiveReadOnly = readOnly || locked;
   const isSoleContact = recipients.length === 1;
-  const visible = recipients.filter((recipient) => recipient.included);
+
+  const [orderedIds] = useState(() =>
+    [...recipients]
+      .sort((a, b) => Number(b.included) - Number(a.included))
+      .map((recipient) => recipient.contactId)
+  );
+  const visible = orderedIds
+    .map((contactId) => recipients.find((recipient) => recipient.contactId === contactId))
+    .filter((recipient): recipient is GoingQuietRecipient => recipient !== undefined);
 
   return (
     <View style={styles.container}>
@@ -111,10 +127,14 @@ export function RecipientPersonalisation({
                   key={recipient.contactId}
                   label={recipient.name}
                   compact
-                  isSelected
+                  isSelected={recipient.included}
                   onPress={() => onToggleIncluded(recipient.contactId)}
                   accessibilityRole="button"
-                  accessibilityLabel={`${recipient.name}, included. Tap to remove.`}
+                  accessibilityLabel={
+                    recipient.included
+                      ? `${recipient.name}, included. Tap to exclude.`
+                      : `${recipient.name}, excluded. Tap to include.`
+                  }
                 />
               )
             )}

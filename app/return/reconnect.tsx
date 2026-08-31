@@ -256,6 +256,18 @@ export default function ReconnectScreen() {
    */
   const isFirstRefresh = useRef(true);
 
+  /**
+   * Reorders the per-person pill row's underlying people — unsent/
+   * unselected (neither reached this session nor currently included)
+   * shift to the end, grouped together for scanning who's still
+   * outstanding — but only at the moment the visible set of circles
+   * changes (a dropdown opening or closing), never live while it's open,
+   * which would make pills jump position under a tapping finger. Cached
+   * by a ref keyed to the expanded-circles set, recomputed only when that
+   * key changes. See docs/09-decision-log.md, 2026-08-31.
+   */
+  const pillOrderCache = useRef<{ key: string; order: string[] }>({ key: "", order: [] });
+
   const refresh = useCallback(async () => {
     // Prefer the durable marker (force-quit-resume, or any visit after the first
     // genuine send). Before that marker exists — the very first visit this
@@ -1053,23 +1065,37 @@ export default function ReconnectScreen() {
   // items — real bug found 2026-08-13, see buildAudienceCircles in
   // HoldFlowContext.tsx for the actual source of the duplication this was
   // masking. See docs/09-decision-log.md.
-  const pillPeople = orderPeople(
-    [
-      ...(period.audienceUngrouped ?? []).map((contact) => ({
-        key: `ungrouped:${contact.phoneNumber}`,
+  const rawPillPeople = [
+    ...(period.audienceUngrouped ?? []).map((contact) => ({
+      key: `ungrouped:${contact.phoneNumber}`,
+      id: contact.phoneNumber,
+      name: contact.name
+    })),
+    ...visibleCircles.flatMap((circle) =>
+      circle.contacts.map((contact) => ({
+        key: `${circle.circleId}:${contact.phoneNumber}`,
         id: contact.phoneNumber,
         name: contact.name
-      })),
-      ...visibleCircles.flatMap((circle) =>
-        circle.contacts.map((contact) => ({
-          key: `${circle.circleId}:${contact.phoneNumber}`,
-          id: contact.phoneNumber,
-          name: contact.name
-        }))
-      )
-    ],
-    (person) => person.id
+      }))
+    )
+  ];
+
+  const expandedKey = Array.from(expandedCircleIds).sort().join(",");
+  if (pillOrderCache.current.key !== expandedKey) {
+    const isResolved = (id: string) => includedPersonIds.has(id) || coverage.contactedIds.includes(id);
+    pillOrderCache.current = {
+      key: expandedKey,
+      order: [...rawPillPeople]
+        .sort((a, b) => Number(isResolved(b.id)) - Number(isResolved(a.id)))
+        .map((person) => person.id)
+    };
+  }
+  const orderIndex = new Map(pillOrderCache.current.order.map((id, index) => [id, index]));
+  const sortedPillPeople = [...rawPillPeople].sort(
+    (a, b) => (orderIndex.get(a.id) ?? 0) - (orderIndex.get(b.id) ?? 0)
   );
+
+  const pillPeople = orderPeople(sortedPillPeople, (person) => person.id);
   const allVisibleIncluded =
     pillPeople.length > 0 && pillPeople.every((person) => includedPersonIds.has(person.id));
   const toggleAllVisible = () => {
@@ -1082,20 +1108,6 @@ export default function ReconnectScreen() {
       return next;
     });
   };
-
-  /**
-   * The passive excluded line — everyone currently visible but not
-   * included, same underlying data `pillPeople` itself already carries,
-   * just filtered. 100% passive plain text (2026-08-30, removes bundling
-   * and "I've already told them" entirely — neither is a feature any
-   * more): giving someone here their own Circle happens purely through
-   * the ordinary "+ New Circle"/add-person flow, unrelated to this line;
-   * if someone's been told separately, they can simply be added to the
-   * instant message or Conversations if and when relevant, same as
-   * anyone else — no separate status, no tap target, nothing tracked.
-   * See docs/09-decision-log.md.
-   */
-  const excludedPillPeople = pillPeople.filter((person) => !includedPersonIds.has(person.id));
 
   // The real gate for whether there's anything to compose/send right now
   // — not coverage.complete on its own, since a fully-reached Circle's
@@ -1535,18 +1547,11 @@ export default function ReconnectScreen() {
               );
             })}
 
-          {/* Excluded line — 100% passive plain text, no chip/pill styling,
-              no tap target, no bundling or "already told" mechanic
-              connected to it at all (removed 2026-08-30). Its only job is
-              showing who isn't currently included — giving someone here
-              their own Circle happens purely through the ordinary "+"/add-
-              person flow above, unrelated to this line. See
+          {/* No separate excluded line any more (2026-08-31) — every
+              person already shows in the pill row above, toggling
+              hollow/thick-outline in place; a second, redundant listing of
+              exactly the same excluded people added nothing. See
               docs/09-decision-log.md. */}
-          {excludedPillPeople.length > 0 ? (
-            <Text style={styles.excludedLineText} accessibilityRole="text">
-              {excludedPillPeople.map((person) => person.name).join(", ")}
-            </Text>
-          ) : null}
 
           {removalCandidate ? (
             <RemovalPromptSuggestion
@@ -1876,11 +1881,6 @@ function createStyles(colors: ThemeColors) {
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.sm
-    },
-    excludedLineText: {
-      color: colors.textMuted,
-      fontSize: 14,
-      lineHeight: 20
     },
     chipGreyed: {
       opacity: 0.4

@@ -78,8 +78,10 @@ const DEFAULT_STATUS_LINE = "Taking some quiet time. Back soon.";
  * a manual early exit only, gated the same as before (unreachable until at
  * least one send). Personalise is Reconnect-only — Going Quiet has no
  * equivalent; untapping someone here just excludes them from the current
- * send (see the excluded line below), with no bundling/re-circling
- * mechanic of its own. Creating a Circle for them happens only through the
+ * send, toggling their own pill hollow in place within the same row
+ * (2026-08-31 — no separate excluded line any more), with no
+ * bundling/re-circling mechanic of its own. Creating a Circle for them
+ * happens only through the
  * ordinary "+ New Circle" flow, same as any other Circle (2026-08-30 —
  * removes the earlier ad-hoc bundling mechanic entirely, see
  * docs/09-decision-log.md).
@@ -467,20 +469,6 @@ export default function HoldPeopleScreen() {
           instantMessage: "",
           routeToPersonalise: false
         }));
-
-  /**
-   * "So it's clear at a glance who's no longer included for this flow"
-   * (2026-08-20) — scoped to currently-selected Circles only, merged into
-   * one line regardless of which one is expanded, since a message can span
-   * several selected Circles at once. Purely a passive display list — no
-   * bundling/re-circling mechanic reads from it any more (removed
-   * 2026-08-30, see docs/09-decision-log.md): giving someone here their own
-   * Circle happens only through the ordinary "+ New Circle" flow, with no
-   * connection back to this line at all.
-   */
-  const excludedFromSelected = goingQuietRecipients.filter(
-    (recipient) => !recipient.included && selectedGroups.some((group) => group.id === recipient.circleId)
-  );
 
   const activeFieldValue = (): string => {
     if (activeField === "new-circle") return newCircleName;
@@ -906,20 +894,6 @@ export default function HoldPeopleScreen() {
         adjustMode={adjustMode}
       />
 
-      {/* At-a-glance excluded-for-this-send line — scoped to currently
-          selected Circles only, merged into one line. 100% passive plain
-          text: no chip/pill styling, no border, no background, no tap
-          target, no bundling mechanic connected to it at all (removed
-          2026-08-30). Its only job is showing who isn't currently being
-          sent to — giving someone here their own Circle happens purely
-          through the ordinary "+ New Circle" flow, unrelated to this line.
-          See docs/09-decision-log.md. */}
-      {excludedFromSelected.length > 0 ? (
-        <Text style={styles.excludedLineText} accessibilityRole="text">
-          {excludedFromSelected.map((recipient) => recipient.name).join(", ")}
-        </Text>
-      ) : null}
-
       {expandedGroup ? (
         <View style={styles.circleSection}>
           {/* Redundant title removed 2026-08-31 — the circle is already
@@ -1183,11 +1157,6 @@ function createStyles(colors: ThemeColors) {
     adjustToggleTextActive: {
       color: colors.text,
       fontWeight: "800"
-    },
-    excludedLineText: {
-      color: colors.textMuted,
-      fontSize: 14,
-      lineHeight: 20
     },
     circleSection: {
       gap: theme.spacing.sm
