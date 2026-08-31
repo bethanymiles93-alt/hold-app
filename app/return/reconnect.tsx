@@ -449,16 +449,14 @@ export default function ReconnectScreen() {
     lockPillSelection();
   };
 
+  // Only one Circle's dropdown open at a time (standing rule, 2026-08-31)
+  // — two open dropdowns competing for attention is more visual load for
+  // someone at low capacity, not less, same reasoning already applied to
+  // GroupPicker's own single expandedCircleId. Opening a new one closes
+  // whichever else was open, rather than adding to it. See
+  // docs/09-decision-log.md.
   const toggleCircleArrow = (circleId: string) => {
-    setExpandedCircleIds((current) => {
-      const next = new Set(current);
-      if (next.has(circleId)) {
-        next.delete(circleId);
-      } else {
-        next.add(circleId);
-      }
-      return next;
-    });
+    setExpandedCircleIds((current) => (current.has(circleId) ? new Set() : new Set([circleId])));
     lockPillSelection();
   };
 

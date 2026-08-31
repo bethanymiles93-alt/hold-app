@@ -217,19 +217,28 @@ export function useConversations(scope: ConversationsScope, onPersonAction?: () 
     });
   };
 
+  // Only one Circle's dropdown open at a time (standing rule, 2026-08-31)
+  // — two open dropdowns competing for attention is more visual load for
+  // someone at low capacity, not less. Opening a new one closes whichever
+  // else was open, checking that one for the same "does it contain the
+  // open Personalise person" cleanup the explicit-close path already did.
+  // See docs/09-decision-log.md.
   const toggleCircleExpanded = (circleId: string) => {
     setExpandedCircleIds((current) => {
-      const next = new Set(current);
-      if (next.has(circleId)) {
-        next.delete(circleId);
-        const section = circleSections.find((s) => s.circleId === circleId);
+      const closeIfContainsPersonalise = (idToCheck: string) => {
+        const section = circleSections.find((s) => s.circleId === idToCheck);
         if (section?.people.some((person) => person.id === expandedPersonaliseId)) {
           setExpandedPersonaliseId(null);
         }
-      } else {
-        next.add(circleId);
+      };
+
+      if (current.has(circleId)) {
+        closeIfContainsPersonalise(circleId);
+        return new Set();
       }
-      return next;
+
+      for (const openId of current) closeIfContainsPersonalise(openId);
+      return new Set([circleId]);
     });
   };
 

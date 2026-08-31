@@ -149,13 +149,10 @@ export function TakingTimeUpdateDrawer({ visible, onClose, period, onSent }: Tak
     void loadMessageForSelection([...next], previousText);
   };
 
+  // Only one Circle's dropdown open at a time (standing rule, 2026-08-31)
+  // — see docs/09-decision-log.md.
   const toggleArrow = (circleId: string) => {
-    setExpandedCircleIds((current) => {
-      const next = new Set(current);
-      if (next.has(circleId)) next.delete(circleId);
-      else next.add(circleId);
-      return next;
-    });
+    setExpandedCircleIds((current) => (current.has(circleId) ? new Set() : new Set([circleId])));
   };
 
   const visibleCircles = audienceCircles.filter((circle) => expandedCircleIds.has(circle.circleId));
