@@ -42,8 +42,19 @@ export const QUIET_CIRCLE_SCALE = 0.75;
 // colour shift lives on the resting screen instead, see the palette fade below.
 // Deliberately snappy — an instant, responsive press (Instagram Stories
 // opening on tap), not a slow fade the user has to wait through.
+//
+// **Bug fixed 2026-08-31 (this comment's own claim wasn't actually true):**
+// navigation used to wait for `setTimeout(onArrive, NAVIGATE_TRIGGER_MS)` —
+// a real ~96ms gate before the screen changed, with a visible "grow"
+// animation playing during that wait. Reducing TAP_DURATION (was 280ms,
+// see the 2026-07-21 decision log entry) made that gate shorter, but never
+// removed it — the app still visibly waited before responding, which is
+// the opposite of the Instagram Stories reference this comment names.
+// `onArrive()` now fires immediately, synchronously with the tap; the
+// scale/ripple animation still plays, but purely as cosmetic, non-blocking
+// press feedback that continues (or gets cut short by the screen change)
+// on its own, never gating when navigation actually happens.
 const TAP_DURATION = 120;
-const NAVIGATE_TRIGGER_MS = Math.round(TAP_DURATION * 0.8);
 
 // Reconnect is the one moment that should feel actively alive: the circle grows
 // back out alongside a one-shot ripple that widens and fades, like an exhale.
@@ -347,31 +358,28 @@ export default function HomeScreen() {
     options?: { ripple?: boolean }
   ) => {
     if (isAnimating) return;
-
-    if (reduceMotion) {
-      onArrive();
-      return;
-    }
-
     setIsAnimating(true);
-    Animated.timing(scaleAnim, {
-      toValue: targetScale,
-      duration: TAP_DURATION,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true
-    }).start();
 
-    if (options?.ripple) {
-      rippleAnim.setValue(0);
-      Animated.timing(rippleAnim, {
-        toValue: 1,
-        duration: RECONNECT_RIPPLE_DURATION,
+    if (!reduceMotion) {
+      Animated.timing(scaleAnim, {
+        toValue: targetScale,
+        duration: TAP_DURATION,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true
       }).start();
+
+      if (options?.ripple) {
+        rippleAnim.setValue(0);
+        Animated.timing(rippleAnim, {
+          toValue: 1,
+          duration: RECONNECT_RIPPLE_DURATION,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true
+        }).start();
+      }
     }
 
-    setTimeout(onArrive, NAVIGATE_TRIGGER_MS);
+    onArrive();
   };
 
   const rippleOpacity = rippleAnim.interpolate({
