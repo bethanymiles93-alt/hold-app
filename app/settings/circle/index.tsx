@@ -345,15 +345,22 @@ export default function CircleIndexScreen() {
         </View>
       ) : null}
 
+      {/* Wrapping row, not a horizontal ScrollView (fixed 2026-08-31) — matches
+          corePillRow's own flexWrap treatment directly above. The previous
+          horizontal-scroll version put "All" and every other circle on one
+          long scrolling line rather than letting them wrap onto a second
+          (and further) visible line the way Core's own row already does,
+          which read as "All" being stranded alone whenever the rest of the
+          row scrolled out of the initial viewport — a real inconsistency
+          between the two rows, not a rendering glitch. See
+          docs/09-decision-log.md. */}
       {nonEmptyGroupCount >= 2 ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillRow}>
+        <View style={styles.pillRow}>
           <AdaptiveCircleChip label="All" isSelected={allExpanded} onPress={toggleAllExpanded} accessibilityRole="button" />
           {otherGroups.map(renderPill)}
-        </ScrollView>
+        </View>
       ) : otherGroups.length > 0 ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillRow}>
-          {otherGroups.map(renderPill)}
-        </ScrollView>
+        <View style={styles.pillRow}>{otherGroups.map(renderPill)}</View>
       ) : null}
 
       {creatingStage === "naming" ? (
@@ -593,6 +600,7 @@ function createStyles(colors: ThemeColors) {
   pillRow: {
     flexDirection: "row",
     alignItems: "center",
+    flexWrap: "wrap",
     gap: theme.spacing.sm
   },
   circleUnit: {
