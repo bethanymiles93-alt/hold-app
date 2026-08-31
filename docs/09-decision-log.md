@@ -1704,3 +1704,13 @@ Per direct confirmation: the single-dropdown-open accordion rule (see the standi
 `tsc --noEmit` and `vitest run` (62/62) both pass. **Not verified on-device.**
 
 **hold-book**: `01-core-journeys.md`'s Going Quiet section (point 2, Core's own lock description) needs a note that Core now has a read-only member view reachable every session, distinct from the editable arrow other Circles get — done in the same pass, see hold-book's own log.
+
+## 2026-08-31 — Adjust toggle brought into the hollow/solid accessibility system
+
+Same category of issue as the `AdaptiveCircleChip`/`WiderWorldPlatformPill` redesign, per direct instruction: Adjust distinguished on/off purely by text colour (`textMuted`→`text`) and weight (600→800), no shape signal at all. Wrapped in a bordered pill using the exact same tokens as `chipSecondary`/`chipSelected`, not a new pair invented for this one control — hollow, thin `colors.border` at rest, thickened to `colors.text` at 3pt when on, no fill either state.
+
+**Audited for other instances of this same "bold text only, no shape change" toggle pattern, per instruction — found none.** Checked every other text-based toggle/link in the app (Save/Template's own text links, the "Conversations"/"Use a quick message instead" swap) — all are one-shot action links, not persistent boolean toggles rendered as bold-vs-not-bold text. Adjust was the only instance of this specific pattern.
+
+`tsc --noEmit` and `vitest run` (62/62) both pass. **Not verified on-device.**
+
+**hold-book**: no update needed — Adjust's own documentation already describes it as "a plain bold-on-tap text control," which remains descriptively true (the text still bolds); the underlying WCAG concern this closes isn't something hold-book's existing description asserted was already handled.

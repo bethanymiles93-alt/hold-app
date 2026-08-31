@@ -874,7 +874,7 @@ export default function HoldPeopleScreen() {
         accessibilityLabel={adjustMode ? "Adjust, on" : "Adjust"}
         hitSlop={8}
         onPress={() => setAdjustMode((current) => !current)}
-        style={styles.adjustToggle}
+        style={[styles.adjustToggle, adjustMode && styles.adjustToggleActive]}
       >
         <Text style={[styles.adjustToggleText, adjustMode && styles.adjustToggleTextActive]}>Adjust</Text>
       </Pressable>
@@ -1154,9 +1154,26 @@ function createStyles(colors: ThemeColors) {
     content: {
       gap: theme.spacing.lg
     },
+    // Redesigned 2026-08-31 to match AdaptiveCircleChip's own hollow/solid
+    // system — was colour/weight-only (textMuted→text, 600→800), the same
+    // category of WCAG 1.4.11 issue as the chip redesign: a saturation/
+    // weight difference isn't a robust luminance-contrast signal. Same
+    // tokens as chipSecondary/chipSelected, not a new pair invented for
+    // this one control: hollow, thin colors.border by default, thickened
+    // to colors.text when on — border grows inward, no fill either state.
+    // See docs/09-decision-log.md.
     adjustToggle: {
       alignSelf: "flex-end",
-      marginTop: -theme.spacing.md
+      marginTop: -theme.spacing.md,
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: 4,
+      borderRadius: theme.radius.pill,
+      borderWidth: 1.5,
+      borderColor: colors.border
+    },
+    adjustToggleActive: {
+      borderWidth: 3,
+      borderColor: colors.text
     },
     adjustToggleText: {
       color: colors.textMuted,
