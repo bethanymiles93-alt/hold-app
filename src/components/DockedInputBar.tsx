@@ -507,6 +507,35 @@ export function DockedInputBar({
 
             <DictationMicButton onResult={handleDictationResult} onStart={handleDictationStart} />
 
+            {/* Save, icon-only, immediately left of Send — reworked
+                2026-08-31 per the "icon-only wherever a genuinely
+                universal symbol exists" rule (Send, Save, Copy, Paste;
+                Template stays text-labelled, no single recognisable
+                symbol for "insert a template"). Was a text link in the
+                Template/Save footer row below; moved up here, into the
+                same bottom-right cluster as Send, since both are the
+                two actions someone reaches for at the actual moment of
+                finishing composing. Outline/filled icon swap for
+                unsaved/saved, same convention Template's own book icon
+                already uses. See docs/09-decision-log.md. */}
+            {saveDefault ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={saveDefault.isSaved ? (saveDefault.savedLabel ?? "Saved") : (saveDefault.unsavedLabel ?? "Save")}
+                accessibilityState={{ disabled: saveDefault.isSaved }}
+                disabled={saveDefault.isSaved}
+                onPress={saveDefault.onSave}
+                hitSlop={8}
+                style={({ pressed }) => [styles.saveButton, pressed && styles.pressed]}
+              >
+                <Ionicons
+                  name={saveDefault.isSaved ? "checkmark-circle" : "save-outline"}
+                  size={20}
+                  color={saveDefault.isSaved ? colors.textMuted : colors.link}
+                />
+              </Pressable>
+            ) : null}
+
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Done"
@@ -519,68 +548,58 @@ export function DockedInputBar({
           </View>
         </View>
 
-        {/* Template (left) / Save (right), directly beneath the message
-            box, part of this same bar — NOT a separate row stacked above
-            the keyboard with the pills/suggestions (2026-08-13 fix: it
-            originally sat up there, and on-device it read as a
-            standalone floating banner, not part of the input). Mirrors
-            DockedFieldPreview's own Template-left/Save-right layout
-            (2026-08-14: reversed from the prior Save-left/Template-right
-            order per direct instruction, default label shortened from
-            "Save to Library" to "Save") — always both slots rendered when
-            either is present, via justifyContent: "space-between", same
-            reasoning as the inline box's own fix: a single item in an
-            unconstrained row shouldn't be left to drift to whichever side
-            it happens to default to. */}
-        {template || saveDefault ? (
+        {/* Template, directly beneath the message box, part of this same
+            bar — NOT a separate row stacked above the keyboard with the
+            pills/suggestions (2026-08-13 fix: it originally sat up
+            there, and on-device it read as a standalone floating
+            banner, not part of the input). Save moved out of this row
+            2026-08-31 (see above) — Template now renders alone, left-
+            aligned via the same empty-View-on-the-right spacer this row
+            already used whenever only one of the pair was present, so
+            it doesn't drift to centre now that it's the only occupant. */}
+        {template ? (
           <View style={styles.footerRow}>
-            {template ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={hasEverInsertedTemplate ? "Remove template" : "Template"}
-                accessibilityState={{ disabled: hasEverInsertedTemplate && !templateBlock }}
-                disabled={hasEverInsertedTemplate && !templateBlock}
-                onPress={onTemplatePress}
-                hitSlop={8}
-                style={({ pressed }) => [
-                  styles.templateRow,
-                  hasEverInsertedTemplate && !templateBlock && styles.templateRowDisabled,
-                  pressed && styles.pressed
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={hasEverInsertedTemplate ? "Remove template" : "Template"}
+              accessibilityState={{ disabled: hasEverInsertedTemplate && !templateBlock }}
+              disabled={hasEverInsertedTemplate && !templateBlock}
+              onPress={onTemplatePress}
+              hitSlop={8}
+              style={({ pressed }) => [
+                styles.templateRow,
+                hasEverInsertedTemplate && !templateBlock && styles.templateRowDisabled,
+                pressed && styles.pressed
+              ]}
+            >
+              <Ionicons
+                name={hasEverInsertedTemplate ? "book" : "book-outline"}
+                size={16}
+                color={hasEverInsertedTemplate && !templateBlock ? colors.textMuted : colors.link}
+              />
+              <Text
+                style={[
+                  styles.templateText,
+                  hasEverInsertedTemplate && !templateBlock ? styles.templateTextDisabled : null
                 ]}
               >
-                <Ionicons
-                  name={hasEverInsertedTemplate ? "book" : "book-outline"}
-                  size={16}
-                  color={hasEverInsertedTemplate && !templateBlock ? colors.textMuted : colors.link}
-                />
-                <Text
-                  style={[
-                    styles.templateText,
-                    hasEverInsertedTemplate && !templateBlock ? styles.templateTextDisabled : null
-                  ]}
-                >
-                  {hasEverInsertedTemplate ? "Remove template" : "Template"}
-                </Text>
-              </Pressable>
-            ) : (
-              <View />
-            )}
-            {saveDefault ? (
-              saveDefault.isSaved ? (
-                <View style={styles.savedPill} accessibilityRole="text">
-                  <Text style={styles.savedPillText}>{`✓ ${saveDefault.savedLabel ?? "Saved"}`}</Text>
-                </View>
-              ) : (
-                <Pressable accessibilityRole="button" onPress={saveDefault.onSave} hitSlop={8}>
-                  <Text style={styles.templateText}>{saveDefault.unsavedLabel ?? "Save"}</Text>
-                </Pressable>
-              )
-            ) : (
-              <View />
-            )}
+                {hasEverInsertedTemplate ? "Remove template" : "Template"}
+              </Text>
+            </Pressable>
+            <View />
           </View>
         ) : null}
 
+        {/* Copy — NOT yet repositioned to "top-right, clustered with
+            Paste" per the 2026-08-31 layout instruction. Left as-is
+            (below, centred) rather than guessed at in isolation: this
+            box has no Paste button to cluster it with at all (Paste
+            exists today only in PersonaliseAccordion's own 1:1-reply
+            box, a different component, for a different purpose —
+            pasting in a friend's message). Moving Copy alone to a
+            corner it's not actually paired with anything in would be
+            guessing at a layout the instruction didn't specify for this
+            case. Flagged, not built. See docs/09-decision-log.md. */}
         {copyMessage ? <CopyMessageLink value={value} /> : null}
       </SafeAreaView>
     </KeyboardStickyView>
@@ -829,6 +848,12 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       height: 36,
       borderRadius: theme.radius.pill,
       backgroundColor: colors.primary,
+      alignItems: "center",
+      justifyContent: "center"
+    },
+    saveButton: {
+      width: 36,
+      height: 36,
       alignItems: "center",
       justifyContent: "center"
     },

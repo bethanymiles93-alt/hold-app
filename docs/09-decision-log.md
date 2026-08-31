@@ -1714,3 +1714,13 @@ Same category of issue as the `AdaptiveCircleChip`/`WiderWorldPlatformPill` rede
 `tsc --noEmit` and `vitest run` (62/62) both pass. **Not verified on-device.**
 
 **hold-book**: no update needed — Adjust's own documentation already describes it as "a plain bold-on-tap text control," which remains descriptively true (the text still bolds); the underlying WCAG concern this closes isn't something hold-book's existing description asserted was already handled.
+
+## 2026-08-31 — DockedInputBar button layout: Send/Save reworked, Copy/Paste flagged
+
+**Built**: Save moved out of the Template/Save footer row into the main input row, immediately left of Send — both now sit together at the bottom-right of the compose box, icon-only. Save uses `save-outline`/`checkmark-circle` (unsaved/saved), the same outline-then-filled convention Template's own `book-outline`/`book` icon already establishes, not a new pattern. No existing "Save" icon was found anywhere in the codebase to reuse (checked directly, per instruction) — "Save"/"Save to Library" has always been a text link until now. Template stays text-labelled and alone in its own row below, per the explicit rule (no single recognisable symbol for "insert a template") — its row still uses the same empty-View-on-the-right spacer it already relied on whenever only one of the Template/Save pair was present, so it doesn't drift to centre now that Save has left permanently.
+
+**Not built, flagged rather than guessed**: repositioning Copy to "top-right, clustered with Paste." This box (`DockedInputBar.tsx`, used by Going Quiet/Reconnect's group-message compose) has no Paste button at all — Paste exists today only in `PersonaliseAccordion.tsx`'s own 1:1-reply box, a different component built for a different purpose (pasting in a friend's message to help draft a reply), which itself has no Save or Template concept. No single existing box currently has all four of Send/Save/Copy/Paste together. Moving Copy alone to a corner it isn't actually clustered with anything in would be guessing at a layout the instruction didn't specify for this case — left as-is (centred, below the Template row) pending clarification on which box(es) this applies to and whether Paste needs building somewhere new.
+
+`tsc --noEmit` and `vitest run` (62/62) both pass. **Not verified on-device.**
+
+**hold-book**: no update yet — held pending the Copy/Paste clarification above, since documenting the layout now would be incomplete.
