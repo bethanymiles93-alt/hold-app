@@ -1641,3 +1641,19 @@ Audited every circle/section-dropdown instance in the app, not just the screens 
 `tsc --noEmit` and `vitest run` (62/62) both pass. **Not verified on-device.**
 
 **hold-book**: new standing rule logged in `04-ux-content/04-navigation-architecture.md` alongside the existing circle-picker documentation — done in the same pass, see hold-book's own log.
+
+## 2026-08-31 — Library-tab vs Finish-Reconnecting Conversations entry: checked directly, one real asymmetry found and flagged, not fixed blind
+
+Checked against current code, not assumption or older docs, per instruction.
+
+**Confirmed: no data-layer gap.** Both entry points read and write the exact same underlying store — `conversationService.ts`'s `ConversationPerson` records. Library's Conversations tab (`mode="browse"`, `scope: "all"`) and Reconnect's own embedded step (`mode="flat"`, scoped to that Reconnect's own audience) are two different filtered *views* over one shared data source, not two separate lists that could drift apart. `getProgress()` (the completion check both Home's own resume logic and the "You're reconnected" trigger read) is itself global across `getAll()`, not period-scoped, by existing design (`seedFromAudience`'s own comment: "old *unfinished* Conversations stay saved across quiet periods" — a deliberate choice, not something this check introduces).
+
+**One real, confirmed behavioural asymmetry, not a data gap: how "You're reconnected" actually fires.** `library.tsx`'s own `refresh()` has an explicit auto-detect: reaching zero-incomplete across the full list, with a real open Reconnect journey confirmed via `getReconnectingPeriod()`, auto-navigates to `/return/done` — its own comment frames this specifically as a safety net "for anyone who closes the app mid-Reconnect and finishes addressing everyone later" via Library alone. `reconnect.tsx`'s own embedded step has no equivalent auto-detection at all — `finishReconnecting` only fires from a manual "Done" tap, unconditionally, regardless of whether Conversations is actually complete.
+
+**Read as intentional, not fixed**: hold-book's own existing spec (`01-core-journeys.md`, Reconnect point 6) already describes "Done" as "the one exit control on this screen, not a send trigger" — manual-by-design language, not an oversight this investigation should silently "fix" by bolting on auto-navigation. Flagging for explicit confirmation rather than guessing: is it acceptable that someone who completes every conversation while staying inside Reconnect's own screen (never force-quitting, never visiting Library separately) must tap "Done" themselves to reach Reconnected, while someone who finishes via Library gets auto-redirected? If not, the fix is straightforward (mirror Library's own `refresh()` check inside reconnect.tsx) — held pending confirmation rather than built on an assumption either way.
+
+**Also confirmed, not a bug**: the two views intentionally show different scopes (Library: every outstanding conversation ever seeded; Reconnect embedded: just this round's own audience) — by each `mode`'s own documented purpose, not something that should be unified.
+
+No code changed. `tsc --noEmit` and `vitest run` (62/62) both pass.
+
+**hold-book**: no update — the manual-Done spec is already correctly documented; nothing here contradicts it, only surfaces a question about whether it should stay that way given Library's own auto-detect exists alongside it.
