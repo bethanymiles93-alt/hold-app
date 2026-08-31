@@ -1724,3 +1724,7 @@ Same category of issue as the `AdaptiveCircleChip`/`WiderWorldPlatformPill` rede
 `tsc --noEmit` and `vitest run` (62/62) both pass. **Not verified on-device.**
 
 **hold-book**: no update yet — held pending the Copy/Paste clarification above, since documenting the layout now would be incomplete.
+
+## 2026-08-31 — Reconnect blank page: intermittent, root cause still unconfirmed
+
+Confirmed on-device: genuinely blank (no red error overlay), but not reproducing on retry. Not closing this as fixed or explained — noting it explicitly as intermittent with an unconfirmed root cause, to watch for rather than treat as resolved. The separate, confirmed `ExpoLocalAuthentication` native-module gap (History tab) remains a real, distinct issue with its own entry above — not assumed to be the same cause as this one, since reconnect.tsx doesn't touch that dependency.
