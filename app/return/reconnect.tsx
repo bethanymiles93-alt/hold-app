@@ -838,14 +838,41 @@ export default function ReconnectScreen() {
 
   /**
    * Ends Reconnect's own completion step, reachable via "Done" — the one
-   * exit control on this screen, never a send trigger (2026-08-13: the
-   * separate always-available Send button is removed entirely — sending
-   * only ever happens through the docked bar's own send icon now, one
-   * consistent mechanism instead of two). See docs/09-decision-log.md.
+   * manual exit control on this screen, never a send trigger (2026-08-13:
+   * the separate always-available Send button is removed entirely —
+   * sending only ever happens through the docked bar's own send icon now,
+   * one consistent mechanism instead of two). See docs/09-decision-log.md.
    */
   const finishReconnecting = () => {
     router.replace("/return/done");
   };
+
+  /**
+   * Auto-navigates to Reconnected the moment every one of THIS Reconnect's
+   * own audience is complete, while staying inside this screen — mirrors
+   * `library.tsx`'s own equivalent check, added 2026-08-31 to close a
+   * confirmed asymmetry: previously only Library auto-detected completion
+   * (its own safety net for "force-quit mid-Reconnect, finish later via
+   * Library alone"), and finishing everyone without ever leaving this
+   * screen required a manual "Done" tap regardless of actual completion
+   * state. `conversations.people` here is already scoped to this
+   * Reconnect's own audience specifically (unlike Library's `scope:
+   * "all"`), so no extra `getReconnectingPeriod()` guard is needed the way
+   * Library's own check has one — being on this screen at all already
+   * confirms a real, current Reconnect journey. Gated on `showPersonalise`
+   * so this can't fire before Personalise has even been opened (before
+   * that, `conversations.people` is simply empty — `refresh()` is only
+   * ever called once Personalise opens — so the length guard below is
+   * belt-and-braces, not the only thing preventing a premature redirect).
+   * See docs/09-decision-log.md.
+   */
+  useEffect(() => {
+    if (!showPersonalise) return;
+    if (conversations.people.length === 0) return;
+    if (conversations.people.every((person) => person.completed)) {
+      router.replace("/return/done");
+    }
+  }, [showPersonalise, conversations.people]);
 
   const clearStatus = () => {
     setStatusCleared(true);

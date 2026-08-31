@@ -1675,6 +1675,20 @@ No code changed. `tsc --noEmit` and `vitest run` (62/62) both pass.
 
 `tsc --noEmit` and `vitest run` (62/62) both pass. **Not verified on-device** — flagged explicitly per direct instruction, since this is a visual accessibility change type-checking can't confirm.
 
-**hold-book**: new standing rule (hollow default/selected, solid-fill reserved exclusively for sent, no stacked secondary cues) logged in `05-design-system/`, alongside the existing Circle-chip documentation — done in the same pass, see hold-book's own log.
+**hold-book**: new standing rule (hollow default/selected, solid-fill reserved exclusively for sent, no stacked secondary cues) logged in `04-ux-content/04-navigation-architecture.md`, alongside the existing Circle-chip documentation (correcting this same entry's own earlier, wrong file reference) — done in the same pass, see hold-book's own log.
+
+## 2026-08-31 — Reconnect's "Done" now auto-navigates too, matching Library
+
+Per direct confirmation, closing the asymmetry flagged in the Library-tab-vs-Finish-Reconnecting entry above: new `useEffect` in `reconnect.tsx`, gated on `showPersonalise`, auto-navigates to `/return/done` the moment every person in `conversations.people` (already scoped to this Reconnect's own audience, not "all") is complete — mirrors `library.tsx`'s own equivalent check. No extra `getReconnectingPeriod()` guard needed the way Library's own check has one, since being on this screen at all already confirms a real, current Reconnect journey. Manual "Done" stays available unchanged, for anyone who wants to exit before every last conversation is resolved.
+
+`tsc --noEmit` and `vitest run` (62/62) both pass. **Not verified on-device.**
+
+**hold-book**: `01-core-journeys.md`'s Reconnect section (point 4/6, wherever "Done" is described as manual/"not a send trigger") needs a note that automatic completion-detection now exists alongside the manual button — done in the same pass, see hold-book's own log.
+
+## 2026-08-31 — Manage Circles' "Expand all" confirmed exempt from the single-dropdown rule
+
+Per direct confirmation: the single-dropdown-open accordion rule (see the standing-rule entry above) does not extend to Manage Circles. Reasoning, logged so this doesn't get flagged as an inconsistency in a future sweep: the rule exists to reduce competing visual load while someone is actively composing a message at low capacity — a concern specific to flow screens (Going Quiet, Reconnect, Library/Conversations, Home's drawers). Manage Circles is a different context — a deliberate, unhurried admin/settings task, not message composition — so the specific risk the rule protects against doesn't apply there. "Expand all" also serves a genuine purpose specific to this screen (comparing membership across circles at once) that the flow screens have no equivalent need for. No code change.
+
+**hold-book**: the standing-rule entry in `04-ux-content/04-navigation-architecture.md` (logged earlier this session, flagging Manage Circles as "left untouched pending confirmation") updated to state this as resolved/confirmed exempt, with the reasoning above — done in the same pass, see hold-book's own log.
 
 **hold-book**: no update — the manual-Done spec is already correctly documented; nothing here contradicts it, only surfaces a question about whether it should stay that way given Library's own auto-detect exists alongside it.
