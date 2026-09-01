@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { Screen } from "@/components/Screen";
@@ -29,7 +29,6 @@ const EXPORT_FAILURE_MESSAGES: Record<Exclude<HistoryExportResult, { ok: true }>
 };
 
 type Segment = "history" | "patterns";
-type ViewMode = "list" | "calendar";
 
 const WEEKDAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
 const MONTH_ABBREVIATIONS = [
@@ -50,15 +49,17 @@ function dateKeyOf(date: Date): string {
 interface PeriodCardProps {
   period: HoldPeriod;
   onDelete: (id: string) => void;
+  /** Briefly borders this card in the accent colour — set when the calendar strip jumps the list here on a day-tap, so the destination is visually obvious, not just scrolled-to silently. */
+  highlighted?: boolean;
 }
 
-function PeriodCard({ period, onDelete }: PeriodCardProps) {
+function PeriodCard({ period, onDelete, highlighted = false }: PeriodCardProps) {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
   const channelLabels = summariseSendChannels(period.sendChannels);
 
   return (
-    <View style={styles.item}>
+    <View style={[styles.item, highlighted && styles.itemHighlighted]}>
       <Text style={styles.itemRecipients}>{period.recipients.join(", ")}</Text>
       <Text style={styles.itemMeta}>Started {formatDateTime(period.startedAt)}</Text>
       <Text style={styles.itemMeta}>
@@ -311,9 +312,51 @@ export default function HoldHistoryScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [periods, setPeriods] = useState<HoldPeriod[]>([]);
   const [segment, setSegment] = useState<Segment>("history");
-  const [view, setView] = useState<ViewMode>("list");
   /** List's own default scope, confirmed: most-recent 6 months, all-time reachable via this link. Calendar's own month/year pickers reach all-time separately — this doesn't share state with those, a deliberately simpler mechanism for a plain chronological list. See docs/09-decision-log.md, 2026-08-30. */
   const [listShowingAllTime, setListShowingAllTime] = useState(false);
+  const [highlightedPeriodId, setHighlightedPeriodId] = useState<string | null>(null);
+
+  // Calendar+list merge, 2026-09-01 (confirmed 30 August decision, not
+  // previously propagated to hold-book) — no more List/Calendar toggle;
+  // the list is always visible below the (collapsed-by-default) calendar.
+  // Tapping a day with activity jumps/anchors the list to that entry,
+  // per the confirmed spec. measureLayout against the Screen's own
+  // ScrollView, not onLayout-based offset summing — more robust across
+  // however many sibling sections sit between the calendar and a given
+  // card, since it asks the native layer for the real relative position
+  // rather than manually accumulating heights.
+  const scrollRef = useRef<ScrollView>(null);
+  const periodCardRefs = useRef<Map<string, View>>(new Map());
+
+  const scrollToPeriod = (periodId: string) => {
+    const cardNode = periodCardRefs.current.get(periodId);
+    const scrollNode = scrollRef.current;
+    if (!cardNode || !scrollNode) return;
+    cardNode.measureLayout(
+      scrollNode as unknown as number,
+      (_x, y) => scrollNode.scrollTo({ y: Math.max(0, y - theme.spacing.md), animated: true }),
+      () => {}
+    );
+  };
+
+  const handleSelectDate = (_dateKey: string, matchingPeriods: HoldPeriod[]) => {
+    const target = matchingPeriods[0];
+    if (!target) return;
+    setHighlightedPeriodId(target.id);
+    // If the tapped day's period is older than the list's own default
+    // 6-month scope, it isn't rendered yet — widen the scope first so
+    // there's actually something to scroll to, matching "jump to it"
+    // rather than silently doing nothing.
+    if (!listShowingAllTime && !recentPeriods.some((p) => p.id === target.id)) {
+      setListShowingAllTime(true);
+      // Card refs for a newly-revealed period don't exist until after this
+      // re-render commits — deferred one tick rather than scrolling
+      // against a stale/missing ref.
+      setTimeout(() => scrollToPeriod(target.id), 50);
+    } else {
+      scrollToPeriod(target.id);
+    }
+  };
 
   const refresh = useCallback(async () => {
     setPeriods(await getHistory());
@@ -353,7 +396,7 @@ export default function HoldHistoryScreen() {
     closedPeriods.length > 0 ? Math.max(...closedPeriods.map((period) => period.endedAt!)) : null;
 
   return (
-    <Screen contentContainerStyle={styles.content}>
+    <Screen contentContainerStyle={styles.content} scrollRef={scrollRef}>
       <View style={styles.toggle}>
         <Pressable
           accessibilityRole="button"
@@ -391,60 +434,35 @@ export default function HoldHistoryScreen() {
 
       {segment === "history" ? (
         <>
-          <View style={styles.toggle}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => setView("list")}
-              style={[styles.toggleButton, view === "list" && styles.toggleActive]}
-            >
-              <Text
-                style={[
-                  styles.toggleLabel,
-                  view === "list" && styles.toggleLabelActive
-                ]}
-              >
-                List
-              </Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => setView("calendar")}
-              style={[styles.toggleButton, view === "calendar" && styles.toggleActive]}
-            >
-              <Text
-                style={[
-                  styles.toggleLabel,
-                  view === "calendar" && styles.toggleLabelActive
-                ]}
-              >
-                Calendar
-              </Text>
-            </Pressable>
-          </View>
+          <HistoryCalendar periods={periods} onDelete={remove} onSelectDate={handleSelectDate} />
 
-          {view === "list" ? (
-            periods.length === 0 ? (
-              <Text style={styles.empty}>No Hold periods yet.</Text>
-            ) : (
-              <>
-                <View style={styles.list}>
-                  {(listShowingAllTime ? periods : recentPeriods).map((period) => (
-                    <PeriodCard key={period.id} period={period} onDelete={remove} />
-                  ))}
-                </View>
-                {!listShowingAllTime && recentPeriods.length < periods.length ? (
-                  <Pressable accessibilityRole="button" onPress={() => setListShowingAllTime(true)}>
-                    <Text style={styles.listScopeLink}>Show all time</Text>
-                  </Pressable>
-                ) : listShowingAllTime ? (
-                  <Pressable accessibilityRole="button" onPress={() => setListShowingAllTime(false)}>
-                    <Text style={styles.listScopeLink}>Show recent only</Text>
-                  </Pressable>
-                ) : null}
-              </>
-            )
+          {periods.length === 0 ? (
+            <Text style={styles.empty}>No Hold periods yet.</Text>
           ) : (
-            <HistoryCalendar periods={periods} onDelete={remove} />
+            <>
+              <View style={styles.list}>
+                {(listShowingAllTime ? periods : recentPeriods).map((period) => (
+                  <View
+                    key={period.id}
+                    ref={(node) => {
+                      if (node) periodCardRefs.current.set(period.id, node);
+                      else periodCardRefs.current.delete(period.id);
+                    }}
+                  >
+                    <PeriodCard period={period} onDelete={remove} highlighted={period.id === highlightedPeriodId} />
+                  </View>
+                ))}
+              </View>
+              {!listShowingAllTime && recentPeriods.length < periods.length ? (
+                <Pressable accessibilityRole="button" onPress={() => setListShowingAllTime(true)}>
+                  <Text style={styles.listScopeLink}>Show all time</Text>
+                </Pressable>
+              ) : listShowingAllTime ? (
+                <Pressable accessibilityRole="button" onPress={() => setListShowingAllTime(false)}>
+                  <Text style={styles.listScopeLink}>Show recent only</Text>
+                </Pressable>
+              ) : null}
+            </>
           )}
 
           <Pressable
@@ -590,6 +608,9 @@ function createStyles(colors: ThemeColors) {
     borderWidth: 1.5,
     borderColor: colors.border,
     padding: theme.spacing.md
+  },
+  itemHighlighted: {
+    borderColor: colors.primary
   },
   itemRecipients: {
     color: colors.text,

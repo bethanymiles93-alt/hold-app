@@ -62,6 +62,16 @@ function PeriodCard({ period, onDelete }: PeriodCardProps) {
 interface HistoryCalendarProps {
   periods: HoldPeriod[];
   onDelete: (id: string) => void;
+  /**
+   * Fires when a day with at least one period on it is tapped — the
+   * caller (history.tsx) uses this to scroll/anchor the always-visible
+   * list below to the matching entry, per the confirmed 2026-09-01 merge
+   * spec. Empty-day taps don't fire this at all, matching the app's own
+   * "no dead taps" convention. Replaces the old inline `dayDetail` block
+   * this component used to render itself — that responsibility moved up
+   * to the list now that List/Calendar is one page, not two.
+   */
+  onSelectDate: (dateKey: string, matchingPeriods: HoldPeriod[]) => void;
 }
 
 /**
@@ -77,16 +87,26 @@ interface HistoryCalendarProps {
  * every month in that year at once. This is a quick way to browse a full
  * year — it sits underneath the calendar, it doesn't replace it. See
  * docs/09-decision-log.md, 2026-08-30.
+ *
+ * **Merged into one page with the list, 2026-09-01** (confirmed 30 August
+ * decision, not previously propagated to hold-book) — no more separate
+ * List/Calendar toggle in history.tsx. This component itself now opens
+ * collapsed by default (a compact header row, tap to expand), reusing the
+ * app's existing collapsed-by-default/tap-to-expand accordion convention
+ * rather than always showing the full dense grid. Day-tap no longer shows
+ * an inline detail block here — it calls `onSelectDate` so the list below
+ * (always visible now, not gated behind a toggle) can scroll/anchor to
+ * the matching entry instead. See docs/09-decision-log.md.
  */
-export function HistoryCalendar({ periods, onDelete }: HistoryCalendarProps) {
+export function HistoryCalendar({ periods, onDelete, onSelectDate }: HistoryCalendarProps) {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
 
+  const [isExpanded, setIsExpanded] = useState(false);
   const [monthStart, setMonthStart] = useState(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
-  const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
   const [openPicker, setOpenPicker] = useState<"month" | "year" | null>(null);
   // Set only once a year is actually picked — the supplementary month list
   // has nothing to show before that, per the confirmed spec.
@@ -98,20 +118,19 @@ export function HistoryCalendar({ periods, onDelete }: HistoryCalendarProps) {
   const monthName = new Intl.DateTimeFormat(undefined, { month: "long" }).format(monthStart);
   const year = monthStart.getFullYear();
 
-  const selectedDayPeriods = selectedDayKey
-    ? periods.filter((period) => {
-        if (period.endedAt === null) return false;
-        const cursor = new Date(period.startedAt);
-        cursor.setHours(0, 0, 0, 0);
-        const end = new Date(period.endedAt);
-        end.setHours(0, 0, 0, 0);
-        while (cursor.getTime() <= end.getTime()) {
-          if (dateKeyOf(cursor) === selectedDayKey) return true;
-          cursor.setDate(cursor.getDate() + 1);
-        }
-        return false;
-      })
-    : [];
+  const periodsOnDay = (dayKey: string): HoldPeriod[] =>
+    periods.filter((period) => {
+      if (period.endedAt === null) return false;
+      const cursor = new Date(period.startedAt);
+      cursor.setHours(0, 0, 0, 0);
+      const end = new Date(period.endedAt);
+      end.setHours(0, 0, 0, 0);
+      while (cursor.getTime() <= end.getTime()) {
+        if (dateKeyOf(cursor) === dayKey) return true;
+        cursor.setDate(cursor.getDate() + 1);
+      }
+      return false;
+    });
 
   // Earliest period's year up through the current year — a reasonable,
   // real range rather than an arbitrary fixed window either direction.
@@ -166,114 +185,121 @@ export function HistoryCalendar({ periods, onDelete }: HistoryCalendarProps) {
 
   return (
     <View>
-      <View style={styles.monthRow}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Previous month"
-          onPress={() => setMonthStart((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))}
-        >
-          <Text style={styles.monthNav}>‹</Text>
-        </Pressable>
-        <View style={styles.monthLabelRow}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Change month, currently ${monthName}`}
-            onPress={() => setOpenPicker((current) => (current === "month" ? null : "month"))}
-          >
-            <Text style={styles.monthLabel}>{monthName}</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Change year, currently ${year}`}
-            onPress={() => setOpenPicker((current) => (current === "year" ? null : "year"))}
-          >
-            <Text style={styles.monthLabel}>{year}</Text>
-          </Pressable>
-        </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Next month"
-          onPress={() => setMonthStart((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))}
-        >
-          <Text style={styles.monthNav}>›</Text>
-        </Pressable>
+      <View style={styles.stripHeader}>
+        <Text style={styles.stripHeaderLabel}>
+          Calendar {!isExpanded ? `· ${monthName} ${year}` : ""}
+        </Text>
+        <DropdownArrowBadge
+          expanded={isExpanded}
+          onPress={() => setIsExpanded((current) => !current)}
+          accessibilityLabel={`Calendar, ${monthName} ${year}. ${isExpanded ? "Collapse" : "Expand"}.`}
+        />
       </View>
 
-      {openPicker === "month" ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pickerRow}>
-          {MONTH_ABBREVIATIONS.map((label, index) => (
-            <AdaptiveCircleChip
-              key={label}
-              label={label}
-              compact
-              isSelected={monthStart.getMonth() === index}
-              onPress={() => pickMonth(index)}
-            />
-          ))}
-        </ScrollView>
-      ) : null}
-
-      {openPicker === "year" ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pickerRow}>
-          {pickableYears.map((candidate) => (
-            <AdaptiveCircleChip
-              key={candidate}
-              label={String(candidate)}
-              compact
-              isSelected={year === candidate}
-              onPress={() => pickYear(candidate)}
-            />
-          ))}
-        </ScrollView>
-      ) : null}
-
-      <View style={styles.weekdayRow}>
-        {WEEKDAY_LABELS.map((label, index) => (
-          <Text key={`${label}-${index}`} style={styles.weekdayLabel}>
-            {label}
-          </Text>
-        ))}
-      </View>
-
-      <View style={styles.grid} key={monthKey(monthStart)}>
-        {grid.map((date, index) => {
-          if (!date) {
-            return <View key={`blank-${index}`} style={styles.dayCell} />;
-          }
-
-          const key = dateKeyOf(date);
-          const band = dayBands.get(key);
-          const selected = selectedDayKey === key;
-
-          return (
+      {isExpanded ? (
+        <>
+          <View style={styles.monthRow}>
             <Pressable
-              key={key}
               accessibilityRole="button"
-              onPress={() => setSelectedDayKey(selected ? null : key)}
-              style={styles.dayCell}
+              accessibilityLabel="Previous month"
+              onPress={() => setMonthStart((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))}
             >
-              {band ? (
-                <View style={[styles.dayBand, band.roundStart && styles.dayBandRoundStart, band.roundEnd && styles.dayBandRoundEnd]} />
-              ) : null}
-              <View style={[styles.dayCircle, selected && styles.dayCircleSelected]}>
-                <Text style={styles.dayNumber}>{date.getDate()}</Text>
-              </View>
+              <Text style={styles.monthNav}>‹</Text>
             </Pressable>
-          );
-        })}
-      </View>
+            <View style={styles.monthLabelRow}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Change month, currently ${monthName}`}
+                onPress={() => setOpenPicker((current) => (current === "month" ? null : "month"))}
+              >
+                <Text style={styles.monthLabel}>{monthName}</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Change year, currently ${year}`}
+                onPress={() => setOpenPicker((current) => (current === "year" ? null : "year"))}
+              >
+                <Text style={styles.monthLabel}>{year}</Text>
+              </Pressable>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Next month"
+              onPress={() => setMonthStart((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))}
+            >
+              <Text style={styles.monthNav}>›</Text>
+            </Pressable>
+          </View>
 
-      {selectedDayKey ? (
-        <View style={styles.dayDetail}>
-          {selectedDayPeriods.length === 0 ? (
-            <Text style={styles.empty}>No Hold period on this day.</Text>
-          ) : (
-            selectedDayPeriods.map((period) => <PeriodCard key={period.id} period={period} onDelete={onDelete} />)
-          )}
-        </View>
+          {openPicker === "month" ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pickerRow}>
+              {MONTH_ABBREVIATIONS.map((label, index) => (
+                <AdaptiveCircleChip
+                  key={label}
+                  label={label}
+                  compact
+                  isSelected={monthStart.getMonth() === index}
+                  onPress={() => pickMonth(index)}
+                />
+              ))}
+            </ScrollView>
+          ) : null}
+
+          {openPicker === "year" ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pickerRow}>
+              {pickableYears.map((candidate) => (
+                <AdaptiveCircleChip
+                  key={candidate}
+                  label={String(candidate)}
+                  compact
+                  isSelected={year === candidate}
+                  onPress={() => pickYear(candidate)}
+                />
+              ))}
+            </ScrollView>
+          ) : null}
+
+          <View style={styles.weekdayRow}>
+            {WEEKDAY_LABELS.map((label, index) => (
+              <Text key={`${label}-${index}`} style={styles.weekdayLabel}>
+                {label}
+              </Text>
+            ))}
+          </View>
+
+          <View style={styles.grid} key={monthKey(monthStart)}>
+            {grid.map((date, index) => {
+              if (!date) {
+                return <View key={`blank-${index}`} style={styles.dayCell} />;
+              }
+
+              const key = dateKeyOf(date);
+              const band = dayBands.get(key);
+
+              return (
+                <Pressable
+                  key={key}
+                  accessibilityRole="button"
+                  onPress={() => {
+                    if (!band) return;
+                    onSelectDate(key, periodsOnDay(key));
+                  }}
+                  style={styles.dayCell}
+                >
+                  {band ? (
+                    <View style={[styles.dayBand, band.roundStart && styles.dayBandRoundStart, band.roundEnd && styles.dayBandRoundEnd]} />
+                  ) : null}
+                  <View style={styles.dayCircle}>
+                    <Text style={styles.dayNumber}>{date.getDate()}</Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        </>
       ) : null}
 
-      {browsingYear !== null ? (
+      {isExpanded && browsingYear !== null ? (
         <View style={styles.yearBrowseSection}>
           <View style={styles.yearBrowseHeaderRow}>
             <Text style={styles.yearBrowseHeading}>{browsingYear}, month by month</Text>
@@ -320,10 +346,22 @@ export function HistoryCalendar({ periods, onDelete }: HistoryCalendarProps) {
 
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
+    stripHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      minHeight: 44
+    },
+    stripHeaderLabel: {
+      color: colors.text,
+      fontSize: 17,
+      fontWeight: "600"
+    },
     monthRow: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
+      marginTop: theme.spacing.sm,
       marginBottom: theme.spacing.sm
     },
     monthLabelRow: {
@@ -390,16 +428,9 @@ function createStyles(colors: ThemeColors) {
       alignItems: "center",
       justifyContent: "center"
     },
-    dayCircleSelected: {
-      backgroundColor: colors.primary
-    },
     dayNumber: {
       fontSize: 13,
       color: colors.text
-    },
-    dayDetail: {
-      marginTop: theme.spacing.md,
-      gap: theme.spacing.md
     },
     empty: {
       color: colors.textMuted,
