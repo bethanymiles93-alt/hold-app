@@ -709,7 +709,10 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       // padding (≈28pt combined), or the 7th line gets clipped by this
       // container regardless of inputStack's own height being correct.
       maxHeight: 190,
-      borderRadius: theme.radius.pill,
+      // Corner radius reduced from theme.radius.pill (999, full stadium
+      // rounding) to a small, subtle curve (2026-09-01) — reuses the
+      // existing sm token rather than inventing a new one.
+      borderRadius: theme.radius.sm,
       backgroundColor: pillFill,
       paddingLeft: theme.spacing.md,
       paddingRight: theme.spacing.md,
