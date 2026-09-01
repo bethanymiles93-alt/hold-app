@@ -86,21 +86,33 @@ export function Screen({ children, contentContainerStyle, footer, dockedInput, s
             genuinely empty space. */}
         <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
           <View style={styles.flex}>
-            {/* ScrollView's own keyboard-inset handling, not KeyboardAvoidingView —
-                KeyboardAvoidingView's height is only established via onLayout,
-                which reliably settles when a keyboard actually shows; on
-                screens with no (or minimal) text input, that layout pass never
-                gets a reason to fire, and the ScrollView beneath it can lock in
-                an incorrect initial bound and never scroll. Confirmed on-device:
-                input-heavy screens (Going Quiet, Reconnect) scrolled fine,
-                input-light ones (Hold+, Research) didn't — this removes the
-                shared cause instead of patching each screen individually. */}
+            {/* **Corrected 2026-09-01 — the fix below never actually worked,
+                confirmed on a genuinely fresh native build, not stale-cache
+                artifacts.** The previous version of this comment claimed
+                switching from KeyboardAvoidingView to automaticallyAdjustKeyboardInsets
+                + contentInsetAdjustmentBehavior="automatic" fixed input-light
+                screens (Hold+, Research) not scrolling — that was never
+                actually verified against Going Quiet/Reconnect specifically,
+                since neither of those uses this shared Screen component at
+                all (they're custom-built), so the "input-heavy scrolled
+                fine" comparison was never a real test of this fix. These two
+                props are also the one structural difference between every
+                screen that uses Screen.tsx (all reported broken once their
+                content was long enough to need scrolling: Research, Hold+,
+                Our Mission, History) and every screen that scrolls correctly
+                (Welcome, Home, Reconnect, Going Quiet — all custom-built, none
+                of them use these props). The app wraps everything in
+                react-native-keyboard-controller's own KeyboardProvider
+                (app/_layout.tsx) already — layering RN's native automatic
+                keyboard-inset handling on top of that, on every Screen-based
+                page regardless of whether it has any text input at all, is
+                the one remaining candidate. Removed; scroll behaviour now
+                matches every other screen's plain ScrollView. See
+                docs/09-decision-log.md. */}
             <ScrollView
               ref={scrollRef}
               style={styles.flex}
               keyboardShouldPersistTaps="handled"
-              automaticallyAdjustKeyboardInsets
-              contentInsetAdjustmentBehavior="automatic"
               contentContainerStyle={[
                 styles.content,
                 contentContainerStyle,
