@@ -1326,6 +1326,28 @@ export default function ReconnectScreen() {
             body={coverage.complete ? "Everyone's been reached." : "Reach everyone at your own pace, a few at a time."}
           />
 
+          {/* Calm, low-key escape hatch (2026-09-01), same principle as
+              Going Quiet's own "Start fresh instead" — resuming an
+              in-progress selection is the default now, which is correct,
+              but shouldn't be the only option. Only shown when there's
+              actually a current selection to discard; clears the local
+              compose state only (includedPersonIds, the message box) —
+              never touches the durable audience/period itself, which
+              stays exactly as reached so far. Plain text, no confirm
+              dialog, never framed as discarding/abandoning/failing. */}
+          {includedPersonIds.size > 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                setIncludedPersonIds(new Set());
+                setMessage(DEFAULT_RECONNECT_MESSAGE);
+              }}
+              hitSlop={8}
+            >
+              <Text style={styles.startFreshLink}>Start fresh instead</Text>
+            </Pressable>
+          ) : null}
+
           {/* Circle-browsing row — which Circles to draw people from, not
               a send-selection any more. The chip bulk-toggles that
               Circle's own people between fully included/excluded; the
@@ -1978,6 +2000,11 @@ function createStyles(colors: ThemeColors) {
       color: colors.link,
       fontSize: 14,
       fontWeight: "600"
+    },
+    startFreshLink: {
+      color: colors.textMuted,
+      fontSize: 14,
+      marginTop: theme.spacing.xs
     },
     savedPill: {
       minHeight: 28,

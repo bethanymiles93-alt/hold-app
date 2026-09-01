@@ -95,8 +95,20 @@ export default function HoldPeopleScreen() {
     updateSelectedGroup,
     goingQuietRecipients,
     toggleRecipientIncluded,
-    recipientCircleOverrides
+    recipientCircleOverrides,
+    resetFlow
   } = useHoldFlow();
+  /**
+   * Snapshotted once, at mount, not recomputed as selectedGroups changes
+   * during ordinary use — this is specifically "was there already an
+   * in-progress selection when this screen instance opened" (i.e. Home's
+   * own start() skipped its reset, see index.tsx), not "is anything
+   * currently selected." Drives whether the "Start fresh instead" link
+   * (below) shows at all — showing it on a genuinely first-time visit,
+   * where there's nothing to discard, would be pointless. See
+   * docs/09-decision-log.md, 2026-09-01.
+   */
+  const [wasResumed] = useState(() => selectedGroups.length > 0);
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -851,6 +863,26 @@ export default function HoldPeopleScreen() {
     >
       <StepHeader title="Who needs to know?" />
 
+      {/* Calm, low-key escape hatch alongside the resumed state (2026-09-01)
+          — resume is now the default whenever there's something to resume
+          (see index.tsx's start()), which is correct, but without this
+          there'd be no way back to a genuinely clean slate if someone
+          doesn't want their stale, days-old partial selection. Deliberately
+          plain text, no button styling, no confirm dialog — starting fresh
+          is exactly as valid a choice as resuming, never framed as
+          discarding/abandoning/failing. Only shown when there's actually
+          something to discard (wasResumed) — showing it on a genuine
+          first-time visit would be pointless. See docs/09-decision-log.md. */}
+      {wasResumed ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => resetFlow("hold")}
+          hitSlop={8}
+        >
+          <Text style={styles.startFreshLink}>Start fresh instead</Text>
+        </Pressable>
+      ) : null}
+
       {/* Bold-on-tap, no persistence — resets to off every time this screen
           is entered fresh, matching Core's own "no in-the-moment choice
           while unwell" reasoning generalised to every Circle. See
@@ -1217,6 +1249,11 @@ function createStyles(colors: ThemeColors) {
       color: colors.link,
       fontSize: 14,
       fontWeight: "600"
+    },
+    startFreshLink: {
+      color: colors.textMuted,
+      fontSize: 14,
+      marginTop: theme.spacing.xs
     },
     savedPill: {
       minHeight: 28,

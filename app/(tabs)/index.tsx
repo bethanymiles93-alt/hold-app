@@ -75,7 +75,7 @@ const BREATHE_HALF_CYCLE_MS = 4000;
 type HomeState = "loading" | "normal" | "taking-time" | "reconnecting" | "post-reconnect";
 
 export default function HomeScreen() {
-  const { resetFlow, setAudience } = useHoldFlow();
+  const { resetFlow, setAudience, selectedGroups } = useHoldFlow();
   const { setIsQuiet } = useQuietPalette();
   const { moonPhaseEnabled } = useDisplaySettings();
   const normalTheme = useAppTheme("normal");
@@ -195,8 +195,24 @@ export default function HomeScreen() {
     }, [reduceMotion, scaleAnim, paletteAnim])
   );
 
+  /**
+   * **Bug fixed 2026-09-01**: this used to call `resetFlow` unconditionally
+   * on every tap, wiping HoldFlowContext's in-memory state (selectedGroups,
+   * goingQuietRecipients, per-recipient inclusion) even when a Going Quiet
+   * flow was already genuinely in progress — nothing sent yet, so nothing
+   * durable to resume from, but a real, deliberate in-progress change
+   * (e.g. excluding one recipient) that navigating away and back should
+   * have preserved. Unlike Reconnect, which persists its audience to a
+   * real HoldPeriod record the moment it starts, Going Quiet has no
+   * durable footprint at all until the first actual send — HoldFlowContext
+   * (which survives ordinary navigation, since HoldFlowProvider sits above
+   * the whole app) is the only place this state lives before that point.
+   * Only resets when there's genuinely nothing to resume (selectedGroups
+   * empty) — a real first-time-this-session entry, matching today's
+   * behaviour for that case exactly. See docs/09-decision-log.md.
+   */
   const start = (target: "hold") => {
-    resetFlow(target);
+    if (selectedGroups.length === 0) resetFlow(target);
     router.push("/create/people");
   };
 
