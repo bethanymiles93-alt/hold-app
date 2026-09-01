@@ -90,12 +90,24 @@ interface HistoryCalendarProps {
    * happens to still be displaying underneath.
    */
   onYearSelect: (year: number) => void;
+  /**
+   * The currently-selected day's key (`YYYY-MM-DD`), or null — controlled
+   * by the parent (history.tsx's own `listFilter`), not local state here,
+   * so the calendar's own highlight always matches whatever the list is
+   * actually showing (clears itself the moment the filter changes to a
+   * month or year instead, no separate reset call needed). Reuses
+   * `AdaptiveCircleChip`'s own thick-outline selected treatment, not a
+   * new calendar-only convention. See docs/09-decision-log.md, 2026-09-01.
+   */
+  selectedDayKey: string | null;
 }
 
 /**
- * History's own calendar — forked from Patterns' MonthCalendarView
- * (history.tsx), which stays untouched for Patterns' own use. Confirmed
- * scope (given across two messages, one a correction to the first): the
+ * History's own calendar — originally forked from Patterns' own
+ * MonthCalendarView (history.tsx); Patterns' calendar was later removed
+ * entirely (2026-09-01, superseded by the Hold+ chart expansion), so this
+ * is now the app's only period-marking calendar. Confirmed scope (given
+ * across two messages, one a correction to the first): the
  * day-grid is the persistent core view at all times, never replaced by
  * anything below it. The month and year in the header are independently
  * tappable, opening their own picker row. Selecting a year reveals a
@@ -119,7 +131,14 @@ interface HistoryCalendarProps {
  * actual logged period are tappable at all (2026-09-01) — an empty-day
  * tap led nowhere, pure friction. See docs/09-decision-log.md.
  */
-export function HistoryCalendar({ periods, onDelete, onSelectDate, onMonthChange, onYearSelect }: HistoryCalendarProps) {
+export function HistoryCalendar({
+  periods,
+  onDelete,
+  onSelectDate,
+  onMonthChange,
+  onYearSelect,
+  selectedDayKey
+}: HistoryCalendarProps) {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -306,11 +325,14 @@ export function HistoryCalendar({ periods, onDelete, onSelectDate, onMonthChange
                 );
               }
 
+              const isSelected = key === selectedDayKey;
+
               return (
                 <Pressable
                   key={key}
                   accessibilityRole="button"
-                  accessibilityLabel={`${monthName} ${date.getDate()}, has a Hold period`}
+                  accessibilityState={{ selected: isSelected }}
+                  accessibilityLabel={`${monthName} ${date.getDate()}, has a Hold period${isSelected ? ", selected" : ""}`}
                   onPress={() => onSelectDate(key, periodsOnDay(key))}
                   style={styles.dayCell}
                 >
@@ -318,9 +340,12 @@ export function HistoryCalendar({ periods, onDelete, onSelectDate, onMonthChange
                       own sent-state colour pairing (colors.primary fill,
                       colors.onPrimary text) rather than a separate
                       lighter convention — "this day has something" reads
-                      the same way "sent" does everywhere else. */}
+                      the same way "sent" does everywhere else. Selected
+                      day (2026-09-01) gets AdaptiveCircleChip's own
+                      thick-outline selected treatment layered on top, not
+                      a new indicator invented just for the calendar. */}
                   <View style={[styles.dayBand, band.roundStart && styles.dayBandRoundStart, band.roundEnd && styles.dayBandRoundEnd]} />
-                  <View style={styles.dayCircle}>
+                  <View style={[styles.dayCircle, isSelected && styles.dayCircleSelected]}>
                     <Text style={[styles.dayNumber, styles.dayNumberLogged]}>{date.getDate()}</Text>
                   </View>
                 </Pressable>
@@ -450,6 +475,10 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 15,
       alignItems: "center",
       justifyContent: "center"
+    },
+    dayCircleSelected: {
+      borderWidth: 3,
+      borderColor: colors.onPrimary
     },
     dayNumber: {
       fontSize: 13,

@@ -1,20 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { router, useFocusEffect } from "expo-router";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { router } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { StepHeader } from "@/components/StepHeader";
 import { HistoryCalendar } from "@/components/HistoryCalendar";
 import { AdaptiveCircleChip } from "@/components/AdaptiveCircleChip";
 import { theme, type ThemeColors } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
-import { isHoldPlusActive } from "@/services/holdPlusService";
-import {
-  buildMonthGrid,
-  formatDateTime,
-  formatDuration,
-  getDayBands,
-  summariseSendChannels
-} from "@/services/holdHistoryFormat";
+import { formatDateTime, formatDuration, summariseSendChannels } from "@/services/holdHistoryFormat";
 import { deleteHoldPeriod, getHistory } from "@/services/holdHistoryService";
 import { requestHistoryExport, type HistoryExportResult } from "@/services/historyExportService";
 import type { HoldPeriod } from "@/types/hold";
@@ -42,22 +35,6 @@ type ListFilter =
   | { type: "month"; monthStart: Date }
   | { type: "year"; year: number }
   | { type: "day"; dateKey: string; periods: HoldPeriod[] };
-
-const WEEKDAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
-const MONTH_ABBREVIATIONS = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-];
-
-function monthKey(date: Date): string {
-  return `${date.getFullYear()}-${date.getMonth()}`;
-}
-
-function dateKeyOf(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
 
 interface PeriodCardProps {
   period: HoldPeriod;
@@ -89,243 +66,6 @@ function PeriodCard({ period, onDelete }: PeriodCardProps) {
       >
         <Text style={styles.deleteLabel}>Delete</Text>
       </Pressable>
-    </View>
-  );
-}
-
-interface MonthCalendarViewProps {
-  periods: HoldPeriod[];
-  onDelete: (id: string) => void;
-}
-
-/**
- * A month grid with quiet days marked, tap a day for its period(s) — its
- * own independent month/selection state. **Hold+ gate, built 2026-08-31
- * alongside this interactivity, not before**: free tier is locked to the
- * current month (matching "one month at a time in Patterns, full history
- * in Hold+" — `07-business/02-pricing-principles.md`). Confirmed before
- * building that no such gate existed in this file at all — prev/next
- * previously navigated freely for every user. Month/year tap-to-pick
- * mirrors `HistoryCalendar.tsx`'s own pattern (that component was itself
- * forked from this one) but deliberately skips its year-list/expand-all
- * sub-feature — not requested for Patterns, and multi-month browsing is
- * exactly what free tier must not get anyway. Free-tier taps on any
- * navigation control (prev/next, month, year) go to the Hold+ screen
- * rather than silently doing nothing — an honest locked control, not a
- * dead one. Tap-a-day always works regardless of tier; it never leaves
- * the current month. See docs/09-decision-log.md.
- */
-function MonthCalendarView({ periods, onDelete }: MonthCalendarViewProps) {
-  const { colors } = useAppTheme("normal");
-  const styles = useMemo(() => createStyles(colors), [colors]);
-  const [monthStart, setMonthStart] = useState(() => {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), 1);
-  });
-  const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
-  const [openPicker, setOpenPicker] = useState<"month" | "year" | null>(null);
-  const [holdPlus, setHoldPlus] = useState(false);
-
-  useFocusEffect(
-    useCallback(() => {
-      void isHoldPlusActive().then(setHoldPlus);
-    }, [])
-  );
-
-  const grid = buildMonthGrid(monthStart);
-  const dayBands = getDayBands(periods, grid);
-  const monthName = new Intl.DateTimeFormat(undefined, { month: "long" }).format(monthStart);
-  const year = monthStart.getFullYear();
-
-  const selectedDayPeriods = selectedDayKey
-    ? periods.filter((period) => {
-        if (period.endedAt === null) return false;
-        const cursor = new Date(period.startedAt);
-        cursor.setHours(0, 0, 0, 0);
-        const end = new Date(period.endedAt);
-        end.setHours(0, 0, 0, 0);
-        while (cursor.getTime() <= end.getTime()) {
-          if (dateKeyOf(cursor) === selectedDayKey) return true;
-          cursor.setDate(cursor.getDate() + 1);
-        }
-        return false;
-      })
-    : [];
-
-  const earliestYear = periods.reduce((earliest, period) => {
-    const started = new Date(period.startedAt).getFullYear();
-    return started < earliest ? started : earliest;
-  }, new Date().getFullYear());
-  const pickableYears: number[] = [];
-  for (let candidate = new Date().getFullYear(); candidate >= earliestYear; candidate -= 1) {
-    pickableYears.push(candidate);
-  }
-
-  const goToPreviousMonth = () => {
-    setMonthStart((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1));
-  };
-  const goToNextMonth = () => {
-    setMonthStart((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1));
-  };
-  const toggleMonthPicker = () => {
-    setOpenPicker((current) => (current === "month" ? null : "month"));
-  };
-  const toggleYearPicker = () => {
-    setOpenPicker((current) => (current === "year" ? null : "year"));
-  };
-  const pickMonth = (monthIndex: number) => {
-    setMonthStart(new Date(year, monthIndex, 1));
-    setOpenPicker(null);
-  };
-  const pickYear = (pickedYear: number) => {
-    setMonthStart(new Date(pickedYear, monthStart.getMonth(), 1));
-    setOpenPicker(null);
-  };
-
-  return (
-    <View>
-      <View style={styles.monthRow}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Previous month"
-          accessibilityState={{ disabled: !holdPlus }}
-          disabled={!holdPlus}
-          onPress={goToPreviousMonth}
-        >
-          <Text style={[styles.monthNav, !holdPlus && styles.monthNavLocked]}>‹</Text>
-        </Pressable>
-        <View style={styles.monthLabelRow}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={holdPlus ? `Change month, currently ${monthName}` : monthName}
-            accessibilityState={{ disabled: !holdPlus }}
-            disabled={!holdPlus}
-            onPress={toggleMonthPicker}
-          >
-            <Text style={styles.monthLabel}>{monthName}</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={holdPlus ? `Change year, currently ${year}` : String(year)}
-            accessibilityState={{ disabled: !holdPlus }}
-            disabled={!holdPlus}
-            onPress={toggleYearPicker}
-          >
-            <Text style={styles.monthLabel}>{year}</Text>
-          </Pressable>
-        </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Next month"
-          accessibilityState={{ disabled: !holdPlus }}
-          disabled={!holdPlus}
-          onPress={goToNextMonth}
-        >
-          <Text style={[styles.monthNav, !holdPlus && styles.monthNavLocked]}>›</Text>
-        </Pressable>
-      </View>
-
-      {/* Dimming alone isn't a valid non-colour differentiator (see the
-          app's own "never rely on colour alone" rule) — this caption is
-          the real signal for sighted users, same job the accessibility
-          label already does for screen readers. Found missing in a
-          same-night compliance pass, fixed immediately rather than just
-          flagged. See docs/09-decision-log.md, 2026-08-31. */}
-      {!holdPlus ? <Text style={styles.lockedCaption}>Hold+ unlocks other months</Text> : null}
-
-      {holdPlus && openPicker === "month" ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pickerRow}>
-          {MONTH_ABBREVIATIONS.map((label, index) => (
-            <AdaptiveCircleChip
-              key={label}
-              label={label}
-              compact
-              isSelected={monthStart.getMonth() === index}
-              onPress={() => pickMonth(index)}
-            />
-          ))}
-        </ScrollView>
-      ) : null}
-
-      {holdPlus && openPicker === "year" ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pickerRow}>
-          {pickableYears.map((candidate) => (
-            <AdaptiveCircleChip
-              key={candidate}
-              label={String(candidate)}
-              compact
-              isSelected={year === candidate}
-              onPress={() => pickYear(candidate)}
-            />
-          ))}
-        </ScrollView>
-      ) : null}
-
-      <View style={styles.weekdayRow}>
-        {WEEKDAY_LABELS.map((label, index) => (
-          <Text key={`${label}-${index}`} style={styles.weekdayLabel}>
-            {label}
-          </Text>
-        ))}
-      </View>
-
-      <View style={styles.grid} key={monthKey(monthStart)}>
-        {grid.map((date, index) => {
-          if (!date) {
-            return <View key={`blank-${index}`} style={styles.dayCell} />;
-          }
-
-          const key = dateKeyOf(date);
-          const band = dayBands.get(key);
-          const selected = selectedDayKey === key;
-
-          // Only days with a logged period are tappable — an empty-day
-          // tap led to a dead "nothing here" state before, pure friction.
-          // Plain View for empty days, not a Pressable with a no-op.
-          if (!band) {
-            return (
-              <View key={key} style={styles.dayCell}>
-                <View style={styles.dayCircle}>
-                  <Text style={styles.dayNumber}>{date.getDate()}</Text>
-                </View>
-              </View>
-            );
-          }
-
-          return (
-            <Pressable
-              key={key}
-              accessibilityRole="button"
-              accessibilityLabel={`${monthName} ${date.getDate()}, has a Hold period`}
-              onPress={() => setSelectedDayKey(selected ? null : key)}
-              style={styles.dayCell}
-            >
-              <View
-                style={[
-                  styles.dayBand,
-                  band.roundStart && styles.dayBandRoundStart,
-                  band.roundEnd && styles.dayBandRoundEnd
-                ]}
-              />
-              <View style={[styles.dayCircle, selected && styles.dayCircleSelected]}>
-                <Text style={[styles.dayNumber, styles.dayNumberLogged]}>{date.getDate()}</Text>
-              </View>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      {selectedDayKey ? (
-        <View style={styles.dayDetail}>
-          {selectedDayPeriods.length === 0 ? (
-            <Text style={styles.empty}>No Hold period on this day.</Text>
-          ) : (
-            selectedDayPeriods.map((period) => (
-              <PeriodCard key={period.id} period={period} onDelete={onDelete} />
-            ))
-          )}
-        </View>
-      ) : null}
     </View>
   );
 }
@@ -445,6 +185,7 @@ export default function HoldHistoryScreen() {
             onSelectDate={handleSelectDate}
             onMonthChange={handleMonthChange}
             onYearSelect={handleYearSelect}
+            selectedDayKey={listFilter.type === "day" ? listFilter.dateKey : null}
           />
 
           {periods.length === 0 ? (
@@ -477,32 +218,28 @@ export default function HoldHistoryScreen() {
           {periods.length === 0 ? (
             <Text style={styles.empty}>No Hold periods yet.</Text>
           ) : (
-            <>
-              <View style={styles.statsGrid}>
-                <View style={styles.statTile}>
-                  <Text style={styles.statTileValue}>{periods.length}</Text>
-                  <Text style={styles.statTileLabel}>Quiet periods</Text>
-                </View>
-                <View style={styles.statTile}>
-                  <Text style={styles.statTileValue}>
-                    {averageDurationMs !== null ? formatDuration(averageDurationMs) : "—"}
-                  </Text>
-                  <Text style={styles.statTileLabel}>Average duration</Text>
-                </View>
-                <View style={styles.statTile}>
-                  <Text style={styles.statTileValue}>
-                    {mostRecentEndedAt !== null ? formatDuration(Date.now() - mostRecentEndedAt) : "—"}
-                  </Text>
-                  <Text style={styles.statTileLabel}>Time since last quiet period</Text>
-                </View>
-                <View style={styles.statTile}>
-                  <Text style={styles.statTileValue}>{formatDuration(totalDurationMs)}</Text>
-                  <Text style={styles.statTileLabel}>Days spent Taking Time</Text>
-                </View>
+            <View style={styles.statsGrid}>
+              <View style={styles.statTile}>
+                <Text style={styles.statTileValue}>{periods.length}</Text>
+                <Text style={styles.statTileLabel}>Quiet periods</Text>
               </View>
-
-              <MonthCalendarView periods={periods} onDelete={remove} />
-            </>
+              <View style={styles.statTile}>
+                <Text style={styles.statTileValue}>
+                  {averageDurationMs !== null ? formatDuration(averageDurationMs) : "—"}
+                </Text>
+                <Text style={styles.statTileLabel}>Average duration</Text>
+              </View>
+              <View style={styles.statTile}>
+                <Text style={styles.statTileValue}>
+                  {mostRecentEndedAt !== null ? formatDuration(Date.now() - mostRecentEndedAt) : "—"}
+                </Text>
+                <Text style={styles.statTileLabel}>Time since last quiet period</Text>
+              </View>
+              <View style={styles.statTile}>
+                <Text style={styles.statTileValue}>{formatDuration(totalDurationMs)}</Text>
+                <Text style={styles.statTileLabel}>Days spent Taking Time</Text>
+              </View>
+            </View>
           )}
 
           <View style={styles.exportNote}>
@@ -624,102 +361,6 @@ function createStyles(colors: ThemeColors) {
     color: colors.error,
     fontSize: 14,
     fontWeight: "600"
-  },
-  monthRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: theme.spacing.sm
-  },
-  monthNav: {
-    color: colors.primary,
-    fontSize: 24,
-    paddingHorizontal: theme.spacing.md
-  },
-  monthNavLocked: {
-    color: colors.textMuted,
-    opacity: 0.5
-  },
-  lockedCaption: {
-    color: colors.textMuted,
-    fontSize: 12,
-    textAlign: "center",
-    marginBottom: theme.spacing.sm
-  },
-  monthLabelRow: {
-    flexDirection: "row",
-    gap: theme.spacing.sm
-  },
-  monthLabel: {
-    color: colors.text,
-    fontSize: 17,
-    fontWeight: "600"
-  },
-  pickerRow: {
-    flexDirection: "row",
-    gap: theme.spacing.sm,
-    paddingBottom: theme.spacing.sm
-  },
-  weekdayRow: {
-    flexDirection: "row"
-  },
-  weekdayLabel: {
-    flex: 1,
-    textAlign: "center",
-    color: colors.textMuted,
-    fontSize: 12,
-    fontWeight: "600"
-  },
-  grid: {
-    flexDirection: "row",
-    flexWrap: "wrap"
-  },
-  dayCell: {
-    width: `${100 / 7}%`,
-    aspectRatio: 1,
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  dayBand: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    height: 32,
-    // Reuses AdaptiveCircleChip's own sent-state fill (colors.primary),
-    // not a separate calendar-only convention — "this day has something"
-    // should read the same way "sent" does everywhere else in the app.
-    backgroundColor: colors.primary
-  },
-  dayBandRoundStart: {
-    borderTopLeftRadius: 16,
-    borderBottomLeftRadius: 16
-  },
-  dayBandRoundEnd: {
-    borderTopRightRadius: 16,
-    borderBottomRightRadius: 16
-  },
-  dayCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  dayCircleSelected: {
-    borderWidth: 1.5,
-    borderColor: colors.primary
-  },
-  dayNumber: {
-    color: colors.text,
-    fontSize: 14
-  },
-  dayNumberLogged: {
-    color: colors.onPrimary,
-    fontWeight: "600"
-  },
-  dayDetail: {
-    gap: theme.spacing.md,
-    marginTop: theme.spacing.lg
   },
   patternsSection: {
     gap: theme.spacing.lg
