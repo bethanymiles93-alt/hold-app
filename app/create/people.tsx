@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { router, useFocusEffect } from "expo-router";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
@@ -934,7 +934,37 @@ export default function HoldPeopleScreen() {
               nothing. See docs/09-decision-log.md. */}
           <RecipientPersonalisation
             recipients={expandedGroupRecipients}
-            onToggleIncluded={(contactId) => toggleRecipientIncluded(contactId, message)}
+            onToggleIncluded={(contactId) => {
+              // Core requires one extra deliberate beat to exclude someone
+              // — never a plain one-tap toggle like every other Circle
+              // (2026-09-01, a real decision, not a technical default: see
+              // RecipientPersonalisation's own doc comment for the full
+              // reasoning). Re-including someone is the safe/undo
+              // direction and stays frictionless, matching every other
+              // toggle in the app — only the exclude direction, for Core
+              // specifically, gets the confirm. Reuses Alert.alert, the
+              // same confirmation pattern already established for this
+              // app's other highest-stakes actions (Circle deletion,
+              // "Delete my data"), rather than inventing a new gesture
+              // (long-press, etc.) nothing else in the app uses.
+              const recipient = expandedGroupRecipients.find((r) => r.contactId === contactId);
+              if (expandedGroup.isCloseCircle && recipient?.included) {
+                Alert.alert(
+                  `Exclude ${recipient.name} from this message?`,
+                  "They're part of Core — this only excludes them from this one message, not from Core itself.",
+                  [
+                    { text: "Cancel", style: "cancel" },
+                    {
+                      text: "Exclude",
+                      style: "destructive",
+                      onPress: () => toggleRecipientIncluded(contactId, message)
+                    }
+                  ]
+                );
+                return;
+              }
+              toggleRecipientIncluded(contactId, message);
+            }}
             onAddPerson={() => void handleAddPerson(expandedGroup)}
             locked={expandedGroup.isCloseCircle}
             readOnly={!isExpandedGroupSelected}

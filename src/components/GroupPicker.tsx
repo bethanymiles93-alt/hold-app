@@ -309,18 +309,23 @@ export function GroupPicker({
                     open (see onToggleExpanded in the parent screen).
                     Positioned inside the chip's own right edge so it never
                     reads as ambiguous about which circle it belongs to.
-                    Core (Close) never gets this arrow in-flow, with one
-                    narrow, first-run-only exception (showCoreOnboardingHint,
-                    confirmed 2026-08-30) — every session after the first
-                    one, this reverts to the unconditional lock: Core should
-                    always be messaged, with no in-the-moment choice to
-                    exclude it while unwell. Every OTHER Circle's own arrow
-                    is now gated the same way behind "Adjust" (adjustMode,
-                    2026-08-30) — off by default each session, so membership
-                    isn't one accidental tap away mid-flow. Stays fully
-                    editable in Manage Circles regardless of Adjust's state.
-                    See docs/09-decision-log.md, 2026-08-29. */}
-                {!group.isCloseCircle && adjustMode ? (
+                    Core (Close) gets this arrow gated behind "Adjust" the
+                    same as every other Circle now (corrected 2026-09-01,
+                    reversing the 2026-08-31 "always visible, read-only"
+                    version, which was itself briefly reversed to
+                    "unconditionally locked" before being corrected back —
+                    see docs/09-decision-log.md for the full back-and-forth
+                    and the reasoning behind where this landed): Core now
+                    genuinely allows excluding an existing member (see
+                    RecipientPersonalisation's own doc comment for the
+                    extra-confirmation mechanic that makes this safe), so
+                    it carries the same in-the-moment-exclusion risk every
+                    other Circle's Adjust-gate exists to manage — no longer
+                    exempt from it. One narrow, first-run-only exception
+                    stays unchanged (showCoreOnboardingHint, 2026-08-30).
+                    Stays fully editable in Manage Circles regardless of
+                    Adjust's state. */}
+                {adjustMode ? (
                   <DropdownArrowBadge
                     expanded={isExpanded}
                     checked={sentLook}
@@ -337,24 +342,6 @@ export function GroupPicker({
                     expanded={false}
                     onPress={() => onCoreOnboardingAdd?.()}
                     accessibilityLabel="Add the people who matter most to Core"
-                    style={styles.arrowButton}
-                  />
-                ) : group.isCloseCircle ? (
-                  // Core's own arrow, every session after the first — unlike
-                  // every other Circle's arrow, never gated behind Adjust,
-                  // since it only ever opens a READ-ONLY view (see
-                  // people.tsx's own expandedGroup rendering: Core renders
-                  // a plain, untappable member line, never
-                  // RecipientPersonalisation). Reassurance, not editing —
-                  // seeing who's included without being able to change it
-                  // here carries none of the "in-the-moment exclusion"
-                  // risk Core's own lock exists to prevent, so it doesn't
-                  // need the same guard. See docs/09-decision-log.md,
-                  // 2026-08-31.
-                  <DropdownArrowBadge
-                    expanded={isExpanded}
-                    onPress={() => onToggleExpanded(group.id)}
-                    accessibilityLabel={`Core, ${isExpanded ? "hide" : "show"} who's included`}
                     style={styles.arrowButton}
                   />
                 ) : null}

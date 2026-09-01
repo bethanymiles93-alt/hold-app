@@ -24,11 +24,15 @@ interface RecipientPersonalisationProps {
    */
   readOnly?: boolean;
   /**
-   * Core's own case, distinct from `readOnly` above — Core is locked
-   * (editable only via Your Circles), so unlike a merely-unselected
-   * Circle being previewed, there's no "+" to add someone here either.
-   * Implies `readOnly` (no need to also pass both). See
-   * docs/09-decision-log.md, 2026-08-31.
+   * Core's own case, distinct from `readOnly` above — hides "+" only.
+   * Adding a permanent Core member stays Your Circles-only, unchanged.
+   * **No longer implies `readOnly`, corrected 2026-09-01**: Core's pills
+   * used to be fully read-only too (the original 31 August build), but
+   * that's now a separate, deliberate decision — Core allows excluding
+   * an existing member, just with one extra beat of confirmation the
+   * caller adds on top of `onToggleIncluded` (see people.tsx), not a
+   * plain one-tap toggle like every other Circle. This prop stays scoped
+   * to "no + here," full stop. See docs/09-decision-log.md.
    */
   locked?: boolean;
 }
@@ -57,6 +61,20 @@ interface RecipientPersonalisationProps {
  * Reordering live while someone's actively tapping pills would make pills
  * jump position under their finger mid-tap — deliberately avoided.
  *
+ * **Core's own tap is deliberately not this component's plain one-tap
+ * toggle, 2026-09-01.** `onToggleIncluded` fires the same for every
+ * caller here — the caller (people.tsx) wraps it with a confirmation
+ * step before actually calling it, specifically for Core. Real decision,
+ * not a technical default: Core exists as the safety net that doesn't
+ * bend easily, and the moments someone might impulsively want to exclude
+ * a Core person (acute shame, "I don't even want my closest people to
+ * know") are often exactly the moments Core is meant to protect against,
+ * not accommodate frictionlessly — but forcing a full detour to Your
+ * Circles for an ordinary, considered reason (someone's away, a specific
+ * temporary tension) is a real cost at low capacity. One extra beat of
+ * deliberateness, reachable without leaving the flow, is the resolution.
+ * See docs/09-decision-log.md.
+ *
  * A Circle with only one contact never shows a removable pill at all —
  * excluding your only recipient already has the same effect as not
  * selecting the Circle in the first place (that's GroupPicker's own chip),
@@ -72,7 +90,6 @@ export function RecipientPersonalisation({
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  const effectiveReadOnly = readOnly || locked;
   const isSoleContact = recipients.length === 1;
 
   const [orderedIds] = useState(() =>
@@ -112,7 +129,7 @@ export function RecipientPersonalisation({
             style={styles.pillScroll}
           >
             {visible.map((recipient) =>
-              effectiveReadOnly ? (
+              readOnly ? (
                 <AdaptiveCircleChip
                   key={recipient.contactId}
                   label={recipient.name}
