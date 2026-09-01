@@ -245,38 +245,64 @@ export function DockedInputBar({
     }
   };
 
-  // Tap-outside already dismisses the keyboard app-wide (Screen.tsx's own
-  // TouchableWithoutFeedback) — this makes that same gesture also close the
-  // docked bar itself, generically, for every field on every screen. Without
-  // it, a field like new-Circle naming would need its own explicit Cancel
-  // button to avoid trapping the user in a half-open bar. See
-  // docs/09-decision-log.md, 2026-08-11.
+  // Closes the docked bar itself whenever the keyboard genuinely goes away
+  // (scrolling the page away from the field, switching to another app,
+  // backgrounding) — without this, a field like new-Circle naming would
+  // need its own explicit Cancel button to avoid trapping the user in a
+  // half-open bar. **Corrected 2026-09-01 — this comment used to justify
+  // the mechanism as "mirrors Screen.tsx's own tap-outside-dismisses-the-
+  // keyboard TouchableWithoutFeedback," which no longer exists** (removed
+  // the same night, replaced with onScrollBeginDrag — see Screen.tsx and
+  // docs/09-decision-log.md): tap-outside no longer dismisses the keyboard
+  // at all, so that reasoning was stale, though the bar-closing behaviour
+  // itself is still wanted for the cases above.
   //
-  // Guarded on a real keyboardDidShow having actually fired for THIS mount
-  // first (2026-08-30 fix, real on-device bug: "+ New Circle" opened this
-  // bar then closed it again within about a second, on every attempt).
-  // This bar mixes react-native-keyboard-controller's own keyboard tracking
-  // (KeyboardStickyView below) with React Native's separate legacy Keyboard
-  // API for this one listener — two different keyboard-event sources are a
-  // plausible source of an out-of-order or spurious first "hide" firing
-  // right as the keyboard is still animating in on a fresh mount, before a
-  // real "show" has actually happened for this instance. Without this
-  // guard, that spurious hide reads as "the user dismissed the keyboard"
-  // and immediately closes the bar it only just opened. A field with
-  // autoFocus (every current field) always gets a real show event first in
-  // ordinary use, so this doesn't change intended behaviour once the
-  // keyboard has genuinely appeared at least once.
+  // **Real bug found and fixed 2026-09-01: tapping a suggestion pill (or
+  // any Pressable inside this bar that isn't the TextInput itself) could
+  // blur the TextInput just long enough to fire a real keyboardDidHide,
+  // immediately closing the bar mid-tap — the insertion itself still
+  // happened, but visually read as "pushes the keyboard down, bar left
+  // half-collapsed," the pill looking broken even though highlight.insertBlock
+  // ran correctly.** Debounced: a hide only actually closes the bar if no
+  // matching show follows within DISMISS_DEBOUNCE_MS — a focus blip from
+  // tapping something inside the bar re-shows the keyboard almost
+  // immediately (the TextInput never really lost focus for more than a
+  // frame or two), cancelling the pending dismiss; a genuine dismiss
+  // (scrolled away, backgrounded) has no show event following it at all,
+  // so it still closes exactly as before, just ~150ms later.
+  //
+  // Also still guarded on a real keyboardDidShow having actually fired for
+  // THIS mount first (2026-08-30 fix, real on-device bug: "+ New Circle"
+  // opened this bar then closed it again within about a second, on every
+  // attempt) — this bar mixes react-native-keyboard-controller's own
+  // keyboard tracking (KeyboardStickyView below) with React Native's
+  // separate legacy Keyboard API for this one listener, a plausible source
+  // of an out-of-order or spurious first "hide" right as the keyboard is
+  // still animating in on a fresh mount.
   useEffect(() => {
+    const DISMISS_DEBOUNCE_MS = 150;
     let hasShownKeyboard = false;
+    let pendingDismiss: ReturnType<typeof setTimeout> | null = null;
+
     const showSubscription = Keyboard.addListener("keyboardDidShow", () => {
       hasShownKeyboard = true;
+      if (pendingDismiss) {
+        clearTimeout(pendingDismiss);
+        pendingDismiss = null;
+      }
     });
     const hideSubscription = Keyboard.addListener("keyboardDidHide", () => {
-      if (hasShownKeyboard) dismiss();
+      if (!hasShownKeyboard) return;
+      if (pendingDismiss) clearTimeout(pendingDismiss);
+      pendingDismiss = setTimeout(() => {
+        pendingDismiss = null;
+        dismiss();
+      }, DISMISS_DEBOUNCE_MS);
     });
     return () => {
       showSubscription.remove();
       hideSubscription.remove();
+      if (pendingDismiss) clearTimeout(pendingDismiss);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dismiss]);
