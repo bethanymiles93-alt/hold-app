@@ -1,6 +1,6 @@
 import type { PropsWithChildren, ReactNode, RefObject } from "react";
 import { useMemo } from "react";
-import { Keyboard, ScrollView, View, type StyleProp, StyleSheet, type ViewStyle } from "react-native";
+import { Keyboard, Pressable, ScrollView, View, type StyleProp, StyleSheet, type ViewStyle } from "react-native";
 import { usePathname } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { theme, type ThemeColors } from "@/constants/theme";
@@ -113,7 +113,35 @@ export function Screen({ children, contentContainerStyle, footer, dockedInput, s
               reserveNavBarSpace && !footer ? { paddingBottom: NAV_BAR_RESERVED_HEIGHT } : null
             ]}
           >
-            {children}
+            {/* **Urgent fix, 2026-09-01**: a tap intended only to dismiss the
+                keyboard was reaching through to trigger a real Send —
+                confirmed dangerous, not a cosmetic bug. `dockedInput` (below)
+                renders as a sibling AFTER this ScrollView in the tree, so it
+                visually overlays this content wherever they spatially
+                overlap (later siblings paint on top, absent explicit
+                z-index) — but its own non-Pressable background areas don't
+                necessarily block touches from passing through to whatever
+                sits underneath. Removing the old TouchableWithoutFeedback
+                wrapper around the whole ScrollView (earlier tonight, fixed
+                real scroll-gesture contention) closed one hole but opened
+                this one: a tap on DockedInputBar's own empty background
+                could fall all the way through to a Pressable in this
+                content underneath it — a Circle chip, Send being the worst
+                case if one happened to sit in that exact spot.
+                Wrapping the CONTENT (not the ScrollView itself) in a
+                Pressable that only dismisses the keyboard closes that hole
+                without reintroducing the gesture-contention bug: this
+                Pressable is a child of the ScrollView, not a wrapper around
+                it, so the ScrollView's own vertical pan responder is
+                unaffected: a tap lands here (dismiss, nothing else) rather
+                than falling through further; a drag still scrolls normally.
+                Not empirically confirmed against a real device — reasoned
+                from the exact mechanism, treated as urgent given the safety
+                stakes rather than held for full on-device verification
+                first. See docs/09-decision-log.md. */}
+            <Pressable onPress={Keyboard.dismiss} accessible={false} style={styles.flex}>
+              {children}
+            </Pressable>
           </ScrollView>
           {footer ? (
             <View style={[styles.footer, reserveNavBarSpace ? { paddingBottom: NAV_BAR_RESERVED_HEIGHT } : null]}>
