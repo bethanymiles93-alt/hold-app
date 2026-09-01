@@ -150,6 +150,7 @@ export default function LibraryScreen() {
             placeholder="Your reply"
             accessibilityLabel="Your reply"
             pendingInsert={conversations.pendingInsertText}
+            pendingInsertBold={conversations.pendingInsertText !== undefined}
             aiAmend={{
               surface: "conversations-reply",
               context: {

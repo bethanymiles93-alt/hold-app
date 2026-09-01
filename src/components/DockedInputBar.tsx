@@ -109,6 +109,15 @@ interface DockedInputBarProps {
    */
   pendingInsert?: string;
   /**
+   * Bold in addition to the usual green highlight, until edited
+   * (2026-09-01) — for a last-sent-message insert specifically ("show it
+   * in bold until edited, distinct from the earlier no-bold-only-
+   * signalling-for-selection-state rule — that's about state indication,
+   * this marks inserted-vs-edited text"). Default false, so every other
+   * `pendingInsert` caller (MemoryNoteSuggestion, etc.) is unaffected.
+   */
+  pendingInsertBold?: boolean;
+  /**
    * Renders a "Copy message" secondary link below the Template/Save row —
    * see CopyMessageLink.tsx. Present only where a caller has a real
    * "message that gets sent" (group message, Reconnect message,
@@ -161,6 +170,7 @@ export function DockedInputBar({
   saveDefault,
   extraPhrases = [],
   pendingInsert,
+  pendingInsertBold = false,
   copyMessage
 }: DockedInputBarProps) {
   const { colors, isDark } = useAppTheme("normal");
@@ -218,7 +228,7 @@ export function DockedInputBar({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!pendingInsert) return;
-    highlight.insertBlock(pendingInsert);
+    highlight.insertBlock(pendingInsert, undefined, pendingInsertBold);
     scrollToEndSoon();
   }, [pendingInsert]);
 
@@ -506,7 +516,10 @@ export function DockedInputBar({
                       is empty; nothing to duplicate in the overlay. */}
                   <Text style={[styles.input, styles.inputOverlay]} pointerEvents="none">
                     {highlight.segments.map((segment, index) => (
-                      <Text key={index} style={segment.green ? styles.greenText : undefined}>
+                      <Text
+                        key={index}
+                        style={[segment.green && styles.greenText, segment.bold && styles.boldText]}
+                      >
                         {segment.text}
                       </Text>
                     ))}
@@ -785,6 +798,9 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     },
     greenText: {
       color: colors.primary
+    },
+    boldText: {
+      fontWeight: "700"
     },
     // justifyContent: "space-between", matching DockedFieldPreview's own
     // identical fix — Save always lands left, Template always lands

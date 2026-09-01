@@ -1248,6 +1248,7 @@ export default function ReconnectScreen() {
             template={savedDefaultText !== null ? { text: savedDefaultText } : undefined}
             extraPhrases={messageExtraPhrases}
             pendingInsert={pendingMemoryInsert}
+            pendingInsertBold={pendingMemoryInsert !== undefined}
             saveDefault={
               contributingCircleIds.length > 0
                 ? {
@@ -1276,6 +1277,7 @@ export default function ReconnectScreen() {
             placeholder="Your reply"
             accessibilityLabel="Your reply"
             pendingInsert={conversations.pendingInsertText}
+            pendingInsertBold={conversations.pendingInsertText !== undefined}
             aiAmend={{
               surface: "conversations-reply",
               context: { friendMessage: conversations.personaliseReplyTarget.friendMessage }

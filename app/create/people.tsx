@@ -857,6 +857,7 @@ export default function HoldPeopleScreen() {
             }
             copyMessage={activeField === "group-message"}
             pendingInsert={activeField === "group-message" ? (pendingCircleLastSent ?? undefined) : undefined}
+            pendingInsertBold={activeField === "group-message" && pendingCircleLastSent !== null}
           />
         ) : null
       }

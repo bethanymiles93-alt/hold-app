@@ -3,11 +3,22 @@ export interface HighlightRange {
   id: string;
   start: number;
   end: number;
+  /**
+   * Bold in addition to green, until edited (2026-09-01) — distinct
+   * purpose from the app's own "no bold-only signalling for selection
+   * state" rule (that's about state indication; this marks inserted-vs-
+   * edited text, a different question). Opt-in per block, not every
+   * insertion — a last-sent-message insert wants it, a plain Template/
+   * suggestion-pill insert doesn't, so this is a caller choice at
+   * insertBlock time, not a blanket behaviour change.
+   */
+  bold?: boolean;
 }
 
 export interface TextSegment {
   text: string;
   green: boolean;
+  bold?: boolean;
 }
 
 /**
@@ -70,19 +81,24 @@ export function generateBlockId(): string {
   return `block-${Date.now().toString(36)}-${nextBlockId}`;
 }
 
-/** Appends `text` as a new tracked-green block — alongside/below existing text, never a destructive replace. */
+/** Appends `text` as a new tracked-green block — alongside/below existing text, never a destructive replace. `bold` is opt-in per call, see HighlightRange's own doc comment. */
 export function insertBlock(
   value: string,
   ranges: HighlightRange[],
   text: string,
-  id: string = generateBlockId()
+  id: string = generateBlockId(),
+  bold = false
 ): { value: string; ranges: HighlightRange[]; id: string } {
   const needsSeparator = value.trim().length > 0;
   const insertion = needsSeparator ? `\n${text}` : text;
   const start = value.length + (needsSeparator ? 1 : 0);
   const end = start + text.length;
 
-  return { value: value + insertion, ranges: [...ranges, { id, start, end }], id };
+  return {
+    value: value + insertion,
+    ranges: [...ranges, bold ? { id, start, end, bold } : { id, start, end }],
+    id
+  };
 }
 
 /** Removes exactly one still-green block as a single unit, including a single leading separator so it doesn't leave a stray blank line. */
@@ -114,7 +130,7 @@ export function buildSegments(value: string, ranges: HighlightRange[]): TextSegm
   let cursor = 0;
   for (const range of sorted) {
     if (range.start > cursor) result.push({ text: value.slice(cursor, range.start), green: false });
-    result.push({ text: value.slice(range.start, range.end), green: true });
+    result.push({ text: value.slice(range.start, range.end), green: true, bold: range.bold });
     cursor = range.end;
   }
   if (cursor < value.length) result.push({ text: value.slice(cursor), green: false });

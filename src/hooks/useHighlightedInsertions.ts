@@ -28,9 +28,9 @@ export function useHighlightedInsertions(value: string, onChangeText: (text: str
     onChangeText(newValue);
   };
 
-  /** Returns the new block's id, so a caller (e.g. the Template button) can later check `isBlockGreen(id)`. */
-  const insertBlock = (text: string, id?: string): string => {
-    const result = insertBlockPure(value, ranges, text, id);
+  /** Returns the new block's id, so a caller (e.g. the Template button) can later check `isBlockGreen(id)`. `bold` is opt-in — see HighlightRange's own doc comment. */
+  const insertBlock = (text: string, id?: string, bold = false): string => {
+    const result = insertBlockPure(value, ranges, text, id, bold);
     setRanges(result.ranges);
     onChangeText(result.value);
     return result.id;
