@@ -1558,29 +1558,60 @@ export default function ReconnectScreen() {
                       <Text style={styles.saveChangesText}>Save changes</Text>
                     </Pressable>
                   ) : null}
-                  {/* Refines the 13 August "sent to all" completion gate —
-                      a deliberate, explicit skip, not a silent one. Not
-                      shown once already sent: nothing left to skip. See
-                      getReconnectCoverage, docs/09-decision-log.md,
-                      2026-08-31. */}
-                  {!alreadySent ? (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityState={{ checked: markedForConversations }}
-                      accessibilityLabel={
-                        markedForConversations
-                          ? `${circle.circleName} marked for Conversations instead. Tap to undo.`
-                          : `Send something more personal to ${circle.circleName} in Conversations instead`
-                      }
-                      onPress={() => toggleMarkedForConversations(circle.circleId, markedForConversations)}
-                    >
-                      <Text style={styles.linkText}>
-                        {markedForConversations
-                          ? "✓ Sending in Conversations instead"
-                          : "I'll send something more personal in Conversations instead"}
-                      </Text>
-                    </Pressable>
-                  ) : null}
+                  {/* "Conversation" label + selection-circle indicator,
+                      built 2026-09-01 — replaces the old
+                      "I'll send something more personal in Conversations
+                      instead" text link entirely (that wording was
+                      superseded the same night it was written; the plain
+                      text survived as an unbuilt gap until now). Same
+                      underlying mechanism (toggleMarkedForConversations)
+                      as the old link, just the new label/indicator in
+                      place of it. Indicator reuses AdaptiveCircleChip's
+                      own hollow/thick-outline/solid-fill visual language
+                      directly (not the component itself, which requires a
+                      label) — not marked: hollow, thin border; marked,
+                      not yet resolved: thick border, no fill; resolved
+                      via Conversation: solid dark-green sent fill.
+                      "Resolved via Conversation" specifically means
+                      marked AND alreadySent — alreadySent alone doesn't
+                      imply Conversations, since a Circle can also resolve
+                      via an ordinary instant-message send, which has its
+                      own separate treatment on the Circle's own top-level
+                      chip. Once resolved, the indicator is no longer
+                      tappable — nothing left to toggle, matching the old
+                      link's own "hidden once resolved" behaviour, just
+                      shown instead of removed. See docs/09-decision-log.md. */}
+                  {(() => {
+                    const resolvedViaConversation = markedForConversations && alreadySent;
+                    return (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityState={{ checked: markedForConversations, disabled: resolvedViaConversation }}
+                        accessibilityLabel={
+                          resolvedViaConversation
+                            ? `${circle.circleName}, resolved via Conversation.`
+                            : markedForConversations
+                              ? `${circle.circleName} marked for Conversation instead. Tap to undo.`
+                              : `Mark ${circle.circleName} for Conversation instead of an instant message`
+                        }
+                        disabled={resolvedViaConversation}
+                        onPress={() => toggleMarkedForConversations(circle.circleId, markedForConversations)}
+                        style={styles.conversationMarkRow}
+                      >
+                        <View
+                          style={[
+                            styles.conversationMarkCircle,
+                            resolvedViaConversation
+                              ? styles.conversationMarkCircleSent
+                              : markedForConversations
+                                ? styles.conversationMarkCircleSelected
+                                : null
+                          ]}
+                        />
+                        <Text style={styles.conversationMarkLabel}>Conversation</Text>
+                      </Pressable>
+                    );
+                  })()}
                   <CircleLastSentMessage
                     circleId={circle.circleId}
                     onInsert={(text) => {
@@ -1998,6 +2029,37 @@ function createStyles(colors: ThemeColors) {
     },
     linkText: {
       color: colors.link,
+      fontSize: 14,
+      fontWeight: "600"
+    },
+    // "Conversation" mark row (2026-09-01) — indicator circle reuses
+    // AdaptiveCircleChip's own hollow/thick-outline/solid-fill token
+    // values directly, not the component itself (it requires a label).
+    conversationMarkRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xs,
+      minHeight: 32
+    },
+    conversationMarkCircle: {
+      width: 16,
+      height: 16,
+      borderRadius: 8,
+      backgroundColor: "transparent",
+      borderWidth: 1.5,
+      borderColor: colors.border
+    },
+    conversationMarkCircleSelected: {
+      borderWidth: 3,
+      borderColor: colors.text
+    },
+    conversationMarkCircleSent: {
+      backgroundColor: colors.primary,
+      borderWidth: 2.5,
+      borderColor: colors.onPrimary
+    },
+    conversationMarkLabel: {
+      color: colors.text,
       fontSize: 14,
       fontWeight: "600"
     },
