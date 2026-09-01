@@ -90,19 +90,21 @@ interface HistoryCalendarProps {
  *
  * **Merged into one page with the list, 2026-09-01** (confirmed 30 August
  * decision, not previously propagated to hold-book) — no more separate
- * List/Calendar toggle in history.tsx. This component itself now opens
- * collapsed by default (a compact header row, tap to expand), reusing the
- * app's existing collapsed-by-default/tap-to-expand accordion convention
- * rather than always showing the full dense grid. Day-tap no longer shows
- * an inline detail block here — it calls `onSelectDate` so the list below
- * (always visible now, not gated behind a toggle) can scroll/anchor to
- * the matching entry instead. See docs/09-decision-log.md.
+ * List/Calendar toggle in history.tsx; this calendar and the list below
+ * it are both always visible now, no toggle either way. **Briefly built
+ * collapsed-by-default (tap to expand) the same day, then corrected**:
+ * History's calendar is primary navigation, not a secondary aid, so it
+ * stays always visible like the list below it — the collapse mechanic
+ * is gone entirely, not just defaulted open. Day-tap no longer shows an
+ * inline detail block here — it calls `onSelectDate` so the list below
+ * can scroll/anchor to the matching entry instead. Only days with an
+ * actual logged period are tappable at all (2026-09-01) — an empty-day
+ * tap led nowhere, pure friction. See docs/09-decision-log.md.
  */
 export function HistoryCalendar({ periods, onDelete, onSelectDate }: HistoryCalendarProps) {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  const [isExpanded, setIsExpanded] = useState(false);
   const [monthStart, setMonthStart] = useState(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
@@ -185,20 +187,9 @@ export function HistoryCalendar({ periods, onDelete, onSelectDate }: HistoryCale
 
   return (
     <View>
-      <View style={styles.stripHeader}>
-        <Text style={styles.stripHeaderLabel}>
-          Calendar {!isExpanded ? `· ${monthName} ${year}` : ""}
-        </Text>
-        <DropdownArrowBadge
-          expanded={isExpanded}
-          onPress={() => setIsExpanded((current) => !current)}
-          accessibilityLabel={`Calendar, ${monthName} ${year}. ${isExpanded ? "Collapse" : "Expand"}.`}
-        />
-      </View>
+      <Text style={styles.stripHeaderLabel}>Calendar</Text>
 
-      {isExpanded ? (
-        <>
-          <View style={styles.monthRow}>
+      <View style={styles.monthRow}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Previous month"
@@ -276,30 +267,44 @@ export function HistoryCalendar({ periods, onDelete, onSelectDate }: HistoryCale
               const key = dateKeyOf(date);
               const band = dayBands.get(key);
 
+              // Only days with a logged period are tappable at all
+              // (2026-09-01) — an empty day led to a dead "nothing here"
+              // tap before, pure friction for no benefit. A plain View
+              // for empty days rather than a Pressable with a no-op
+              // handler, matching the app's own "no dead taps" rule.
+              if (!band) {
+                return (
+                  <View key={key} style={styles.dayCell}>
+                    <View style={styles.dayCircle}>
+                      <Text style={styles.dayNumber}>{date.getDate()}</Text>
+                    </View>
+                  </View>
+                );
+              }
+
               return (
                 <Pressable
                   key={key}
                   accessibilityRole="button"
-                  onPress={() => {
-                    if (!band) return;
-                    onSelectDate(key, periodsOnDay(key));
-                  }}
+                  accessibilityLabel={`${monthName} ${date.getDate()}, has a Hold period`}
+                  onPress={() => onSelectDate(key, periodsOnDay(key))}
                   style={styles.dayCell}
                 >
-                  {band ? (
-                    <View style={[styles.dayBand, band.roundStart && styles.dayBandRoundStart, band.roundEnd && styles.dayBandRoundEnd]} />
-                  ) : null}
+                  {/* Solid dark-green fill, reusing AdaptiveCircleChip's
+                      own sent-state colour pairing (colors.primary fill,
+                      colors.onPrimary text) rather than a separate
+                      lighter convention — "this day has something" reads
+                      the same way "sent" does everywhere else. */}
+                  <View style={[styles.dayBand, band.roundStart && styles.dayBandRoundStart, band.roundEnd && styles.dayBandRoundEnd]} />
                   <View style={styles.dayCircle}>
-                    <Text style={styles.dayNumber}>{date.getDate()}</Text>
+                    <Text style={[styles.dayNumber, styles.dayNumberLogged]}>{date.getDate()}</Text>
                   </View>
                 </Pressable>
               );
             })}
           </View>
-        </>
-      ) : null}
 
-      {isExpanded && browsingYear !== null ? (
+      {browsingYear !== null ? (
         <View style={styles.yearBrowseSection}>
           <View style={styles.yearBrowseHeaderRow}>
             <Text style={styles.yearBrowseHeading}>{browsingYear}, month by month</Text>
@@ -346,22 +351,16 @@ export function HistoryCalendar({ periods, onDelete, onSelectDate }: HistoryCale
 
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
-    stripHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      minHeight: 44
-    },
     stripHeaderLabel: {
       color: colors.text,
       fontSize: 17,
-      fontWeight: "600"
+      fontWeight: "600",
+      marginBottom: theme.spacing.sm
     },
     monthRow: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      marginTop: theme.spacing.sm,
       marginBottom: theme.spacing.sm
     },
     monthLabelRow: {
@@ -409,7 +408,7 @@ function createStyles(colors: ThemeColors) {
       right: 0,
       top: "20%",
       height: "60%",
-      backgroundColor: `${colors.primary}33`
+      backgroundColor: colors.primary
     },
     dayBandRoundStart: {
       left: "20%",
@@ -431,6 +430,10 @@ function createStyles(colors: ThemeColors) {
     dayNumber: {
       fontSize: 13,
       color: colors.text
+    },
+    dayNumberLogged: {
+      color: colors.onPrimary,
+      fontWeight: "600"
     },
     empty: {
       color: colors.textMuted,

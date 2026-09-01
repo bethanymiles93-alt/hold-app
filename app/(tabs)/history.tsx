@@ -268,24 +268,36 @@ function MonthCalendarView({ periods, onDelete }: MonthCalendarViewProps) {
           const band = dayBands.get(key);
           const selected = selectedDayKey === key;
 
+          // Only days with a logged period are tappable — an empty-day
+          // tap led to a dead "nothing here" state before, pure friction.
+          // Plain View for empty days, not a Pressable with a no-op.
+          if (!band) {
+            return (
+              <View key={key} style={styles.dayCell}>
+                <View style={styles.dayCircle}>
+                  <Text style={styles.dayNumber}>{date.getDate()}</Text>
+                </View>
+              </View>
+            );
+          }
+
           return (
             <Pressable
               key={key}
               accessibilityRole="button"
+              accessibilityLabel={`${monthName} ${date.getDate()}, has a Hold period`}
               onPress={() => setSelectedDayKey(selected ? null : key)}
               style={styles.dayCell}
             >
-              {band ? (
-                <View
-                  style={[
-                    styles.dayBand,
-                    band.roundStart && styles.dayBandRoundStart,
-                    band.roundEnd && styles.dayBandRoundEnd
-                  ]}
-                />
-              ) : null}
+              <View
+                style={[
+                  styles.dayBand,
+                  band.roundStart && styles.dayBandRoundStart,
+                  band.roundEnd && styles.dayBandRoundEnd
+                ]}
+              />
               <View style={[styles.dayCircle, selected && styles.dayCircleSelected]}>
-                <Text style={styles.dayNumber}>{date.getDate()}</Text>
+                <Text style={[styles.dayNumber, styles.dayNumberLogged]}>{date.getDate()}</Text>
               </View>
             </Pressable>
           );
@@ -404,7 +416,7 @@ export default function HoldHistoryScreen() {
           style={[styles.toggleButton, segment === "history" && styles.toggleActive]}
         >
           <Text style={[styles.toggleLabel, segment === "history" && styles.toggleLabelActive]}>
-            History
+            Your History
           </Text>
         </Pressable>
         <Pressable
@@ -413,23 +425,22 @@ export default function HoldHistoryScreen() {
           style={[styles.toggleButton, segment === "patterns" && styles.toggleActive]}
         >
           <Text style={[styles.toggleLabel, segment === "patterns" && styles.toggleLabelActive]}>
-            Patterns
+            Your Patterns
           </Text>
         </Pressable>
       </View>
 
+      {/* Eyebrow + title removed (2026-09-01) — both were redundant with
+          the tab label directly above ("Your History"/"Your Patterns"
+          already says what page this is), and the eyebrow was hardcoded
+          "History" on both segments regardless, which was its own latent
+          inconsistency. Body text kept. A dedicated subtitle under
+          History's own tab ("evidence of your effort and care") is
+          planned separately — wording not yet confirmed, not built here. */}
       {segment === "history" ? (
-        <StepHeader
-          eyebrow="History"
-          title="Your Hold history"
-          body="Just the record: when, how long, and who you told. Nothing else."
-        />
+        <StepHeader body="Just the record: when, how long, and who you told. Nothing else." />
       ) : (
-        <StepHeader
-          eyebrow="History"
-          title="Your patterns"
-          body="What your quiet periods have looked like, in your own data. No comparisons, no judgment."
-        />
+        <StepHeader body="What your quiet periods have looked like, in your own data. No comparisons, no judgment." />
       )}
 
       {segment === "history" ? (
@@ -700,7 +711,10 @@ function createStyles(colors: ThemeColors) {
     left: 0,
     right: 0,
     height: 32,
-    backgroundColor: colors.surfaceStrong
+    // Reuses AdaptiveCircleChip's own sent-state fill (colors.primary),
+    // not a separate calendar-only convention — "this day has something"
+    // should read the same way "sent" does everywhere else in the app.
+    backgroundColor: colors.primary
   },
   dayBandRoundStart: {
     borderTopLeftRadius: 16,
@@ -724,6 +738,10 @@ function createStyles(colors: ThemeColors) {
   dayNumber: {
     color: colors.text,
     fontSize: 14
+  },
+  dayNumberLogged: {
+    color: colors.onPrimary,
+    fontWeight: "600"
   },
   dayDetail: {
     gap: theme.spacing.md,
