@@ -14,6 +14,7 @@ import { CompactSendButton } from "@/components/CompactSendButton";
 import { DockedInputBar } from "@/components/DockedInputBar";
 import { CopyMessageLink } from "@/components/CopyMessageLink";
 import { DockedFieldPreview } from "@/components/DockedFieldPreview";
+import { ClipboardPasteButton, getStringAsync, isPasteButtonAvailable } from "expo-clipboard";
 import { WiderWorldStatus } from "@/components/WiderWorldStatus";
 import { WiderWorldPlatformRow } from "@/components/WiderWorldPlatformRow";
 import { SafeguardingBanner } from "@/components/SafeguardingBanner";
@@ -1017,6 +1018,40 @@ export default function HoldPeopleScreen() {
             </>
           ) : (
             <View style={styles.messageBlock}>
+              {/* Top-right, icon-only — matches the Paste affordance already
+                  established in Conversations (PersonaliseAccordion's "What
+                  they sent" field), same native ClipboardPasteButton and
+                  fallback, just displayMode="icon" here instead of
+                  "iconAndLabel" since this field has no label row of its
+                  own to anchor a text link to. Replaces the whole message,
+                  same as that field's own paste — the point is getting an
+                  unsure draft in, not appending it onto whatever's already
+                  there. See docs/09-decision-log.md, 2026-09-01. */}
+              <View style={styles.messageBlockHeader}>
+                {isPasteButtonAvailable ? (
+                  <ClipboardPasteButton
+                    acceptedContentTypes={["plain-text"]}
+                    displayMode="iconOnly"
+                    style={styles.pasteIconButton}
+                    onPress={(data) => {
+                      if (data.type === "text" && data.text.trim()) setMessage(data.text.trim());
+                    }}
+                  />
+                ) : (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Paste"
+                    hitSlop={8}
+                    onPress={() => {
+                      void getStringAsync().then((text) => {
+                        if (text.trim()) setMessage(text.trim());
+                      });
+                    }}
+                  >
+                    <Ionicons name="clipboard-outline" size={18} color={colors.link} />
+                  </Pressable>
+                )}
+              </View>
               <DockedFieldPreview
                 value={message}
                 placeholder={`Message to ${joinedGroupNames}`}
@@ -1058,21 +1093,38 @@ export default function HoldPeopleScreen() {
                   has no such tracking, matching how its pills already
                   behave. */}
               <View style={styles.messageControls}>
-                {savedDefaultText !== null ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Template"
-                    onPress={() =>
-                      setMessage((current) => (current.trim() ? `${current}\n${savedDefaultText}` : savedDefaultText))
-                    }
-                    style={styles.templateInlineButton}
-                  >
-                    <Ionicons name="book-outline" size={16} color={colors.link} />
-                    <Text style={styles.linkText}>Template</Text>
-                  </Pressable>
-                ) : (
-                  <View />
-                )}
+                <View style={styles.leftControlsGroup}>
+                  {savedDefaultText !== null ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Template"
+                      onPress={() =>
+                        setMessage((current) => (current.trim() ? `${current}\n${savedDefaultText}` : savedDefaultText))
+                      }
+                      style={styles.templateInlineButton}
+                    >
+                      <Ionicons name="book-outline" size={16} color={colors.link} />
+                      <Text style={styles.linkText}>Template</Text>
+                    </Pressable>
+                  ) : null}
+                  {/* Solves the append-only friction generally, not just for
+                      Template: suggestion pills, Template, and Paste all
+                      only ever add to `message`, never replace it — this is
+                      the one explicit "start over" action, so those others
+                      don't each need their own conditional replace-vs-append
+                      behaviour. See docs/09-decision-log.md, 2026-09-01. */}
+                  {message.trim() ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Clear message"
+                      onPress={() => setMessage("")}
+                      style={styles.templateInlineButton}
+                    >
+                      <Ionicons name="close-outline" size={16} color={colors.link} />
+                      <Text style={styles.linkText}>Clear</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
                 <CompactSendButton
                   disabled={!message.trim()}
                   accessibilityLabel={`Send to ${joinedGroupNames}`}
@@ -1271,10 +1323,23 @@ function createStyles(colors: ThemeColors) {
       alignItems: "center",
       justifyContent: "space-between"
     },
+    leftControlsGroup: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm
+    },
     templateInlineButton: {
       flexDirection: "row",
       alignItems: "center",
       gap: 4
+    },
+    messageBlockHeader: {
+      flexDirection: "row",
+      justifyContent: "flex-end"
+    },
+    pasteIconButton: {
+      width: 36,
+      height: 30
     },
     linkText: {
       color: colors.link,
