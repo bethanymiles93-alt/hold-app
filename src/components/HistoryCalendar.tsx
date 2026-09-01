@@ -72,6 +72,24 @@ interface HistoryCalendarProps {
    * to the list now that List/Calendar is one page, not two.
    */
   onSelectDate: (dateKey: string, matchingPeriods: HoldPeriod[]) => void;
+  /**
+   * Fires whenever the calendar's own displayed month changes — prev/
+   * next arrows or the month picker, not the year picker (see
+   * `onYearSelect` below, a distinct filter level). The caller
+   * (history.tsx) uses this to filter the always-visible list to just
+   * this month's periods, per the confirmed 2026-09-01 filtering spec
+   * (supersedes the same-day "scroll/anchor within an unfiltered list"
+   * design — the calendar now actively controls what's in the list, not
+   * just where you're scrolled to within it).
+   */
+  onMonthChange: (monthStart: Date) => void;
+  /**
+   * Fires when a year is picked via the year picker specifically — a
+   * broader filter level than `onMonthChange`, showing that whole year's
+   * periods across every month, not just whichever month the grid
+   * happens to still be displaying underneath.
+   */
+  onYearSelect: (year: number) => void;
 }
 
 /**
@@ -101,7 +119,7 @@ interface HistoryCalendarProps {
  * actual logged period are tappable at all (2026-09-01) — an empty-day
  * tap led nowhere, pure friction. See docs/09-decision-log.md.
  */
-export function HistoryCalendar({ periods, onDelete, onSelectDate }: HistoryCalendarProps) {
+export function HistoryCalendar({ periods, onDelete, onSelectDate, onMonthChange, onYearSelect }: HistoryCalendarProps) {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -145,8 +163,13 @@ export function HistoryCalendar({ periods, onDelete, onSelectDate }: HistoryCale
     pickableYears.push(candidate);
   }
 
+  const changeMonth = (newMonthStart: Date) => {
+    setMonthStart(newMonthStart);
+    onMonthChange(newMonthStart);
+  };
+
   const pickMonth = (monthIndex: number) => {
-    setMonthStart(new Date(year, monthIndex, 1));
+    changeMonth(new Date(year, monthIndex, 1));
     setOpenPicker(null);
   };
 
@@ -154,6 +177,7 @@ export function HistoryCalendar({ periods, onDelete, onSelectDate }: HistoryCale
     setMonthStart(new Date(pickedYear, monthStart.getMonth(), 1));
     setBrowsingYear(pickedYear);
     setOpenPicker(null);
+    onYearSelect(pickedYear);
   };
 
   const toggleMonthExpanded = (key: string) => {
@@ -193,7 +217,7 @@ export function HistoryCalendar({ periods, onDelete, onSelectDate }: HistoryCale
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Previous month"
-              onPress={() => setMonthStart((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))}
+              onPress={() => changeMonth(new Date(monthStart.getFullYear(), monthStart.getMonth() - 1, 1))}
             >
               <Text style={styles.monthNav}>‹</Text>
             </Pressable>
@@ -216,7 +240,7 @@ export function HistoryCalendar({ periods, onDelete, onSelectDate }: HistoryCale
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Next month"
-              onPress={() => setMonthStart((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))}
+              onPress={() => changeMonth(new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 1))}
             >
               <Text style={styles.monthNav}>›</Text>
             </Pressable>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { Screen } from "@/components/Screen";
@@ -30,6 +30,19 @@ const EXPORT_FAILURE_MESSAGES: Record<Exclude<HistoryExportResult, { ok: true }>
 
 type Segment = "history" | "patterns";
 
+/**
+ * What the always-visible list is currently scoped to — driven entirely
+ * by the calendar above it, not by scrolling. "month" covers both the
+ * calendar's default landing month and any month reached via prev/next
+ * or the month picker — all the same case, since the list just reflects
+ * whichever month the calendar is currently showing. See
+ * docs/09-decision-log.md, 2026-09-01.
+ */
+type ListFilter =
+  | { type: "month"; monthStart: Date }
+  | { type: "year"; year: number }
+  | { type: "day"; dateKey: string; periods: HoldPeriod[] };
+
 const WEEKDAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
 const MONTH_ABBREVIATIONS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
@@ -49,17 +62,15 @@ function dateKeyOf(date: Date): string {
 interface PeriodCardProps {
   period: HoldPeriod;
   onDelete: (id: string) => void;
-  /** Briefly borders this card in the accent colour — set when the calendar strip jumps the list here on a day-tap, so the destination is visually obvious, not just scrolled-to silently. */
-  highlighted?: boolean;
 }
 
-function PeriodCard({ period, onDelete, highlighted = false }: PeriodCardProps) {
+function PeriodCard({ period, onDelete }: PeriodCardProps) {
   const { colors } = useAppTheme("normal");
   const styles = useMemo(() => createStyles(colors), [colors]);
   const channelLabels = summariseSendChannels(period.sendChannels);
 
   return (
-    <View style={[styles.item, highlighted && styles.itemHighlighted]}>
+    <View style={styles.item}>
       <Text style={styles.itemRecipients}>{period.recipients.join(", ")}</Text>
       <Text style={styles.itemMeta}>Started {formatDateTime(period.startedAt)}</Text>
       <Text style={styles.itemMeta}>
@@ -324,50 +335,28 @@ export default function HoldHistoryScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [periods, setPeriods] = useState<HoldPeriod[]>([]);
   const [segment, setSegment] = useState<Segment>("history");
-  /** List's own default scope, confirmed: most-recent 6 months, all-time reachable via this link. Calendar's own month/year pickers reach all-time separately — this doesn't share state with those, a deliberately simpler mechanism for a plain chronological list. See docs/09-decision-log.md, 2026-08-30. */
-  const [listShowingAllTime, setListShowingAllTime] = useState(false);
-  const [highlightedPeriodId, setHighlightedPeriodId] = useState<string | null>(null);
 
-  // Calendar+list merge, 2026-09-01 (confirmed 30 August decision, not
-  // previously propagated to hold-book) — no more List/Calendar toggle;
-  // the list is always visible below the (collapsed-by-default) calendar.
-  // Tapping a day with activity jumps/anchors the list to that entry,
-  // per the confirmed spec. measureLayout against the Screen's own
-  // ScrollView, not onLayout-based offset summing — more robust across
-  // however many sibling sections sit between the calendar and a given
-  // card, since it asks the native layer for the real relative position
-  // rather than manually accumulating heights.
-  const scrollRef = useRef<ScrollView>(null);
-  const periodCardRefs = useRef<Map<string, View>>(new Map());
+  // Calendar+list merge, 2026-09-01 (confirmed 30 August decision), then
+  // corrected the same day: the calendar actively FILTERS the list, not
+  // just scrolls/anchors to an entry within an unfiltered one. Whichever
+  // month the calendar is currently showing (default, prev/next, or the
+  // month picker — all the same case) filters the list to that month;
+  // picking a year filters to that whole year; tapping a specific logged
+  // day filters the list down to just that one entry, at the top. The
+  // calendar is the list's only filter control now — there's no
+  // "show all time" escape hatch left, since that doesn't have an
+  // obvious place in a filter-driven model; flagged for confirmation
+  // rather than silently kept or dropped. See docs/09-decision-log.md.
+  const [listFilter, setListFilter] = useState<ListFilter>(() => {
+    const now = new Date();
+    return { type: "month", monthStart: new Date(now.getFullYear(), now.getMonth(), 1) };
+  });
 
-  const scrollToPeriod = (periodId: string) => {
-    const cardNode = periodCardRefs.current.get(periodId);
-    const scrollNode = scrollRef.current;
-    if (!cardNode || !scrollNode) return;
-    cardNode.measureLayout(
-      scrollNode as unknown as number,
-      (_x, y) => scrollNode.scrollTo({ y: Math.max(0, y - theme.spacing.md), animated: true }),
-      () => {}
-    );
-  };
-
-  const handleSelectDate = (_dateKey: string, matchingPeriods: HoldPeriod[]) => {
-    const target = matchingPeriods[0];
-    if (!target) return;
-    setHighlightedPeriodId(target.id);
-    // If the tapped day's period is older than the list's own default
-    // 6-month scope, it isn't rendered yet — widen the scope first so
-    // there's actually something to scroll to, matching "jump to it"
-    // rather than silently doing nothing.
-    if (!listShowingAllTime && !recentPeriods.some((p) => p.id === target.id)) {
-      setListShowingAllTime(true);
-      // Card refs for a newly-revealed period don't exist until after this
-      // re-render commits — deferred one tick rather than scrolling
-      // against a stale/missing ref.
-      setTimeout(() => scrollToPeriod(target.id), 50);
-    } else {
-      scrollToPeriod(target.id);
-    }
+  const handleMonthChange = (monthStart: Date) => setListFilter({ type: "month", monthStart });
+  const handleYearSelect = (year: number) => setListFilter({ type: "year", year });
+  const handleSelectDate = (dateKey: string, matchingPeriods: HoldPeriod[]) => {
+    if (matchingPeriods.length === 0) return;
+    setListFilter({ type: "day", dateKey, periods: matchingPeriods });
   };
 
   const refresh = useCallback(async () => {
@@ -391,12 +380,17 @@ export default function HoldHistoryScreen() {
     }
   };
 
-  const sixMonthsAgo = (() => {
-    const cutoff = new Date();
-    cutoff.setMonth(cutoff.getMonth() - 6);
-    return cutoff.getTime();
+  const filteredPeriods = (() => {
+    if (listFilter.type === "day") return listFilter.periods;
+    if (listFilter.type === "year") {
+      return periods.filter((period) => new Date(period.startedAt).getFullYear() === listFilter.year);
+    }
+    const monthStart = listFilter.monthStart;
+    const nextMonthStart = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 1);
+    return periods.filter(
+      (period) => period.startedAt >= monthStart.getTime() && period.startedAt < nextMonthStart.getTime()
+    );
   })();
-  const recentPeriods = periods.filter((period) => period.startedAt >= sixMonthsAgo);
 
   const closedPeriods = periods.filter((period) => period.endedAt !== null);
   const totalDurationMs = closedPeriods.reduce(
@@ -408,7 +402,7 @@ export default function HoldHistoryScreen() {
     closedPeriods.length > 0 ? Math.max(...closedPeriods.map((period) => period.endedAt!)) : null;
 
   return (
-    <Screen contentContainerStyle={styles.content} scrollRef={scrollRef}>
+    <Screen contentContainerStyle={styles.content}>
       <View style={styles.toggle}>
         <Pressable
           accessibilityRole="button"
@@ -445,35 +439,24 @@ export default function HoldHistoryScreen() {
 
       {segment === "history" ? (
         <>
-          <HistoryCalendar periods={periods} onDelete={remove} onSelectDate={handleSelectDate} />
+          <HistoryCalendar
+            periods={periods}
+            onDelete={remove}
+            onSelectDate={handleSelectDate}
+            onMonthChange={handleMonthChange}
+            onYearSelect={handleYearSelect}
+          />
 
           {periods.length === 0 ? (
             <Text style={styles.empty}>No Hold periods yet.</Text>
+          ) : filteredPeriods.length === 0 ? (
+            <Text style={styles.empty}>Nothing here.</Text>
           ) : (
-            <>
-              <View style={styles.list}>
-                {(listShowingAllTime ? periods : recentPeriods).map((period) => (
-                  <View
-                    key={period.id}
-                    ref={(node) => {
-                      if (node) periodCardRefs.current.set(period.id, node);
-                      else periodCardRefs.current.delete(period.id);
-                    }}
-                  >
-                    <PeriodCard period={period} onDelete={remove} highlighted={period.id === highlightedPeriodId} />
-                  </View>
-                ))}
-              </View>
-              {!listShowingAllTime && recentPeriods.length < periods.length ? (
-                <Pressable accessibilityRole="button" onPress={() => setListShowingAllTime(true)}>
-                  <Text style={styles.listScopeLink}>Show all time</Text>
-                </Pressable>
-              ) : listShowingAllTime ? (
-                <Pressable accessibilityRole="button" onPress={() => setListShowingAllTime(false)}>
-                  <Text style={styles.listScopeLink}>Show recent only</Text>
-                </Pressable>
-              ) : null}
-            </>
+            <View style={styles.list}>
+              {filteredPeriods.map((period) => (
+                <PeriodCard key={period.id} period={period} onDelete={remove} />
+              ))}
+            </View>
           )}
 
           <Pressable
@@ -585,12 +568,6 @@ function createStyles(colors: ThemeColors) {
   list: {
     gap: theme.spacing.md
   },
-  listScopeLink: {
-    color: colors.link,
-    fontSize: 14,
-    fontWeight: "600",
-    marginTop: theme.spacing.sm
-  },
   exportRow: {
     minHeight: 44,
     alignItems: "center",
@@ -619,9 +596,6 @@ function createStyles(colors: ThemeColors) {
     borderWidth: 1.5,
     borderColor: colors.border,
     padding: theme.spacing.md
-  },
-  itemHighlighted: {
-    borderColor: colors.primary
   },
   itemRecipients: {
     color: colors.text,
