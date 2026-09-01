@@ -1,14 +1,6 @@
 import type { PropsWithChildren, ReactNode, RefObject } from "react";
 import { useMemo } from "react";
-import {
-  Keyboard,
-  ScrollView,
-  View,
-  type StyleProp,
-  StyleSheet,
-  TouchableWithoutFeedback,
-  type ViewStyle
-} from "react-native";
+import { Keyboard, ScrollView, View, type StyleProp, StyleSheet, type ViewStyle } from "react-native";
 import { usePathname } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { theme, type ThemeColors } from "@/constants/theme";
@@ -78,56 +70,57 @@ export function Screen({ children, contentContainerStyle, footer, dockedInput, s
     // edge, matching what its translateY assumes.
     <View style={styles.root}>
       <SafeAreaView style={styles.safe} edges={["bottom", "left", "right"]}>
-        {/* Dismisses the keyboard on tap outside an interactive child (a button,
-            an input) — the only dismiss method, since InputAccessoryView's
-            "Done" bar doesn't render under the New Architecture (Fabric).
-            keyboardShouldPersistTaps "handled" on the ScrollView means those
-            children still get their own tap first, so this only fires on
-            genuinely empty space. */}
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-          <View style={styles.flex}>
-            {/* **Corrected 2026-09-01 — the fix below never actually worked,
-                confirmed on a genuinely fresh native build, not stale-cache
-                artifacts.** The previous version of this comment claimed
-                switching from KeyboardAvoidingView to automaticallyAdjustKeyboardInsets
-                + contentInsetAdjustmentBehavior="automatic" fixed input-light
-                screens (Hold+, Research) not scrolling — that was never
-                actually verified against Going Quiet/Reconnect specifically,
-                since neither of those uses this shared Screen component at
-                all (they're custom-built), so the "input-heavy scrolled
-                fine" comparison was never a real test of this fix. These two
-                props are also the one structural difference between every
-                screen that uses Screen.tsx (all reported broken once their
-                content was long enough to need scrolling: Research, Hold+,
-                Our Mission, History) and every screen that scrolls correctly
-                (Welcome, Home, Reconnect, Going Quiet — all custom-built, none
-                of them use these props). The app wraps everything in
-                react-native-keyboard-controller's own KeyboardProvider
-                (app/_layout.tsx) already — layering RN's native automatic
-                keyboard-inset handling on top of that, on every Screen-based
-                page regardless of whether it has any text input at all, is
-                the one remaining candidate. Removed; scroll behaviour now
-                matches every other screen's plain ScrollView. See
-                docs/09-decision-log.md. */}
-            <ScrollView
-              ref={scrollRef}
-              style={styles.flex}
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={[
-                styles.content,
-                contentContainerStyle,
-                reserveNavBarSpace && !footer ? { paddingBottom: NAV_BAR_RESERVED_HEIGHT } : null
-              ]}
-            >
-              {children}
-            </ScrollView>
-            {footer ? (
-              <View style={[styles.footer, reserveNavBarSpace ? { paddingBottom: NAV_BAR_RESERVED_HEIGHT } : null]}>
-                {footer}
-              </View>
-            ) : null}
-          </View>
-        </TouchableWithoutFeedback>
+        {/* **Corrected 2026-09-01, second attempt at this same bug — the
+            first correction (removing automaticallyAdjustKeyboardInsets/
+            contentInsetAdjustmentBehavior) was verified wrong on-device,
+            confirmed genuinely fresh, not stale cache.** The real clue came
+            from Patterns (history.tsx) scrolling inconsistently/"stickily"
+            rather than being fully frozen like Research/Hold+/Our
+            Mission/History — different severity of the same symptom, not a
+            separate bug, since Patterns renders inside this exact same
+            Screen/ScrollView instance. That points at gesture-responder
+            contention, not a ScrollView layout/inset problem: this used to
+            wrap the ScrollView in TouchableWithoutFeedback (below,
+            removed) so tapping empty space would dismiss the keyboard.
+            TouchableWithoutFeedback is built on RN's legacy Touchable
+            responder system, which negotiates for touch ownership the same
+            way a ScrollView's own pan responder does — wrapping a
+            ScrollView in one is a well-documented RN gotcha, producing
+            exactly this "stuck, need a very specific spot to register"
+            symptom as the two responders contend for the gesture, worse
+            the more nested touchable children compete (explaining why
+            History's own List/Calendar content, with more Pressables, was
+            completely frozen while Patterns' simpler content only stuck
+            intermittently). Replaced with onScrollBeginDrag={Keyboard.dismiss}
+            directly on the ScrollView — a native scroll event, not a
+            competing responder — which covers "starts scrolling dismisses
+            the keyboard." Tap-on-genuinely-empty-space-without-scrolling no
+            longer dismisses on its own; none of the custom-built screens
+            (Welcome, Home, Reconnect, Going Quiet) have that behaviour
+            either, so this isn't a regression relative to the rest of the
+            app. Still not empirically gesture-tested (no Accessibility
+            permission for UI automation here) — needs on-device
+            confirmation. See docs/09-decision-log.md. */}
+        <View style={styles.flex}>
+          <ScrollView
+            ref={scrollRef}
+            style={styles.flex}
+            keyboardShouldPersistTaps="handled"
+            onScrollBeginDrag={Keyboard.dismiss}
+            contentContainerStyle={[
+              styles.content,
+              contentContainerStyle,
+              reserveNavBarSpace && !footer ? { paddingBottom: NAV_BAR_RESERVED_HEIGHT } : null
+            ]}
+          >
+            {children}
+          </ScrollView>
+          {footer ? (
+            <View style={[styles.footer, reserveNavBarSpace ? { paddingBottom: NAV_BAR_RESERVED_HEIGHT } : null]}>
+              {footer}
+            </View>
+          ) : null}
+        </View>
       </SafeAreaView>
       {dockedInput}
     </View>
