@@ -1865,3 +1865,16 @@ Corrected hold-book's stale "History" section to match (`03-product/04-patterns.
 8. **Real bug found and fixed**: `sendToCircles`'s individual-delivery loop (`smsService.ts`) tracked one `lastChannel` across every contact in a Circle and recorded only that single value — per-contact `preferredChannel` overrides (2026-08-29) mean recipients in one Circle can genuinely use different channels, and the last one processed silently overwrote every earlier one. Confirmed via direct code read, not assumed: the recording call itself and the display logic (`summariseSendChannels`, reading real stored data, not a global default) were both already correct — the bug was purely in what fed the recording call. Fixed by keying the returned map per-contact (`circleId:phoneNumber`) rather than per-circle for individual delivery; `summariseSendChannels` already deduplicates by value, so an all-same-channel Circle is unaffected, only a genuinely mixed one now shows correctly. **Not retroactively fixable** — discarded channel values were held only in a local variable, never persisted before being overwritten; already-sent historical entries have nothing left to recover. Fixes future sends only.
 
 `tsc --noEmit` and `vitest run` (62/62) both pass after each change. **Not yet verified on-device.**
+
+## 2026-09-01 — hold-book audit follow-up: three documentation gaps closed
+
+Full audit (forked, this session) read hold-app's entire decision log end-to-end against current hold-book content. Findings and fixes, all in hold-book only (no hold-app code changes this entry):
+
+1. **Share Extension status corrected** — hold-book's own decision log still read "concept only, not built" despite the real native target built and verified 2026-08-30 (`xcodebuild` succeeded, `pluginkit` confirms iOS registration). Updated to state precisely what's confirmed (build + registration) vs. not (the interactive on-device share-sheet tap-through).
+2. **Per-Circle last-sent-message preview** (Going Quiet + Reconnect, built 2026-08-31) — documented for the first time in `04-ux-content/01-core-journeys.md`. Had zero hold-book mentions despite being a real, shipped, user-facing feature; the "not a new product decision, just a given spec" reasoning at build time correctly answered whether it needed a decision-log row, not whether the feature needed documenting.
+3. **Conversations' per-person last-sent-message dropdown** (same night, separate mechanism) — same gap, same fix, documented alongside item 2 with an explicit note distinguishing the two (Circle-scoped vs. person-scoped).
+4. **New standing rule added to hold-book's `README.md`**: "needs a decision-log entry" and "needs hold-book documentation" are separate questions — a feature can correctly need neither, one, or both. Going forward, a build that's "just implementing a given spec" still needs a documentation check, independent of whether it needs a decision-log row.
+
+Audit found no Category C (documented-but-not-built) or clean Category D (neither built nor documented) items — every other checked entry matched hold-book accurately.
+
+**hold-book**: this entry's own subject matter — see hold-book's `08-decisions/01-decision-log.md`, 2026-09-01, and the three pages listed above.
