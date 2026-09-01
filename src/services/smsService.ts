@@ -193,6 +193,22 @@ export interface CircleDeliveryTarget {
  * individual delivery — a group send is one shared message through one
  * channel, so there's no per-recipient choice left to honour once
  * `sendAsGroup` is on; that path still uses `defaultChannel` only.
+ *
+ * **Returned map's keys, corrected 2026-09-01**: a `sendAsGroup` Circle
+ * is still keyed by its own `circleId` alone (one channel for the whole
+ * group). An individually-delivered Circle is keyed per contact
+ * (`${circleId}:${phoneNumber}`) instead — recipients can genuinely use
+ * different channels from each other via `preferredChannel`, and this
+ * used to collapse to whichever contact was processed last, silently
+ * discarding the rest (a real bug: a WhatsApp send could show as "Sent
+ * via Text message" in History if an SMS-channel contact happened to be
+ * last). Both callers (`people.tsx`, `reconnect.tsx`) already treat this
+ * map's keys as opaque IDs passed straight to `recordSendChannel`, never
+ * re-interpreted as a real circle lookup, so this doesn't need any
+ * caller-side change. `summariseSendChannels` (holdHistoryFormat.ts)
+ * already deduplicates by value, so a Circle where everyone used the
+ * same channel still shows exactly one label — this only changes the
+ * outcome for a genuinely mixed Circle. See docs/09-decision-log.md.
  */
 export async function sendToCircles(
   targets: CircleDeliveryTarget[],
@@ -218,15 +234,29 @@ export async function sendToCircles(
       continue;
     }
 
-    let lastChannel: SendChannel | null = null;
+    // **Bug fixed 2026-09-01**: this used to track one `lastChannel`
+    // across the whole loop and record only that against the Circle,
+    // silently discarding every earlier contact's own channel — with
+    // per-contact `preferredChannel` overrides (2026-08-29), a Circle's
+    // individual-delivery recipients can genuinely use different
+    // channels from each other, and the last one processed simply
+    // overwrote the rest. Confirmed on-device: a WhatsApp send showed as
+    // "Sent via Text message" in History because an SMS-channel contact
+    // happened to be last in the loop. Now records one entry per
+    // contact, keyed by circleId:phoneNumber rather than circleId alone
+    // — summariseSendChannels (holdHistoryFormat.ts) already
+    // deduplicates by value, so a Circle where everyone used the same
+    // channel still shows exactly one label, same as before; a genuinely
+    // mixed Circle now correctly shows every channel actually used. See
+    // docs/09-decision-log.md.
     for (const contact of target.contacts) {
       try {
-        lastChannel = await sendIndividual(contact.phoneNumber, message, contact.preferredChannel ?? defaultChannel);
+        const channel = await sendIndividual(contact.phoneNumber, message, contact.preferredChannel ?? defaultChannel);
+        channelByCircle.set(`${target.circleId}:${contact.phoneNumber}`, channel);
       } catch {
         // Move on to the next recipient even if this compose sheet was dismissed.
       }
     }
-    if (lastChannel) channelByCircle.set(target.circleId, lastChannel);
   }
 
   return channelByCircle;
